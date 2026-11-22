@@ -262,7 +262,9 @@ mod shell {
     use d2rmm_agent_adapters::http::gateway::HttpGateway;
     use d2rmm_agent_adapters::remote_config::WireReader;
     use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
-    use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode};
+    use d2rmm_agent_adapters::telemetry::{
+        self, ExportConfig, Mode, TelemetryTier, ratio_of, tier_of,
+    };
     use d2rmm_agent_core::fill_name::FillPorts;
     use d2rmm_agent_core::groups::Groups;
     use d2rmm_agent_core::ports::{StateSink, TokenStore};
@@ -518,7 +520,7 @@ mod shell {
         }
     }
 
-    /// The sampling ratio of the agent's spans: the default of the API and the site (OBS-43).
+    /// The sampling ratio of the production tier: the default of the API and the site (OBS-43); the full tier samples all.
     const SAMPLER_RATIO: f64 = 0.1;
 
     /// The relay's token and version, read from the token store for each request, so the token is never captured (AD-101).
@@ -537,12 +539,15 @@ mod shell {
         }
     }
 
-    /// The export configuration of this build. It is `Some` only when the build sets `D2RMM_TELEMETRY=on` at compile
-    /// time (AD-098): a debug profile alone exports nothing.
+    /// The export configuration of this build (ADR 037, which lifts AD-098): every release build exports, and the tier comes
+    /// from the compile-time channel (`preview` and `staging` are full; `production`, none and unknown are production). A
+    /// debug profile exports nothing.
     fn export_config(api_base: &ApiBase, version: &str) -> Option<ExportConfig> {
-        if option_env!("D2RMM_TELEMETRY") != Some("on") {
+        if cfg!(debug_assertions) {
             return None;
         }
+        let channel = crate::channel::build_channel();
+        let tier = tier_of(channel);
         let base = api_base.url().as_str().trim_end_matches('/');
         Some(ExportConfig {
             endpoint: format!("{base}/v1/telemetry/traces"),
@@ -550,14 +555,10 @@ mod shell {
                 tokens: Arc::new(KeyringTokenStore::new()),
                 version: version.to_string(),
             }),
-            ratio: SAMPLER_RATIO,
+            ratio: ratio_of(tier, SAMPLER_RATIO),
             agent_version: version.to_string(),
-            environment: if cfg!(debug_assertions) {
-                "development"
-            } else {
-                "production"
-            }
-            .to_string(),
+            environment: channel.unwrap_or("production").to_string(),
+            tier,
         })
     }
 
@@ -582,6 +583,10 @@ mod shell {
             Mode::Release
         };
         let version = app_context().package_info().version.to_string();
+        // The spans' detail follows the build channel in every profile; the names are recorded in the full tier only (OBT-06).
+        d2rmm_agent_core::detail::set_full_tier(
+            tier_of(crate::channel::build_channel()) == TelemetryTier::Full,
+        );
         let export = export_config(&api_base, &version);
         let telemetry =
             telemetry::init(mode, export).expect("the telemetry subscriber is installed once");

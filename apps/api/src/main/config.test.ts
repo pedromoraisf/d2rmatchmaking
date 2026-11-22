@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { buildShaOf, loadConfig } from './config.ts';
+import { buildShaOf, loadConfig, tierOfEnvironment } from './config.ts';
 
 const SECRET = 'user-secret-value';
+
+describe('the telemetry tier of D2RMM_ENV (OBT-01)', () => {
+  it('maps staging and local to the full tier and production to the production tier', () => {
+    expect(loadConfig({ D2RMM_ENV: 'staging' }).telemetryTier).toBe('full');
+    expect(loadConfig({ D2RMM_ENV: 'local' }).telemetryTier).toBe('full');
+    expect(loadConfig({ D2RMM_ENV: 'production' }).telemetryTier).toBe('production');
+  });
+
+  it('gives an unset or empty D2RMM_ENV the production tier and keeps the local environment (OBT-18)', () => {
+    expect(loadConfig({}).telemetryTier).toBe('production');
+    expect(loadConfig({ D2RMM_ENV: '' }).telemetryTier).toBe('production');
+    expect(loadConfig({}).environment).toBe('local');
+    expect(loadConfig({ D2RMM_ENV: '' }).environment).toBe('local');
+  });
+
+  it('maps any other name to the production tier', () => {
+    for (const name of ['preview', 'development', 'Staging', '', 'x']) {
+      expect(tierOfEnvironment(name)).toBe('production');
+    }
+  });
+});
 
 describe('loadConfig telemetry settings (OBS-40, OBS-43)', () => {
   it('rejects an http endpoint off loopback and an endpoint with user info', () => {

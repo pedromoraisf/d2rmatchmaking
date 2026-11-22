@@ -5,7 +5,7 @@ import { ExportResultCode, type ExportResult } from '@opentelemetry/core';
 import { resourceFromAttributes, type Resource } from '@opentelemetry/resources';
 import type { LogRecordExporter, ReadableLogRecord } from '@opentelemetry/sdk-logs';
 import type { ReadableSpan, SpanExporter, TimedEvent } from '@opentelemetry/sdk-trace-base';
-import { redactAttributes, scrubText } from '../redact-attributes.ts';
+import { isDroppedKey, redactForTier, scrubText, type TelemetryTier } from '../redact-attributes.ts';
 
 type LogAttributes = ReadableLogRecord['attributes'];
 
@@ -34,6 +34,7 @@ function isKeptResourceKey(key: string): boolean {
   return (
     key.startsWith('service.') ||
     key === 'deployment.environment' ||
+    key === 'd2r.telemetry.tier' ||
     key === 'd2r.agent.version' ||
     key.startsWith('telemetry.sdk.')
   );
@@ -43,18 +44,18 @@ function isAllowedLogKey(key: string): boolean {
   return LOG_ATTRIBUTE_KEYS.has(key) || key.startsWith('d2r.');
 }
 
-function redactEvent(event: TimedEvent): TimedEvent {
+function redactEvent(event: TimedEvent, tier: TelemetryTier): TimedEvent {
   if (event.attributes === undefined) return event;
   const attributes: Attributes = {};
-  for (const [key, value] of Object.entries(redactAttributes(event.attributes))) {
+  for (const [key, value] of Object.entries(redactForTier(event.attributes, tier))) {
     if (!EXCEPTION_DROPPED_KEYS.has(key)) attributes[key] = value;
   }
   return { ...event, attributes };
 }
 
-function redactLink(link: Link): Link {
+function redactLink(link: Link, tier: TelemetryTier): Link {
   if (link.attributes === undefined) return link;
-  return { ...link, attributes: redactAttributes(link.attributes) };
+  return { ...link, attributes: redactForTier(link.attributes, tier) };
 }
 
 function keptResource(resource: Resource): Resource {
@@ -66,26 +67,31 @@ function keptResource(resource: Resource): Resource {
 }
 
 /** A copy of an ended span that keeps the SDK's methods through the prototype chain and carries redacted fields. */
-function redactedSpan(span: ReadableSpan): ReadableSpan {
+function redactedSpan(span: ReadableSpan, tier: TelemetryTier): ReadableSpan {
   return Object.assign(Object.create(span) as ReadableSpan, {
-    attributes: redactAttributes(span.attributes),
-    events: span.events.map(redactEvent),
-    links: span.links.map(redactLink),
+    attributes: redactForTier(span.attributes, tier),
+    events: span.events.map((event) => redactEvent(event, tier)),
+    links: span.links.map((link) => redactLink(link, tier)),
     status: { code: span.status.code },
     resource: keptResource(span.resource),
   });
 }
 
-/** Redacts spans before the inner exporter sees them. */
+/** Redacts spans before the inner exporter sees them, by the tier of the process. */
 export class RedactingSpanExporter implements SpanExporter {
   readonly #inner: SpanExporter;
+  readonly #tier: TelemetryTier;
 
-  constructor(inner: SpanExporter) {
+  constructor(inner: SpanExporter, tier: TelemetryTier) {
     this.#inner = inner;
+    this.#tier = tier;
   }
 
   export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
-    this.#inner.export(spans.map(redactedSpan), resultCallback);
+    this.#inner.export(
+      spans.map((span) => redactedSpan(span, this.#tier)),
+      resultCallback,
+    );
   }
 
   async shutdown(): Promise<void> {
@@ -97,10 +103,11 @@ export class RedactingSpanExporter implements SpanExporter {
   }
 }
 
-function allowedLogAttributes(attributes: LogAttributes): LogAttributes {
+function allowedLogAttributes(attributes: LogAttributes, tier: TelemetryTier): LogAttributes {
   const kept: LogAttributes = {};
   for (const [key, value] of Object.entries(attributes)) {
-    if (isAllowedLogKey(key)) kept[key] = value;
+    // The same key rules as spans: a staging-only `d2r.*` key leaves a production log record.
+    if (isAllowedLogKey(key) && !isDroppedKey(key, tier)) kept[key] = value;
   }
   return kept;
 }
@@ -109,14 +116,14 @@ function isSampledRecord(record: ReadableLogRecord): boolean {
   return ((record.spanContext?.traceFlags ?? 0) & TRACE_FLAG_SAMPLED) === TRACE_FLAG_SAMPLED;
 }
 
-function redactedLog(record: ReadableLogRecord): ReadableLogRecord {
-  const body = typeof record.body === 'string' ? scrubText(record.body) : record.body;
+function redactedLog(record: ReadableLogRecord, tier: TelemetryTier): ReadableLogRecord {
+  const body = typeof record.body === 'string' ? scrubText(record.body, tier) : record.body;
   return {
     hrTime: record.hrTime,
     hrTimeObserved: record.hrTimeObserved,
     resource: record.resource,
     instrumentationScope: record.instrumentationScope,
-    attributes: allowedLogAttributes(record.attributes),
+    attributes: allowedLogAttributes(record.attributes, tier),
     droppedAttributesCount: record.droppedAttributesCount,
     ...(record.spanContext === undefined ? {} : { spanContext: record.spanContext }),
     ...(record.severityText === undefined ? {} : { severityText: record.severityText }),
@@ -132,12 +139,14 @@ function redactedLog(record: ReadableLogRecord): ReadableLogRecord {
  */
 export class RedactingLogRecordExporter implements LogRecordExporter {
   readonly #inner: LogRecordExporter;
+  readonly #tier: TelemetryTier;
   readonly #now: () => number;
   #windowStart = Number.NEGATIVE_INFINITY;
   #exportedInWindow = 0;
 
-  constructor(inner: LogRecordExporter, now: () => number = () => Date.now()) {
+  constructor(inner: LogRecordExporter, tier: TelemetryTier, now: () => number = () => Date.now()) {
     this.#inner = inner;
+    this.#tier = tier;
     this.#now = now;
   }
 
@@ -145,7 +154,9 @@ export class RedactingLogRecordExporter implements LogRecordExporter {
     const admitted = logs.filter(
       (record) => (record.severityNumber ?? 0) >= WARN_SEVERITY_NUMBER || isSampledRecord(record),
     );
-    const kept = admitted.filter((): boolean => this.#admitOne()).map(redactedLog);
+    const kept = admitted
+      .filter((): boolean => this.#admitOne())
+      .map((record) => redactedLog(record, this.#tier));
     if (kept.length === 0) {
       resultCallback({ code: ExportResultCode.SUCCESS });
       return;

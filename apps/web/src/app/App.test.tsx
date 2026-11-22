@@ -15,7 +15,12 @@ function currentStage(): string | null {
   return document.querySelector('.stepper [aria-current="step"]')?.textContent ?? null;
 }
 
-const config = { stagingEndpoints: true, minAgentVersion: '0.0.1', bnetSignIn: false };
+const config = {
+  stagingEndpoints: true,
+  minAgentVersion: '0.0.1',
+  bnetSignIn: false,
+  telemetryTier: 'production',
+};
 const player = { accountId: 'acc-1', displayName: 'PlayerOne' };
 const pairedAgent = {
   status: 'paired',

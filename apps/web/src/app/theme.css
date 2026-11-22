@@ -594,6 +594,18 @@ dd {
   margin: 0 0 6px;
 }
 
+/* the recording notice: shown on every page of the full telemetry tier (staging) only (OBT-12) */
+
+.recording-notice {
+  margin: 0;
+  padding: 8px 16px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--warn);
+  color: var(--warn);
+  font-size: 13px;
+  text-align: center;
+}
+
 /* footer: the non-affiliation notice, on every page */
 
 .foot {
