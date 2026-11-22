@@ -11,12 +11,7 @@ import type { ObservationType } from './observation.ts';
 const PLAYER_NAME = /^[A-Za-z](?:[A-Za-z01]|[-_](?=[A-Za-z01]))*[A-Za-z]$/;
 
 export function isPlayerNameReading(value: string): boolean {
-  return (
-    value.length >= 2 &&
-    value.length <= 15 &&
-    PLAYER_NAME.test(value) &&
-    (value.match(/[-_]/g) ?? []).length <= 1
-  );
+  return value.length <= 15 && PLAYER_NAME.test(value) && value.split(/[-_]/).length <= 2;
 }
 
 /** The two observation types a chat sighting has. */
