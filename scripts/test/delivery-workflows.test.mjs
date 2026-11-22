@@ -206,17 +206,46 @@ test('api.yml is a thin caller; it deploys staging only when the maintainer turn
     assert.equal(job.with.app, 'api');
     assert.equal(job.steps, undefined);
   }
-  assert.deepEqual(wf.on.push.branches, ['main']);
+  assert.deepEqual(wf.on.push.branches, ['main', 'phase/**']);
   assert.equal(wf.on.pull_request, undefined, "API previews stay preview-api.yml's (ADR 030)");
   assert.equal(wf.on.workflow_dispatch.inputs.sha.required, true);
   assert.equal(wf.concurrency['cancel-in-progress'], false, 'a migration or a deploy is never cancelled');
-  assert.equal(wf.jobs.deploy.if, "github.event_name == 'push' && vars.API_STAGES_LIVE == 'true'");
+  assert.equal(
+    wf.jobs.deploy.if,
+    "github.event_name == 'push' && (vars.API_STAGES_LIVE == 'true' || startsWith(github.ref, 'refs/heads/phase/'))",
+    'main waits for API_STAGES_LIVE; a phase branch push deploys staging',
+  );
   assert.equal(wf.jobs.deploy.with.environment, 'staging');
   assert.equal(
     wf.jobs.promote.if,
     "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
   );
   assert.deepEqual(wf.jobs.smoke.needs, ['deploy']);
+});
+
+test('api.yml: a phase push deploys staging only, never production, in one serial staging group', () => {
+  const wf = workflow('api.yml');
+  assert.ok(wf.on.push.branches.includes('phase/**'));
+  assert.match(
+    wf.concurrency.group,
+    /event_name == 'push' && 'staging'/,
+    'every push shares one staging group',
+  );
+  assert.equal(wf.concurrency['cancel-in-progress'], false);
+  assert.equal(wf.jobs.smoke.with.environment, 'staging');
+  assert.equal(
+    wf.jobs.promote.if.includes("github.event_name == 'workflow_dispatch'"),
+    true,
+    'promote never runs on a push',
+  );
+  assert.ok(wf.jobs.promote.if.includes("github.ref == 'refs/heads/main'"), 'promote is main-only');
+  const text = readFileSync(new URL('../../.github/workflows/api.yml', import.meta.url), 'utf8');
+  assert.doesNotMatch(text, /environment:\s*production/, 'no production environment in the caller');
+  assert.equal(
+    workflow('stage-deploy.yml').jobs.deploy.environment,
+    undefined,
+    'staging uses repository secrets',
+  );
 });
 
 test('the API deploy migrates its database before it calls Render, then waits for the commit to answer', () => {
