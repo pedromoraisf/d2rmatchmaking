@@ -5,7 +5,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { breakdownOf, topOf } from './lib/otlp-breakdown.mjs';
+import { breakdownOf, marginalWireBytes, topOf } from './lib/otlp-breakdown.mjs';
 
 /** The captures of a directory, in sequence order. */
 export function capturesOf(directory) {
@@ -19,7 +19,8 @@ export function capturesOf(directory) {
 }
 
 export function reportOf(directory, limit) {
-  const breakdown = breakdownOf(capturesOf(directory));
+  const captures = capturesOf(directory);
+  const breakdown = breakdownOf(captures);
   return Object.fromEntries(
     Object.entries(breakdown).map(([signal, data]) => [
       signal,
@@ -27,8 +28,9 @@ export function reportOf(directory, limit) {
         requests: data.requests,
         wireBytes: data.wireBytes,
         protobufBytes: data.protobufBytes,
+        envelopeBytes: data.envelopeBytes,
         distinct: data.rows.length,
-        top: topOf(data, limit),
+        top: topOf(data, limit, signal === 'metrics' ? undefined : marginalWireBytes(captures, signal)),
       },
     ]),
   );

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { gzipSync } from 'node:zlib';
-import { breakdownOf, fieldsOf, topOf } from '../../load/lib/otlp-breakdown.mjs';
+import { breakdownOf, fieldsOf, marginalWireBytes, topOf } from '../../load/lib/otlp-breakdown.mjs';
 
 const varint = (number) => {
   const bytes = [];
@@ -130,4 +130,39 @@ test('topOf orders by bytes, limits the list and estimates the wire bytes from t
   assert.equal(top[0].name, 'large');
   assert.equal(top[0].estimatedWireBytes, top[0].protobufBytes, 'an uncompressed body: wire equals protobuf');
   assert.ok(top[0].share > 0.5 && top[0].share < 1);
+});
+
+test('the envelope is what the items do not account for, and the marginal wire bytes of a name are what its removal saves', () => {
+  const resource = (...spans) =>
+    field(
+      1,
+      Buffer.concat([field(1, field(1, attribute(1, 'service.name', 'x'))), field(2, Buffer.concat(spans))]),
+    );
+  const heavy = Array.from({ length: 6 }, (_, index) =>
+    span('heavy', [['k', `value-${index * 7919}-${'z'.repeat(30)}`]]),
+  );
+  const body = Buffer.concat([resource(...heavy), resource(span('light', []))]);
+  const captures = [{ signal: 'traces', raw: gzipSync(body) }];
+  const { traces: result } = breakdownOf(captures);
+  const itemBytes = result.rows.reduce((sum, row) => sum + row.bytes, 0);
+  assert.equal(result.envelopeBytes, result.protobufBytes - itemBytes);
+  assert.ok(result.envelopeBytes > 0);
+  const marginal = marginalWireBytes(captures, 'traces');
+  assert.ok(marginal.get('heavy') > marginal.get('light'), 'six varied spans cost more than one empty span');
+  assert.deepEqual([...marginal.keys()].sort(), ['heavy', 'light']);
+  const [top] = topOf(result, 1, marginal);
+  assert.equal(top.marginalWireBytes, marginal.get('heavy'));
+});
+
+test('marginal wire bytes cover logs by their label', () => {
+  const body = logs(
+    'scope',
+    logRecord('info', 'incoming request', [['reqId', 'a']]),
+    logRecord('info', 'request completed'),
+  );
+  const marginal = marginalWireBytes([{ signal: 'logs', raw: gzipSync(body) }], 'logs');
+  assert.deepEqual([...marginal.keys()].sort(), [
+    'scope | info | body: incoming request',
+    'scope | info | body: request completed',
+  ]);
 });

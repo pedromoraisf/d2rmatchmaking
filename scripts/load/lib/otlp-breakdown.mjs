@@ -3,7 +3,7 @@
 // keys of its attributes, a log record by its scope, severity and event name, a metric by its name. Sizes are protobuf
 // bytes before gzip; `wireBytes` of a request is the body as the sink read it.
 
-import { gunzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 
 /** Attribute keys the production tier drops (ADR 037); the production-equivalent column subtracts them. */
 export const FULL_TIER_ONLY_KEYS = Object.freeze([
@@ -114,14 +114,33 @@ function mergeKeys(row, byKey) {
     row.attributeKeyBytes.set(key, (row.attributeKeyBytes.get(key) ?? 0) + bytes);
 }
 
+function spanNameOf(span) {
+  const name = fieldsOf(span).find((entry) => entry.field === 5 && entry.wire === 2);
+  return name === undefined ? '(unnamed)' : text(name.bytes);
+}
+
+function scopeNameOf(scope) {
+  const field = fieldsOf(scope).find((entry) => entry.field === 1 && entry.wire === 2);
+  return field === undefined
+    ? '(no scope)'
+    : text(fieldsOf(field.bytes).find((entry) => entry.field === 1 && entry.wire === 2)?.bytes ?? []);
+}
+
+function logNameOf(scopeName, record) {
+  const fields = fieldsOf(record);
+  const severity = fields.find((entry) => entry.field === 3 && entry.wire === 2);
+  const event = fields.find((entry) => entry.field === 12 && entry.wire === 2);
+  const label = event === undefined ? staticBodyOf(fields) : text(event.bytes);
+  return `${scopeName} | ${severity === undefined ? '-' : text(severity.bytes)} | ${label}`;
+}
+
 /** Spans of an ExportTraceServiceRequest, keyed by span name. */
 function tracesOf(body, rows) {
   for (const resource of all(body, 1)) {
     for (const scope of all(resource.bytes, 2)) {
       for (const span of all(scope.bytes, 2)) {
-        const name = fieldsOf(span.bytes).find((entry) => entry.field === 5 && entry.wire === 2);
         const { byKey, fullOnly } = attributesOf(span.bytes, 9);
-        mergeKeys(add(rows, name === undefined ? '(unnamed)' : text(name.bytes), span.size, fullOnly), byKey);
+        mergeKeys(add(rows, spanNameOf(span.bytes), span.size, fullOnly), byKey);
       }
     }
   }
@@ -142,20 +161,10 @@ function staticBodyOf(fields) {
 function logsOf(body, rows) {
   for (const resource of all(body, 1)) {
     for (const scope of all(resource.bytes, 2)) {
-      const scopeField = fieldsOf(scope.bytes).find((entry) => entry.field === 1 && entry.wire === 2);
-      const scopeName =
-        scopeField === undefined
-          ? '(no scope)'
-          : text(
-              fieldsOf(scopeField.bytes).find((entry) => entry.field === 1 && entry.wire === 2)?.bytes ?? [],
-            );
+      const scopeName = scopeNameOf(scope.bytes);
       for (const record of all(scope.bytes, 2)) {
-        const fields = fieldsOf(record.bytes);
-        const severity = fields.find((entry) => entry.field === 3 && entry.wire === 2);
-        const event = fields.find((entry) => entry.field === 12 && entry.wire === 2);
-        const label = event === undefined ? staticBodyOf(fields) : text(event.bytes);
         const { byKey, fullOnly } = attributesOf(record.bytes, 6);
-        const name = `${scopeName} | ${severity === undefined ? '-' : text(severity.bytes)} | ${label}`;
+        const name = logNameOf(scopeName, record.bytes);
         mergeKeys(add(rows, name, record.size, fullOnly), byKey);
       }
     }
@@ -184,7 +193,7 @@ export function bodyOf(raw) {
 /**
  * The breakdown of captured requests.
  * @param {{ signal: 'traces' | 'logs' | 'metrics', raw: Uint8Array }[]} captures
- * @returns {Record<string, { requests: number, wireBytes: number, protobufBytes: number, rows: object[] }>}
+ * @returns {Record<string, { requests: number, wireBytes: number, protobufBytes: number, envelopeBytes: number, rows: object[] }>}
  */
 export function breakdownOf(captures) {
   const result = {};
@@ -200,7 +209,14 @@ export function breakdownOf(captures) {
       protobufBytes += body.length;
       DECODERS[signal](body, rows);
     }
-    result[signal] = { requests, wireBytes, protobufBytes, rows: [...rows.values()] };
+    const itemBytes = [...rows.values()].reduce((sum, row) => sum + row.bytes, 0);
+    result[signal] = {
+      requests,
+      wireBytes,
+      protobufBytes,
+      envelopeBytes: protobufBytes - itemBytes,
+      rows: [...rows.values()],
+    };
   }
   return result;
 }
@@ -212,7 +228,7 @@ export function breakdownOf(captures) {
  * @param {{ wireBytes: number, protobufBytes: number, rows: object[] }} signal
  * @param {number} limit
  */
-export function topOf(signal, limit = 10) {
+export function topOf(signal, limit = 10, marginal = new Map()) {
   const total = signal.protobufBytes || 1;
   const wireRatio = signal.wireBytes / total;
   return [...signal.rows]
@@ -225,10 +241,87 @@ export function topOf(signal, limit = 10) {
       share: row.bytes / total,
       meanBytes: row.bytes / row.count,
       estimatedWireBytes: Math.round(row.bytes * wireRatio),
+      marginalWireBytes: marginal.get(row.name),
+      marginalWireShare: marginal.has(row.name)
+        ? marginal.get(row.name) / (signal.wireBytes || 1)
+        : undefined,
       productionBytes: row.bytes - row.fullOnlyBytes,
       topAttributeKeys: [...row.attributeKeyBytes]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .slice(0, 3)
         .map(([key, bytes]) => ({ key, bytesPerItem: bytes / row.count })),
     }));
+}
+
+const encode = (number, payload) => {
+  const length = [];
+  let rest = payload.length;
+  while (rest >= 0x80) {
+    length.push((rest % 0x80) | 0x80);
+    rest = Math.floor(rest / 0x80);
+  }
+  length.push(rest);
+  return Buffer.concat([Buffer.from([number * 8 + 2, ...length]), payload]);
+};
+
+/**
+ * A request without the items `drop(name)` selects: the same envelope, with the empty scopes and resources removed.
+ * `itemField` is 2 for spans and log records, `nameOf(scope, item)` names an item.
+ */
+function withoutItems(body, nameOf, drop) {
+  const resources = [];
+  for (const resource of all(body, 1)) {
+    const scopes = [];
+    for (const scope of all(resource.bytes, 2)) {
+      const scopeName = scopeNameOf(scope.bytes);
+      const kept = [];
+      let removed = 0;
+      for (const entry of fieldsOf(scope.bytes)) {
+        if (entry.field === 2 && entry.wire === 2 && drop(nameOf(scopeName, entry.bytes))) removed += 1;
+        else kept.push(entry);
+      }
+      if (kept.some((entry) => entry.field === 2) || removed === 0) {
+        scopes.push(encode(2, Buffer.concat(kept.map((entry) => rebuilt(entry)))));
+      }
+    }
+    const others = fieldsOf(resource.bytes)
+      .filter((entry) => entry.field !== 2)
+      .map((entry) => rebuilt(entry));
+    if (scopes.length > 0) resources.push(encode(1, Buffer.concat([...others, ...scopes])));
+  }
+  return Buffer.concat(resources);
+}
+
+function rebuilt(entry) {
+  if (entry.wire === 2) return encode(entry.field, Buffer.from(entry.bytes));
+  throw new RangeError('only length-delimited fields are rebuilt');
+}
+
+/**
+ * The gzip bytes each name adds to the requests of one signal: the wire size of the requests with it, minus the wire size
+ * without its spans or records (the same envelope, so the repeated resource and scope compress as they do in the export).
+ * The marginals overlap a little, so they do not add up exactly to the signal's wire bytes. Traces and logs only.
+ * @param {{ signal: string, raw: Uint8Array }[]} captures
+ * @param {'traces' | 'logs'} signal
+ * @returns {Map<string, number>}
+ */
+export function marginalWireBytes(captures, signal) {
+  const nameOf = signal === 'traces' ? (_scope, item) => spanNameOf(item) : logNameOf;
+  const bodies = captures.filter((entry) => entry.signal === signal).map((entry) => bodyOf(entry.raw));
+  const marginal = new Map();
+  for (const body of bodies) {
+    const full = gzipSync(body).length;
+    const names = new Set();
+    for (const resource of all(body, 1)) {
+      for (const scope of all(resource.bytes, 2)) {
+        const scopeName = scopeNameOf(scope.bytes);
+        for (const item of all(scope.bytes, 2)) names.add(nameOf(scopeName, item.bytes));
+      }
+    }
+    for (const name of names) {
+      const without = gzipSync(withoutItems(body, nameOf, (candidate) => candidate === name)).length;
+      marginal.set(name, (marginal.get(name) ?? 0) + (full - without));
+    }
+  }
+  return marginal;
 }
