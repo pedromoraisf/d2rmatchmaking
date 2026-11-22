@@ -7,6 +7,10 @@
 # not-scenario: OBT-09 — proved by the API name-leak integration tests run in both tiers
 # not-scenario: OBT-10 — proved by a harness test with a fixture that sets a staging-only key outside the tier module
 # not-scenario: OBT-11 — proved by the existing redaction tests, run in both tiers
+# not-scenario: OBT-14 — proved by the agent window component test (en, pt-BR); the agent window is not in the acceptance stack
+# not-scenario: OBT-15 — proved by Rust unit tests on the settings store
+# not-scenario: OBT-16 — proved by Rust unit tests: switch off, the exporter and the relay client are never called
+# not-scenario: OBT-17 — proved by Rust unit tests: the switch is read only by the span processor and the export loop
 # not-scenario: OBT-13 — proved by telemetry.md in review and the TraceQL query run once on grafanacloud-traces
 
 Feature: A field test can be followed in the traces, and production traces name nobody
