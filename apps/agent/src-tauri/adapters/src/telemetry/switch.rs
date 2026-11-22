@@ -5,8 +5,8 @@
 
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use d2rmm_agent_core::ports::StoreError;
 use serde_json::{Value, json};
@@ -45,6 +45,14 @@ impl Default for DiagnosticsSwitch {
     }
 }
 
+/// Where the player's diagnostics choice is kept, the way `ConsentStore` keeps the consent. The composition uses this port; the
+/// file store implements it and `InMemoryDiagnosticsStore` stands in for it in tests.
+pub trait DiagnosticsStore {
+    /// The stored choice: on when none was made (the default), off when it cannot be read (OBT-15).
+    fn load(&self) -> bool;
+    fn save(&self, on: bool) -> Result<(), StoreError>;
+}
+
 /// The switch in a file at `directory`. With no directory nothing is kept and the switch reads as on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileDiagnosticsStore {
@@ -57,10 +65,12 @@ impl FileDiagnosticsStore {
             path: directory.map(|directory| directory.join(DIAGNOSTICS_FILE)),
         }
     }
+}
 
+impl DiagnosticsStore for FileDiagnosticsStore {
     /// The stored choice: on when there is no file (the default); off when a file exists but is unreadable, malformed or
     /// not a boolean flag, the conservative reading once a choice may have been made (OBT-15).
-    pub fn load(&self) -> bool {
+    fn load(&self) -> bool {
         let Some(path) = self.path.as_ref().filter(|path| path.exists()) else {
             return true;
         };
@@ -71,7 +81,7 @@ impl FileDiagnosticsStore {
             .unwrap_or(false)
     }
 
-    pub fn save(&self, on: bool) -> Result<(), StoreError> {
+    fn save(&self, on: bool) -> Result<(), StoreError> {
         let path = self.path.as_ref().ok_or(StoreError)?;
         if let Some(directory) = path.parent() {
             fs::create_dir_all(directory).map_err(|_| StoreError)?;
@@ -87,6 +97,58 @@ impl FileDiagnosticsStore {
     }
 }
 
+/// A store kept in memory, for tests of what composes the switch: `saved` holds a choice, `missing` reads as on, `unreadable`
+/// reads as off and refuses a save, and a save that is refused changes nothing.
+#[derive(Debug)]
+pub struct InMemoryDiagnosticsStore {
+    choice: Mutex<Option<bool>>,
+    readable: bool,
+}
+
+impl InMemoryDiagnosticsStore {
+    pub fn saved(on: bool) -> Self {
+        Self {
+            choice: Mutex::new(Some(on)),
+            readable: true,
+        }
+    }
+
+    pub fn missing() -> Self {
+        Self {
+            choice: Mutex::new(None),
+            readable: true,
+        }
+    }
+
+    pub fn unreadable() -> Self {
+        Self {
+            choice: Mutex::new(None),
+            readable: false,
+        }
+    }
+}
+
+impl DiagnosticsStore for InMemoryDiagnosticsStore {
+    fn load(&self) -> bool {
+        if !self.readable {
+            return false;
+        }
+        self.choice
+            .lock()
+            .ok()
+            .and_then(|choice| *choice)
+            .unwrap_or(true)
+    }
+
+    fn save(&self, on: bool) -> Result<(), StoreError> {
+        if !self.readable {
+            return Err(StoreError);
+        }
+        *self.choice.lock().map_err(|_| StoreError)? = Some(on);
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -94,7 +156,10 @@ mod tests {
 
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    use super::{DIAGNOSTICS_FILE, DiagnosticsSwitch, FileDiagnosticsStore};
+    use super::{
+        DIAGNOSTICS_FILE, DiagnosticsStore, DiagnosticsSwitch, FileDiagnosticsStore,
+        InMemoryDiagnosticsStore,
+    };
 
     struct Scratch(PathBuf);
 
@@ -213,5 +278,18 @@ mod tests {
                 .save(false)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn the_in_memory_store_follows_the_same_contract() {
+        assert!(InMemoryDiagnosticsStore::missing().load());
+        assert!(!InMemoryDiagnosticsStore::unreadable().load());
+        assert!(InMemoryDiagnosticsStore::unreadable().save(true).is_err());
+        let store = InMemoryDiagnosticsStore::saved(true);
+        store.save(false).expect("saved");
+        assert!(!store.load());
+        InMemoryDiagnosticsStore::missing()
+            .save(false)
+            .expect("saved");
     }
 }

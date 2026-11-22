@@ -10,7 +10,9 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
-use d2rmm_agent_adapters::telemetry::{DiagnosticsSwitch, FileDiagnosticsStore, TelemetryTier};
+use d2rmm_agent_adapters::telemetry::{
+    DiagnosticsStore, DiagnosticsSwitch, FileDiagnosticsStore, TelemetryTier,
+};
 use d2rmm_agent_core::ports::{ConsentStore, StoreError};
 use d2rmm_agent_core::runtime::Handle;
 use d2rmm_agent_core::view::{AgentView, HotkeyFailure, HotkeyPress, HotkeySlot};
@@ -228,7 +230,7 @@ pub fn handle_get_diagnostics(
 /// The player's switch (OBT-15, OBT-16): saved first, then applied to the live flag, so the exporter follows at once and a
 /// refusal to save changes nothing.
 pub fn handle_set_diagnostics(
-    store: &FileDiagnosticsStore,
+    store: &dyn DiagnosticsStore,
     switch: &DiagnosticsSwitch,
     enabled: bool,
 ) -> Result<bool, StoreError> {
@@ -745,7 +747,9 @@ mod tests {
     use d2rmm_agent_core::view::{HotkeyFailure, HotkeyPress, HotkeySlot};
     use d2rmm_agent_domain::typing::{HotkeyChoice, HotkeyPair};
 
-    use d2rmm_agent_adapters::telemetry::{DiagnosticsSwitch, TelemetryTier};
+    use d2rmm_agent_adapters::telemetry::{
+        DiagnosticsStore, DiagnosticsSwitch, InMemoryDiagnosticsStore, TelemetryTier,
+    };
 
     use super::{
         CodeRequester, FileHotkeyStore, Slot, app_context, apply_hotkey_change, code_name,
@@ -898,6 +902,15 @@ mod tests {
         assert!(switch.is_on());
 
         let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn a_diagnostics_choice_refused_by_the_fake_store_changes_nothing() {
+        let store = InMemoryDiagnosticsStore::unreadable();
+        let switch = DiagnosticsSwitch::on();
+
+        assert!(handle_set_diagnostics(&store, &switch, false).is_err());
+        assert!(switch.is_on());
     }
 
     #[test]
