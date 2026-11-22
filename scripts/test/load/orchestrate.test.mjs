@@ -855,3 +855,26 @@ test('k6Tail: the failed step carries the last lines of k6 stderr, or says there
   assert.ok(k6Tail({ stdout: 'only stdout', stderr: '' }).includes('only stdout'));
   assert.equal(k6Tail({ stdout: '', stderr: '' }), '; k6 wrote no output');
 });
+
+test('LOAD_TELEMETRY_CAPTURE_DIR is the sink capture directory, and a run without it has none', async () => {
+  const sinkRunOf = (scn) => scn.docker.state.calls.find((call) => call.includes('--token-file'));
+  const plain = scenario({ profile: 'smoke' });
+  await runLoad(plain.input);
+  assert.equal(sinkRunOf(plain).includes('--capture-dir'), false);
+
+  const captured = scenario({ profile: 'smoke', env: { LOAD_TELEMETRY_CAPTURE_DIR: '/tmp/capture' } });
+  await runLoad(captured.input);
+  const args = sinkRunOf(captured);
+  assert.ok(args.includes('/tmp/capture:/capture:rw'));
+  assert.equal(args[args.indexOf('--capture-dir') + 1], '/capture');
+});
+
+test('LOAD_MAX_STEPS ends a local run after that many steps; unset, the ladder runs to its end', async () => {
+  const limited = scenario({ profile: 'full', env: { LOAD_MAX_STEPS: '2' } });
+  const result = await runLoad(limited.input);
+  assert.equal(result.summary.steps.length, 2);
+  assert.deepEqual(
+    result.summary.steps.map((step) => step.players),
+    [25, 50],
+  );
+});

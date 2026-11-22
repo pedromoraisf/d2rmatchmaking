@@ -593,7 +593,14 @@ async function startServices(ctx) {
   pushContainer(ctx, names.sink);
   await dockerRun(
     ctx,
-    sinkArgs({ runId, image: NODE_ALPINE_IMAGE, loadDir: paths.loadDir, tokenFile: dirs.tokenFile }),
+    sinkArgs({
+      runId,
+      image: NODE_ALPINE_IMAGE,
+      loadDir: paths.loadDir,
+      tokenFile: dirs.tokenFile,
+      // Off unless a local profiling run names a host directory (the telemetry breakdown reads it).
+      captureDir: ctx.env.LOAD_TELEMETRY_CAPTURE_DIR || undefined,
+    }),
     'starting the telemetry sink',
     NODE_ALPINE_IMAGE,
   );
@@ -654,7 +661,9 @@ async function probeVersions(ctx) {
 async function runSteps(ctx) {
   let step = nextStep(ctx.profile, ctx.rows);
   let provisioned = [];
-  while (step !== null) {
+  // A local profiling run stops after this many steps (`LOAD_MAX_STEPS=1` is the 25-player step); unset, the whole ladder runs.
+  const maxSteps = Number.parseInt(ctx.env.LOAD_MAX_STEPS ?? '', 10);
+  while (step !== null && !(maxSteps > 0 && ctx.rows.length >= maxSteps)) {
     const outcome = await runStep(ctx, step, provisioned);
     provisioned = outcome.players;
     ctx.rows.push(outcome.row);
