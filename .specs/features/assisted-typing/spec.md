@@ -1,10 +1,17 @@
 # Assisted typing — Specification
 
+> **Status: withdrawn in part (maintainer, 2026-11-22).** The maintainer's decision, in his words: "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario copia o valor pelo site, e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo pelo site"
+> The agent no longer types, pastes, writes the clipboard or listens to a key for the game name; the code, its sensor
+> exception and its scenarios were removed (batch 4). What remains of this feature: **AST-11**, the site's copy button with
+> its select-and-Ctrl+C fallback, and the accept hotkey's own rules that this feature had widened (**AST-01**, **AST-08**,
+> **AST-10**, narrowed below). AST-02 … AST-07 and AST-09 are **Withdrawn**. The text of a withdrawn requirement is kept
+> for history, and nothing in the code, the sensors or the scenarios answers to it any more.
+
 **Phase**: F2 (covered by the brief's approval, ADR 029) · **Size**: Medium · **Security review**: **yes** (first
 feature in which the agent sends input to the game; ADR 010, AGENTS.md rule 5) · **Reading modules touched**: none
 (rule 14 does not apply; see Decisions)
 
-## Problem
+## Problem (historical; the typing helper was withdrawn, see the status above)
 
 A host creates the game by hand and must type the generated name (`mmbaalh-12`, ADR 017) into the Game Creator. A
 mistyped name is a room that never confirms. FR-28 (Should) asks for a hotkey that fills the name for the player,
@@ -13,7 +20,7 @@ only), and four sensors forbid it: `clippy.toml` (`SendInput`), `deny.toml` (inp
 feature allow-list and the source rules. This feature adds the one input the ADR allows ("optional typing helpers that
 never confirm") and keeps every other limit.
 
-## Where assisted typing stops (ADR 010)
+## Where assisted typing stopped (ADR 010) — withdrawn, kept for history
 
 | Allowed                                                                                                            | Forbidden, whatever the setting or the server says                                    |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
@@ -29,72 +36,78 @@ The player confirms by pressing Enter (or clicking Create Game) themselves. The 
 
 ## Requirements
 
-- **AST-01** — The agent SHALL register a **fill hotkey** with the OS (`RegisterHotKey` through `global-hotkey`; no
-  keyboard hook), default Ctrl+Shift+F, exactly while it holds a room with a game name, and unregister it when the room
-  ends or is dropped. The accept hotkey (RDY-07) and the fill hotkey SHALL both be configurable in the agent window.
+- **AST-01** — **Narrowed (maintainer, 2026-11-22; the fill hotkey is withdrawn).** The accept hotkey (RDY-07), default
+  Ctrl+Shift+A, SHALL be configurable in the agent window. The agent SHALL register it with the OS (`RegisterHotKey`
+  through `global-hotkey`; no keyboard hook) exactly while a ready check is open, and unregister it when the check ends.
   The agent SHALL refuse a combination that has no Ctrl or Alt (Shift alone is not enough), uses Enter, NumpadEnter, Tab,
-  Space, Escape or Backspace as its key, is a reserved shortcut (Ctrl+C, V, X, A, Z or Alt+F4 on their own, or any
-  combination with the Windows key), or equals the other hotkey, keep the previous one and say why. Choices are stored on this PC only and never sent.
-- **AST-02** — WHEN the player presses the fill hotkey THEN the agent SHALL type only the game name of the room it
+  Space, Escape or Backspace as its key, or is a reserved shortcut (Ctrl+C, V, X, A, Z or Alt+F4 on their own, or any
+  combination with the Windows key), keep the previous one and say why. The choice is stored on this PC only and never sent.
+  ~~The fill hotkey, default Ctrl+Shift+F, registered while a room is held, and the rule that the two hotkeys differ.~~
+  **Withdrawn.**
+- **AST-02** — **Withdrawn (maintainer, 2026-11-22):** "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario copia o valor pelo site, e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo pelo site" WHEN the player presses the fill hotkey THEN the agent SHALL type only the game name of the room it
   holds, taken from the assignment the API gave and checked against `mm[a-z0-9]+-[0-9]{1,6}` with at most 32
   characters. A name that does not match, or a press with no held room, SHALL type nothing. The agent SHALL type no
   other text: nothing from the screen, the chat, the clipboard, a file or a server request.
-- **AST-03** — WHEN the fill hotkey is pressed THEN the agent SHALL type only if the foreground window belongs to a
+- **AST-03** — **Withdrawn (maintainer, 2026-11-22):** "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario copia o valor pelo site, e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo pelo site" WHEN the fill hotkey is pressed THEN the agent SHALL type only if the foreground window belongs to a
   `D2R.exe` process, checked at the press and again before every character. WHEN focus leaves D2R mid-way THEN it SHALL
   stop at once and send no further character.
-- **AST-04** — The agent SHALL refuse to type when the last screen it recognised is the in-game screen or the open
+- **AST-04** — **Withdrawn (maintainer, 2026-11-22):** "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario copia o valor pelo site, e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo pelo site" The agent SHALL refuse to type when the last screen it recognised is the in-game screen or the open
   automap, because letters there are game keybinds. An unrecognised frame SHALL NOT clear that memory: it clears only when
   a later frame is recognised as another screen (character select). WHEN the agent has recognised no screen yet, or the
   last one it recognised is character select, typing SHALL be allowed.
-- **AST-05** — WHEN the fill hotkey is pressed THEN the agent SHALL wait up to 1 second for the modifier keys of that
+- **AST-05** — **Withdrawn (maintainer, 2026-11-22):** "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario copia o valor pelo site, e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo pelo site" WHEN the fill hotkey is pressed THEN the agent SHALL wait up to 1 second for the modifier keys of that
   hotkey to be released, and SHALL type nothing if they are still held. It SHALL read the state of those modifier keys
   only.
-- **AST-06** — The agent SHALL send each character as a Unicode keystroke (`KEYEVENTF_UNICODE`, virtual key 0), a down
+- **AST-06** — **Withdrawn (maintainer, 2026-11-22):** "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario copia o valor pelo site, e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo pelo site" The agent SHALL send each character as a Unicode keystroke (`KEYEVENTF_UNICODE`, virtual key 0), a down
   and an up event, about 15 ms apart. No other kind of event SHALL be sent: no virtual key, no modifier, no mouse, no
   hardware, no clipboard. The only source file that names the input API SHALL be the typing adapter, and the type it
   accepts SHALL be unable to hold a character outside `a–z`, `0–9` and `-`.
-- **AST-07** — One press SHALL type once. A press while a fill runs SHALL stop it (and type nothing more); a press less
+- **AST-07** — **Withdrawn (maintainer, 2026-11-22):** "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario copia o valor pelo site, e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo pelo site" One press SHALL type once. A press while a fill runs SHALL stop it (and type nothing more); a press less
   than 2 seconds after the last fill ended SHALL be ignored. The fill SHALL stop when the room ends or is dropped
   (ARL-01).
-- **AST-08** — WHEN a fill ends THEN the window SHALL say what happened (typed, or the refusal: not a held room, game
-  not focused, in-game screen, keys still held, stopped) and, after a full fill, that the player must press Enter in
-  the game. The agent SHALL do nothing after the last character.
-  WHEN the OS does not let the agent register a hotkey it wants (no hotkey manager, a refused `RegisterHotKey` because
+- **AST-08** — **Narrowed (maintainer, 2026-11-22).** ~~WHEN a fill ends THEN the window SHALL say what happened (typed, or
+  the refusal …) and, after a full fill, that the player must press Enter in the game.~~ **Withdrawn** with the fill.
+  WHEN the OS does not let the agent register the hotkey it wants (no hotkey manager, a refused `RegisterHotKey` because
   another program holds the combination, or a failed main-thread dispatch) THEN the window SHALL say so and tell the
   player to choose another combination, until a registration succeeds. Field test of 2026-11-21: the fill hotkey did
-  nothing and the window said nothing. The window and the `hotkey.unavailable` span event SHALL carry the slot and a closed reason code (`no-manager`, `refused`,
+  nothing and the window said nothing. The window and the `hotkey.unavailable` span event SHALL carry a closed reason code (`no-manager`, `refused`,
   `unmapped`, `dispatch`), never the OS error text.
   A press the agent receives and matches to no registered combination SHALL leave one `hotkey.unmatched` span event.
   The diagnostics section SHALL show the last hotkey press the agent received (fill, accept, unmatched, or none since it
   started), so a field test proves whether the OS delivers presses at all.
-- **AST-09** — The sensors SHALL stay closed except for one named, minimal exception. The `windows` feature
+- **AST-09** — **Withdrawn (maintainer, 2026-11-22):** "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario copia o valor pelo site, e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo pelo site" The exception was removed, and the sensors stay closed with no exception: the `windows` feature `Win32_UI_Input_KeyboardAndMouse` is off the allow-list, `src/adapters/typing.rs` is not an unsafe adapter, and the source rules fail when any file names `SendInput`, `KeyboardAndMouse` or `GetAsyncKeyState` or allows `clippy::disallowed_methods`. Original text: The sensors SHALL stay closed except for one named, minimal exception. The `windows` feature
   `Win32_UI_Input_KeyboardAndMouse` SHALL be added to the allow-list for the typing adapter alone; `SendInput` and
   `GetAsyncKeyState` SHALL be allowed by a scoped `allow` in that file alone; `deny.toml` SHALL gain no crate. A source
   rule SHALL fail when any other file names `SendInput`, `KeyboardAndMouse` or `GetAsyncKeyState`, or when the typing
   adapter names a confirming or navigating virtual key, a modifier, a mouse or hardware input type, or sets a key-event
   flag other than Unicode and key-up. Each rule SHALL have a fixture it rejects. This is the maintainer's decision
   (AGENTS.md rule 4); batch 2 starts only after it.
-- **AST-10** — Every fill SHALL record one span event with the outcome (`typed`, `stopped-focus`, `stopped-room`,
-  `stopped-press`, `refused-room`, `refused-name`, `refused-focus`, `refused-screen`, `refused-keys`) and no name, text
-  or key. Every new string SHALL have English and pt-BR versions (NFR-12), including the site's accept-hotkey hint,
-  which SHALL say the accept key is Ctrl+Shift+A by default and can be changed in the agent.
+- **AST-10** — **Narrowed (maintainer, 2026-11-22).** ~~Every fill SHALL record one span event with the outcome …~~
+  **Withdrawn** with the fill. Every string of the hotkey settings and of the site's accept-hotkey hint SHALL have English
+  and pt-BR versions (NFR-12); the hint SHALL say the accept key is Ctrl+Shift+A by default and can be changed in the agent.
+- **AST-11** — The site SHALL show the room's game name with a **copy button**. WHEN the player presses it THEN the site
+  SHALL write the name to the clipboard (`navigator.clipboard.writeText`) and say "Game name copied."; IF the browser
+  refuses the clipboard THEN the site SHALL select the name and tell the player to press Ctrl+C. The player pastes it in
+  the game with the game's own Ctrl+V; the agent has no part in it and sends nothing to the game (ADR 010). This is what
+  remains of FR-28 after its withdrawal (the maintainer's words: "o usuario copia o valor pelo site, e da ctrl+v nativo no jogo").
 
 ## Sources
 
-| ID     | Source                                                                                                                          |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| AST-01 | FR-28; Design Doc § hotkeys ("atalhos globais configuráveis"); RDY-07 and ready-check spec ("configurable in F2 with FR-28")    |
-| AST-02 | FR-28; ADR 017 (game name pattern); ADR 010 and ADR 011 (server sends data, never commands); INV-08                             |
-| AST-03 | Design Doc § hotkeys ("só com o D2R em foco"); brief F2 exit criterion "only while D2R has focus"; ADR 010                      |
-| AST-04 | FR-28; ADR 010 (no in-game action); conservative default, see Decisions                                                         |
-| AST-05 | FR-28; ADR 010 (no shortcuts reach the game); threat T6                                                                         |
-| AST-06 | ADR 010 ("typing helpers that never confirm"); AGENTS.md rule 5; brief exit criterion "source-rule test that no confirm key..." |
-| AST-07 | FR-28; ADR 010; FR-18 and LBR-06 (new run, new name); ARL-01                                                                    |
-| AST-08 | FR-28 ("sem confirmar"); PRD § Premissas (typing never confirms); lessons (the window reflects state)                           |
-| AST-09 | AGENTS.md rules 4 and 5; `clippy.toml`, `deny.toml`, `agent-source-rules.test.mjs` (AGS-21, AGS-22); SECURITY.md                |
-| AST-10 | AGENTS.md rules 9 and 10; NFR-12; RDY-08 (the hint on the site)                                                                 |
+| ID     | Source                                                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| AST-01 | Design Doc § hotkeys ("atalhos globais configuráveis"); RDY-07 and ready-check spec ("configurable in F2 with FR-28"); FR-28 (withdrawn) |
+| AST-02 | FR-28; ADR 017 (game name pattern); ADR 010 and ADR 011 (server sends data, never commands); INV-08                                      |
+| AST-03 | Design Doc § hotkeys ("só com o D2R em foco"); brief F2 exit criterion "only while D2R has focus"; ADR 010                               |
+| AST-04 | FR-28; ADR 010 (no in-game action); conservative default, see Decisions                                                                  |
+| AST-05 | FR-28; ADR 010 (no shortcuts reach the game); threat T6                                                                                  |
+| AST-06 | ADR 010 ("typing helpers that never confirm"); AGENTS.md rule 5; brief exit criterion "source-rule test that no confirm key..."          |
+| AST-07 | FR-28; ADR 010; FR-18 and LBR-06 (new run, new name); ARL-01                                                                             |
+| AST-08 | FR-28 ("sem confirmar"); PRD § Premissas (typing never confirms); lessons (the window reflects state)                                    |
+| AST-09 | AGENTS.md rules 4 and 5; `clippy.toml`, `deny.toml`, `agent-source-rules.test.mjs` (AGS-21, AGS-22); SECURITY.md                         |
+| AST-10 | AGENTS.md rules 9 and 10; NFR-12; RDY-08 (the hint on the site)                                                                          |
+| AST-11 | FR-28 (withdrawn 2026-11-22; the copy button is what remains); LBR-12 (the room panel); NFR-13 (by keyboard)                             |
 
-## Threats each requirement answers (for the security review)
+## Threats each requirement answered (for the security review) — withdrawn with the typing, kept for history
 
 | #   | Threat                                                                                                         | Answered by                      |
 | --- | -------------------------------------------------------------------------------------------------------------- | -------------------------------- |
@@ -111,21 +124,22 @@ The player confirms by pressing Enter (or clicking Create Game) themselves. The 
 
 ## Requirement Traceability
 
-| Requirement ID | Story            | Proof                                                                                                              |
-| -------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------ |
-| AST-01         | Choose the key   | Rust unit tests (domain: combination rules; core: registered while a room is held) + window component test         |
-| AST-02         | Only the name    | Rust unit tests (domain: the typable name) + acceptance `@AST-02`                                                  |
-| AST-03         | D2R has focus    | Rust unit tests (core, fake focus source) + acceptance `@AST-03`                                                   |
-| AST-04         | Not during a run | Rust unit tests (core, fake screen) + acceptance `@AST-04`                                                         |
-| AST-05         | Keys let go      | Rust unit tests (core, fake key state) + acceptance `@AST-05`                                                      |
-| AST-06         | Only characters  | Rust unit tests (events from a fake sink) + `agent-source-rules.test.mjs` + acceptance `@AST-06`                   |
-| AST-07         | One press        | Rust unit tests (core) + acceptance `@AST-07`                                                                      |
-| AST-08         | Say what         | Rust unit tests (view) + window component test + acceptance `@AST-08`                                              |
-| AST-09         | Sensors closed   | `pnpm test:harness` (rules and their rejected fixtures) + `cargo deny --locked check` + `cargo clippy -D warnings` |
-| AST-10         | Telemetry, i18n  | Rust unit tests with the in-memory exporter; locales tests; web component test                                     |
-| (all)          | The real game    | The maintainer's check on a preview channel installer (DLP-06): fills the real Game Creator, never presses Enter   |
+| Requirement ID | Story            | Proof                                                                                                            |
+| -------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| AST-01         | Choose the key   | Rust unit tests (domain: combination rules; app: registered while a ready check is open) + window component test |
+| AST-02         | Only the name    | Withdrawn (maintainer, 2026-11-22); scenarios and code removed                                                   |
+| AST-03         | D2R has focus    | Withdrawn (maintainer, 2026-11-22); scenarios and code removed                                                   |
+| AST-04         | Not during a run | Withdrawn (maintainer, 2026-11-22); scenarios and code removed                                                   |
+| AST-05         | Keys let go      | Withdrawn (maintainer, 2026-11-22); scenarios and code removed                                                   |
+| AST-06         | Only characters  | Withdrawn (maintainer, 2026-11-22); scenarios and code removed                                                   |
+| AST-07         | One press        | Withdrawn (maintainer, 2026-11-22); scenarios and code removed                                                   |
+| AST-08         | Say what         | Rust unit tests (view, hotkey events) + window component test (the fill lines are withdrawn)                     |
+| AST-09         | Sensors closed   | Withdrawn (maintainer, 2026-11-22); the harness source rules now forbid every input name, with no exception      |
+| AST-10         | Telemetry, i18n  | Locales tests; web component test (the fill span event is withdrawn)                                             |
+| AST-11         | Copy the name    | `RoomPanel.test.tsx` (Clipboard API and Ctrl+C fallback) + acceptance `@AST-11` (and `@LBR-12`)                  |
+| (all)          | The real game    | The maintainer pastes the copied name with the game's own Ctrl+V; the agent does nothing there                   |
 
-## Decisions (conservative defaults)
+## Decisions (conservative defaults) — those about typing are withdrawn with it
 
 - **Unicode keystrokes, not the clipboard and not window messages.** `SendInput` with `KEYEVENTF_UNICODE` sends no
   virtual key, so Enter, Tab and every shortcut are unrepresentable. A clipboard paste would need Ctrl+V and would
@@ -146,7 +160,11 @@ The player confirms by pressing Enter (or clicking Create Game) themselves. The 
 - **Reading modifier state** (`GetAsyncKeyState` on Ctrl, Shift and Alt only) is the one input _read_ the feature adds.
   It is OS signal, not a hook and not a log; it is on the open questions for the maintainer.
 - **Hotkey choices are local**, in the app's config file, never sent to the API. The site cannot know them, so its hint
-  names the default and points to the agent (AST-10).
-- **Delivery.** The feature needs `delivery-platform` only for the **preview channel installer** (DLP-06): the
+  names the default and points to the agent (AST-10). (Kept: it now concerns the accept hotkey alone; an earlier two-key
+  file still gives its accept key.)
+- **Delivery (withdrawn with the typing).** The feature needs `delivery-platform` only for the **preview channel installer** (DLP-06): the
   maintainer checks the real Game Creator on it, side by side with the released agent, the updater off. No code of the
   platform is used.
+- **Batch 4 — removal (2026-11-22).** The maintainer withdrew the typing helper in his own words (quoted at the top). The
+  worker kept the accept hotkey, its settings field and its "unavailable" and "last press" diagnostics, because they serve
+  RDY-07 and were never about typing; AST-01, AST-08 and AST-10 are narrowed to that. The maintainer can withdraw those too.

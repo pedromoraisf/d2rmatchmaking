@@ -86,3 +86,28 @@ Rules:
       installer: fill the real Game Creator on normal, nightmare and hell names, press Enter by hand, confirm the agent
       never does, and try the refusals (Alt-Tab away, in-game, keys held). Gate:
       `pnpm format:check && pnpm specs:check && pnpm test:harness`
+
+## Batch 4 (removal)
+
+The maintainer withdrew the typing helper on 2026-11-22: "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario
+copia o valor pelo site, e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo
+pelo site". Batches 1 to 3 stay above as history; their boxes describe code that no longer exists. The accept hotkey
+(RDY-07) and its settings field stay, narrowed to one key (AST-01, AST-08, AST-10); the site's copy button is AST-11.
+
+- [x] T12 — Map what the feature added and remove the agent code and every sensor entry that existed only for it: the
+      domain `typing.rs` (the accept hotkey's values moved to `hotkey.rs`), core `fill_name`, the three ports, the typing
+      adapter, `ForegroundGame`, the fill slot and press handler, the window's fill lines, the headless keyboard, the
+      `windows` feature `Win32_UI_Input_KeyboardAndMouse`, the typing adapter's unsafe allow-list and its source rules and
+      fixtures. The map is in the commit body. Gate:
+      `cargo nextest run --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain -p d2rmm-agent-core -p d2rmm-agent-adapters --lib && cargo clippy --manifest-path apps/agent/src-tauri/Cargo.toml -p d2rmm-agent-domain -p d2rmm-agent-core -p d2rmm-agent-adapters --all-targets -- -D warnings && pnpm test:harness && pnpm --filter @d2rmm/agent test && pnpm --filter @d2rmm/agent build`
+- [x] T13 — Site and API pieces that only served the hotkey: none. The only site string about a hotkey is the accept-key
+      hint (`readyCheck.hotkeyHint`, RDY-08), which serves the kept accept hotkey, and the copy button is AST-11; no
+      contract, route or API field mentioned the fill. Nothing changed, so there is no commit for this task. Gate:
+      `pnpm --filter @d2rmm/web test && pnpm lint && pnpm typecheck`
+- [x] T14 — The spec and the scenarios: AST-02 … AST-07 and AST-09 marked Withdrawn with the maintainer's quote, AST-01,
+      AST-08 and AST-10 narrowed to the accept hotkey, AST-11 added (the copy button and its select-and-Ctrl+C fallback,
+      FR-28). The scenarios of the withdrawn requirements were removed from `acceptance.feature` together with their step
+      definitions (`assisted-typing.steps.ts`); a withdrawn requirement's scenario goes with it, and no scenario of another
+      feature was touched. One scenario was added for AST-11 from steps that already exist (the room panel's copy button, by
+      keyboard). Gate:
+      `node scripts/acceptance-check.mjs assisted-typing && pnpm specs:check && pnpm format:check && pnpm exec turbo run test:acceptance -- --grep @AST-`
