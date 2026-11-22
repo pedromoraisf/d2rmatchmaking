@@ -1343,29 +1343,26 @@ mod tests {
                 (ScreenRegion::CardLevel(0), &[LEVEL, LEVEL, LEVEL]),
             ])
         };
-        // Three different names, or a tie of two: name-disagree.
-        for names in [["Alpha", "Bravo", "Charl"], ["Alpha", "Alpha", "Bravo"]] {
-            let verdict = refusals(&name(&names)).0;
-            if names[0] == names[1] {
-                assert_eq!(verdict, [], "two agreeing readings outnumber one rival");
-            } else {
-                assert_eq!(verdict, [(0, "name-disagree")]);
-            }
+        // One row per reading set: the readings, then the refusal codes of slot 0 (empty = the card is accepted).
+        type Row = (&'static [&'static str], &'static [(u8, &'static str)]);
+        let table: [Row; 5] = [
+            // Three different names: no two agree, name-disagree.
+            (&["Alpha", "Bravo", "Charl"], &[(0, "name-disagree")]),
+            // Two agreeing readings outnumber one rival: accepted.
+            (&["Alpha", "Alpha", "Bravo"], &[]),
+            // A tie of two against two: name-disagree.
+            (
+                &["Alpha", "Alpha", "Bravo", "Bravo"],
+                &[(0, "name-disagree")],
+            ),
+            // Readings that are no name at all: name-unread, not a disagreement.
+            (&["12-34", "12-34", "12-34"], &[(0, "name-unread")]),
+            // One name among noise has no second reading to agree with: name-disagree (a name was read).
+            (&["Alpha", "12-34", "12-34"], &[(0, "name-disagree")]),
+        ];
+        for (names, expected) in table {
+            assert_eq!(refusals(&name(names)).0, expected, "{names:?}");
         }
-        assert_eq!(
-            refusals(&name(&["Alpha", "Alpha", "Bravo", "Bravo"])).0,
-            [(0, "name-disagree")]
-        );
-        // Readings that are no name at all: name-unread, not a disagreement.
-        assert_eq!(
-            refusals(&name(&["12-34", "12-34", "12-34"])).0,
-            [(0, "name-unread")]
-        );
-        // One name among noise has no second reading to agree with: name-disagree (a name was read).
-        assert_eq!(
-            refusals(&name(&["Alpha", "12-34", "12-34"])).0,
-            [(0, "name-disagree")]
-        );
     }
 
     #[test]
