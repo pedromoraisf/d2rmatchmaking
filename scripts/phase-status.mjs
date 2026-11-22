@@ -7,7 +7,10 @@
 // What counts as a task, a waiting task and a phase feature: `taskCount` and `specRow` in lib/phase-state.mjs.
 // Task = any `- [ ] T<n>` / `O<n>` box, at any indent, in any section; criteria boxes without an id are not counted.
 // Open boxes that wait on the maintainer or the phase merge may stay open at review; any other open box keeps the
-// feature at `execute`, merged or not.
+// feature at `execute`, merged or not. A box without an id is not counted: a tasks.md written with plain `- [ ]` boxes
+// counts 0/0 and an unmerged feature stays at `tasks` (older files are not rewritten; new ones use `T<n>`).
+// A closed phase (approved brief and review, phase branch in main) stays closed: spec discovery and the open-box rule
+// apply only to a phase that is not closed.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
