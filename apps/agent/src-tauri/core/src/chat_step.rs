@@ -280,6 +280,57 @@ mod tests {
         assert_eq!(look_at(&rig).await, [ChatEvent::Joined, ChatEvent::Left]);
     }
 
+    /// remote-config T1 (pin before the pack is cached): a change of the configuration applies on the next look, and the
+    /// shipped phrases come back when the configuration names none.
+    #[tokio::test(start_paused = true)]
+    async fn a_changed_configuration_applies_on_the_next_look() {
+        use d2rmm_agent_domain::remote_config::Words;
+        let rig = rig();
+        hold_a_room(&rig);
+        rig.chat
+            .say(&["Bob joined our world", "Eve entered the realm"]);
+        assert_eq!(look_at(&rig).await, [ChatEvent::Joined], "built-in words");
+
+        rig.device.config.send_modify(|config| {
+            config.version = 1;
+            config.phrases.en = Words {
+                joined_game: Some("entered the realm".to_string()),
+                ..Words::default()
+            };
+        });
+        rig.chat.say(&[
+            "Bob joined our world",
+            "Eve entered the realm",
+            "Cal entered the realm",
+        ]);
+        assert_eq!(
+            look_at(&rig).await,
+            [ChatEvent::Joined],
+            "the configured phrase"
+        );
+
+        rig.device.config.send_modify(|config| {
+            config.version = 2;
+            config.phrases.en = Words {
+                joined_game: Some("arrived".to_string()),
+                ..Words::default()
+            };
+        });
+        rig.chat.say(&["Dan arrived"]);
+        assert_eq!(look_at(&rig).await, [ChatEvent::Joined], "the next version");
+
+        rig.device.config.send_modify(|config| {
+            config.version = 3;
+            config.phrases.en = Words::default();
+        });
+        rig.chat.say(&["Dan arrived", "Fay joined our world"]);
+        assert_eq!(
+            look_at(&rig).await,
+            [ChatEvent::Joined],
+            "back to the shipped words"
+        );
+    }
+
     #[tokio::test(start_paused = true)]
     async fn nothing_is_read_without_a_room_and_the_last_frame_is_forgotten() {
         let rig = rig();
