@@ -3,10 +3,18 @@
 //
 //   node scripts/phase-status.mjs [F<n>]          summary + what may run now
 //   node scripts/phase-status.mjs [F<n>] --json   machine-readable state
+//
+// What counts as a task, a waiting task and a phase feature: `taskCount` and `specRow` in lib/phase-state.mjs.
+// Task = any `- [ ] T<n>` / `O<n>` box, at any indent, in any section; criteria boxes without an id are not counted.
+// Open boxes that wait on the maintainer or the phase merge may stay open at review; any other open box keeps the
+// feature at `execute`, merged or not. A box without an id is not counted: a tasks.md written with plain `- [ ]` boxes
+// counts 0/0 and an unmerged feature stays at `tasks` (older files are not rewritten; new ones use `T<n>`).
+// A closed phase (approved brief and review, phase branch in main) stays closed: spec discovery and the open-box rule
+// apply only to a phase that is not closed.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { derivePhaseState } from './lib/phase-state.mjs';
+import { derivePhaseState, specRow } from './lib/phase-state.mjs';
 
 const root = process.cwd();
 const args = process.argv.slice(2);
@@ -34,8 +42,15 @@ const merged = (feature) =>
     phaseRefs.some((p) => isAncestor(b, p)),
   );
 
+// Features whose spec says `**Phase**: F<n>` but that the brief's table does not list.
+const featuresDir = path.join(root, '.specs/features');
+const specRows = (existsSync(featuresDir) ? readdirSync(featuresDir).sort() : [])
+  .map((f) => specRow(f, read(`.specs/features/${f}/spec.md`), phase))
+  .filter(Boolean);
+
 const state = derivePhaseState({
   phase,
+  specRows,
   brief: read(`.specs/phases/${phase}/brief.md`),
   review: read(`.specs/phases/${phase}/review.md`),
   mergedToMain: phaseRefs.some((p) => isAncestor(p, 'origin/main') || isAncestor(p, 'main')),
@@ -48,9 +63,12 @@ if (args.includes('--json')) {
 } else {
   console.log(`phase ${phase}: next = ${state.next}`);
   for (const f of state.features) {
-    const wait = f.waitingOn.length ? ` (waiting on ${f.waitingOn.join(', ')})` : '';
+    const dep = f.next !== 'done' && f.waitingOn.length ? ` (waiting on ${f.waitingOn.join(', ')})` : '';
+    const open = f.tasks.open - f.tasks.waiting;
+    const field = f.tasks.waiting ? ` (${f.tasks.waiting} waiting on field)` : '';
     console.log(
-      `  ${f.next.padEnd(8)} ${f.feature.padEnd(22)} tasks ${f.tasks.done}/${f.tasks.total}${wait}`,
+      `  ${f.next.padEnd(8)} ${f.feature.padEnd(22)} tasks ${f.tasks.done}/${f.tasks.total}` +
+        `${open ? `, ${open} open` : ''}${field}${dep}`,
     );
   }
   if (state.runnable.length)
