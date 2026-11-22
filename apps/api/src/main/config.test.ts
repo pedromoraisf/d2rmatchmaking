@@ -10,8 +10,11 @@ describe('the telemetry tier of D2RMM_ENV (OBT-01)', () => {
     expect(loadConfig({ D2RMM_ENV: 'production' }).telemetryTier).toBe('production');
   });
 
-  it('defaults an unset D2RMM_ENV to local, which is full', () => {
-    expect(loadConfig({}).telemetryTier).toBe('full');
+  it('gives an unset or empty D2RMM_ENV the production tier and keeps the local environment (OBT-18)', () => {
+    expect(loadConfig({}).telemetryTier).toBe('production');
+    expect(loadConfig({ D2RMM_ENV: '' }).telemetryTier).toBe('production');
+    expect(loadConfig({}).environment).toBe('local');
+    expect(loadConfig({ D2RMM_ENV: '' }).environment).toBe('local');
   });
 
   it('maps any other name to the production tier', () => {
