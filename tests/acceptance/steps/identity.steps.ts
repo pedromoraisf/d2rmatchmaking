@@ -165,6 +165,11 @@ Given('the browser holds a session cookie the API does not know', ({ world }) =>
 
 // AWS-01, AWS-02 and later tasks: a player who signed in on the site. Its visitor's page stays open for later steps.
 Given(/^"(.+)" is signed in on the site$/, async ({ world }, name: string) => {
+  await signInPlayerOnSite(world, name);
+});
+
+/** Opens the site in a new visitor's browser and signs the player in with a test account; their visitor stays open. */
+export async function signInPlayerOnSite(world: World, name: string): Promise<void> {
   const player = world.player(name);
   const visitor = await world.newVisitor();
   await world.openSite(visitor);
@@ -177,4 +182,4 @@ Given(/^"(.+)" is signed in on the site$/, async ({ world }, name: string) => {
     player.session = cookie.value;
   }
   player.accountId = await accountOf(visitor);
-});
+}

@@ -36,6 +36,22 @@ the stream and clears the held assignment, with two unit tests.
 - **ARL-07** — The agent SHALL record each dropped assignment and each confirmed run as span events, with the reason
   (`expired`, `closed`, `not-assigned`) and no names. Every new string SHALL have English and pt-BR versions (NFR-12).
 
+- **ARL-08** — WHILE the agent holds a run whose presence was confirmed, WHEN the Party panel shows a game name that is
+  **not** the held run's name on two looks in a row, and that name is not a near-miss of it (an edit distance above 2
+  from the held name, so a misread of the right name never counts), THEN the agent SHALL show "You are in another game
+  (not {{gameName}})" in its window. It SHALL never show, send or log the other game's name. When it reads the held
+  name again it SHALL return to "presence confirmed".
+- **ARL-09** — On the change of ARL-08 the agent SHALL post one `OTHER_GAME_SEEN` observation for the held run, with no
+  value (contract first: a new observation kind with no `value`, ADR 020), and on the return one `GAME_NAME_SEEN` as
+  today. At most one post per change.
+- **ARL-10** — WHEN the API accepts `OTHER_GAME_SEEN` from a member's agent for the current run THEN that member's
+  presence SHALL become **elsewhere** and the room's stream SHALL tell the site; a later accepted `GAME_NAME_SEEN` for
+  the current run SHALL make it **confirmed** again. The room's stage SHALL NOT change (no transition, INV-06
+  untouched): the game lives on while anyone is in it, and the room still expires or closes as today.
+- **ARL-11** — The site SHALL show "In another game" / "Em outro jogo" for a member whose presence is elsewhere, in
+  place of "Confirmed by the agent", to every member of the room. New strings in English and pt-BR (NFR-12); span
+  events with no names (ARL-07).
+
 ## Sources
 
 | ID     | Source                                                                        |
@@ -50,15 +66,19 @@ the stream and clears the held assignment, with two unit tests.
 
 ## Requirement Traceability
 
-| Requirement ID | Story           | Proof                                                      |
-| -------------- | --------------- | ---------------------------------------------------------- |
-| ARL-01         | Room ends       | Rust unit tests (core, adapters) + acceptance `@ARL-01`    |
-| ARL-02         | Reconnect       | Rust unit tests (core)                                     |
-| ARL-03         | Confirmed       | Rust unit tests (view) + window component test + `@ARL-03` |
-| ARL-04         | Next run        | Rust unit tests (view)                                     |
-| ARL-05         | Dismiss         | component test + acceptance `@ARL-05`                      |
-| ARL-06         | Presence        | component/unit test + acceptance `@ARL-06`                 |
-| ARL-07         | Telemetry, i18n | Rust unit tests with the in-memory exporter; locales tests |
+| Requirement ID | Story           | Proof                                                                            |
+| -------------- | --------------- | -------------------------------------------------------------------------------- |
+| ARL-01         | Room ends       | Rust unit tests (core, adapters) + acceptance `@ARL-01`                          |
+| ARL-02         | Reconnect       | Rust unit tests (core)                                                           |
+| ARL-03         | Confirmed       | Rust unit tests (view) + window component test + `@ARL-03`                       |
+| ARL-04         | Next run        | Rust unit tests (view)                                                           |
+| ARL-05         | Dismiss         | component test + acceptance `@ARL-05`                                            |
+| ARL-06         | Presence        | component/unit test + acceptance `@ARL-06`                                       |
+| ARL-07         | Telemetry, i18n | Rust unit tests with the in-memory exporter; locales tests                       |
+| ARL-08         | Another game    | Rust unit tests (core: two looks, near-miss rule, return) + acceptance `@ARL-08` |
+| ARL-09         | Tell the API    | Rust unit tests (core) + contract tests + acceptance `@ARL-09`                   |
+| ARL-10         | Elsewhere       | domain unit tests + API integration test + acceptance `@ARL-10`                  |
+| ARL-11         | Site shows it   | web component test + acceptance `@ARL-11`                                        |
 
 ## Decisions (conservative defaults)
 

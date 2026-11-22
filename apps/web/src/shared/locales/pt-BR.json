@@ -7,7 +7,8 @@
     "notice": "D2R Match Making é um projeto da comunidade e não é afiliado à Blizzard Entertainment.",
     "downloadAgent": "Baixar o agente",
     "smartScreenNote": "O instalador ainda não tem assinatura de código, por isso o Windows SmartScreen pode avisar antes de executá-lo.",
-    "codeSigningLink": "Política de assinatura de código"
+    "codeSigningLink": "Política de assinatura de código",
+    "recordingNotice": "Tudo o que você faz neste ambiente é gravado para depuração, incluindo sua BattleTag e os nomes dos seus personagens."
   },
   "nav": {
     "label": "Seções",
@@ -135,7 +136,8 @@
     "unknownCharacter": "Personagem não exibido",
     "presence": {
       "waiting": "Aguardando",
-      "confirmed": "Confirmado pelo agente"
+      "confirmed": "Confirmado pelo agente",
+      "elsewhere": "Em outro jogo"
     },
     "runsLabel": "Corridas",
     "run": "Corrida {{run}}",

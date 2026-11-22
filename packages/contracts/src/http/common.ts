@@ -26,5 +26,7 @@ export const Member = z.object({
   team: Team.optional(),
   // Whether this member's agent confirmed the current run's game name (INV-06). Present in a room's members only.
   confirmed: z.boolean().optional(),
+  // Whether this member's agent saw the member in another game for the current run (ARL-10). Present in a room's members only.
+  elsewhere: z.boolean().optional(),
 });
 export type Member = z.infer<typeof Member>;

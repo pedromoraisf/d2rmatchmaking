@@ -79,7 +79,7 @@ describe('RedactingSpanExporter', () => {
     });
     span.end();
 
-    await exportSpans(new RedactingSpanExporter(memory), [span]);
+    await exportSpans(new RedactingSpanExporter(memory, 'production'), [span]);
 
     const [exported] = memory.getFinishedSpans();
     expect(exported?.events[0]?.attributes).toStrictEqual({ 'exception.type': 'PgError' });
@@ -105,7 +105,7 @@ describe('RedactingSpanExporter', () => {
     span.setStatus({ code: SpanStatusCode.ERROR, message: 'refused for Foo#1234' });
     span.end();
 
-    await exportSpans(new RedactingSpanExporter(memory), [span]);
+    await exportSpans(new RedactingSpanExporter(memory, 'production'), [span]);
 
     const [exported] = memory.getFinishedSpans();
     expect(exported?.attributes).toStrictEqual({
@@ -128,6 +128,7 @@ describe('RedactingSpanExporter', () => {
       resource: resourceFromAttributes({
         'service.name': 'd2rmm-api',
         'deployment.environment': 'production',
+        'd2r.telemetry.tier': 'production',
         'host.name': 'player-pc',
         'process.pid': 4242,
         'telemetry.sdk.language': 'nodejs',
@@ -136,21 +137,98 @@ describe('RedactingSpanExporter', () => {
     const span = startSpan('platform.request', {}, provider);
     span.end();
 
-    await exportSpans(new RedactingSpanExporter(memory), [span]);
+    await exportSpans(new RedactingSpanExporter(memory, 'production'), [span]);
 
     const [exported] = memory.getFinishedSpans();
     expect(exported?.resource.attributes).toStrictEqual({
       'service.name': 'd2rmm-api',
       'deployment.environment': 'production',
+      'd2r.telemetry.tier': 'production',
       'telemetry.sdk.language': 'nodejs',
     });
+  });
+});
+
+describe('the tier of the exporters (OBT-08, OBT-11)', () => {
+  const personal = {
+    'd2r.account.battletag': 'Foo#1234',
+    'd2r.character.name': 'Sorc',
+    'd2r.ocr.text': 'Party Sorc',
+    'd2r.room.id': 'room-1',
+    'pairing.code': 'ABCD',
+  };
+
+  async function exportedAttributes(tier: 'full' | 'production') {
+    const memory = new InMemorySpanExporter();
+    const span = startSpan('lobby.record-observation', { attributes: personal });
+    span.addEvent('seen', personal);
+    span.end();
+    await exportSpans(new RedactingSpanExporter(memory, tier), [span]);
+    const [exported] = memory.getFinishedSpans();
+    return { attributes: exported?.attributes, event: exported?.events[0]?.attributes };
+  }
+
+  it('drops the staging-only keys of spans and events in production and keeps the id', async () => {
+    const { attributes, event } = await exportedAttributes('production');
+    expect(attributes).toStrictEqual({ 'd2r.room.id': 'room-1' });
+    expect(event).toStrictEqual({ 'd2r.room.id': 'room-1' });
+  });
+
+  it('keeps the staging-only keys in full and still drops the pairing code', async () => {
+    const { attributes, event } = await exportedAttributes('full');
+    const expected = {
+      'd2r.account.battletag': 'Foo#1234',
+      'd2r.character.name': 'Sorc',
+      'd2r.ocr.text': 'Party Sorc',
+      'd2r.room.id': 'room-1',
+    };
+    expect(attributes).toStrictEqual(expected);
+    expect(event).toStrictEqual(expected);
+  });
+
+  it('keeps the tier in the resource of both tiers', async () => {
+    const memory = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider({
+      resource: resourceFromAttributes({ 'd2r.telemetry.tier': 'full', 'host.name': 'pc' }),
+    });
+    const span = startSpan('x', {}, provider);
+    span.end();
+    await exportSpans(new RedactingSpanExporter(memory, 'full'), [span]);
+    expect(memory.getFinishedSpans()[0]?.resource.attributes).toStrictEqual({ 'd2r.telemetry.tier': 'full' });
+  });
+
+  it('filters log attributes and battletag text by tier', async () => {
+    const record = logRecord({
+      attributes: { 'd2r.account.battletag': 'Foo#1234', 'd2r.room.id': 'room-1', 'req.method': 'GET' },
+      body: 'Key (battletag)=(Foo#1234) exists',
+    });
+    const production = new CapturingLogExporter();
+    await exportLogs(new RedactingLogRecordExporter(production, 'production', () => 0), [
+      { ...record, severityNumber: 17 },
+    ]);
+    expect(production.exported[0]?.attributes).toStrictEqual({
+      'd2r.room.id': 'room-1',
+      'req.method': 'GET',
+    });
+    expect(production.exported[0]?.body).toBe('Key (battletag)=([redacted]) exists');
+
+    const full = new CapturingLogExporter();
+    await exportLogs(new RedactingLogRecordExporter(full, 'full', () => 0), [
+      { ...record, severityNumber: 17 },
+    ]);
+    expect(full.exported[0]?.attributes).toStrictEqual({
+      'd2r.account.battletag': 'Foo#1234',
+      'd2r.room.id': 'room-1',
+      'req.method': 'GET',
+    });
+    expect(full.exported[0]?.body).toBe('Key (battletag)=(Foo#1234) exists');
   });
 });
 
 describe('RedactingLogRecordExporter', () => {
   it('drops req.url and err keys from log records', async () => {
     const inner = new CapturingLogExporter();
-    const exporter = new RedactingLogRecordExporter(inner, () => 0);
+    const exporter = new RedactingLogRecordExporter(inner, 'production', () => 0);
 
     await exportLogs(exporter, [
       logRecord({
@@ -189,7 +267,7 @@ describe('RedactingLogRecordExporter', () => {
 
   it('scrubs the body of a log record', async () => {
     const inner = new CapturingLogExporter();
-    const exporter = new RedactingLogRecordExporter(inner, () => 0);
+    const exporter = new RedactingLogRecordExporter(inner, 'production', () => 0);
 
     await exportLogs(exporter, [logRecord({ severityNumber: 13, body: 'Authorization: Bearer abc.DEF' })]);
 
@@ -198,7 +276,7 @@ describe('RedactingLogRecordExporter', () => {
 
   it('exports only warn and above, or records of a sampled span', async () => {
     const inner = new CapturingLogExporter();
-    const exporter = new RedactingLogRecordExporter(inner, () => 0);
+    const exporter = new RedactingLogRecordExporter(inner, 'production', () => 0);
 
     await exportLogs(exporter, [
       logRecord({ body: 'info unsampled' }),
@@ -212,7 +290,7 @@ describe('RedactingLogRecordExporter', () => {
   it('caps exported log records at 20 a second', async () => {
     const inner = new CapturingLogExporter();
     let clock = 0;
-    const exporter = new RedactingLogRecordExporter(inner, () => clock);
+    const exporter = new RedactingLogRecordExporter(inner, 'production', () => clock);
     const warnings = (): ReadableLogRecord[] =>
       Array.from({ length: 50 }, () => logRecord({ severityNumber: 13 }));
 

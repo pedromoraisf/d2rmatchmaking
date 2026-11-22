@@ -136,6 +136,9 @@
                       },
                       "confirmed": {
                         "type": "boolean"
+                      },
+                      "elsewhere": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -238,6 +241,9 @@
                       },
                       "confirmed": {
                         "type": "boolean"
+                      },
+                      "elsewhere": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -337,6 +343,9 @@
                         ]
                       },
                       "confirmed": {
+                        "type": "boolean"
+                      },
+                      "elsewhere": {
                         "type": "boolean"
                       }
                     },
@@ -438,6 +447,9 @@
                         ]
                       },
                       "confirmed": {
+                        "type": "boolean"
+                      },
+                      "elsewhere": {
                         "type": "boolean"
                       }
                     },
@@ -694,6 +706,9 @@
                       },
                       "confirmed": {
                         "type": "boolean"
+                      },
+                      "elsewhere": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -746,7 +761,9 @@
                   "enum": [
                     "confirmed",
                     "left",
-                    "host_changed"
+                    "host_changed",
+                    "elsewhere",
+                    "returned"
                   ]
                 },
                 "accountId": {
@@ -796,6 +813,9 @@
                         ]
                       },
                       "confirmed": {
+                        "type": "boolean"
+                      },
+                      "elsewhere": {
                         "type": "boolean"
                       }
                     },

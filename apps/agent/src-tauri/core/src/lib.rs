@@ -8,7 +8,9 @@ pub mod chat_post;
 pub mod chat_step;
 pub mod check_update;
 pub mod config;
+pub mod detail;
 pub mod device_state;
+pub mod elsewhere;
 #[cfg(test)]
 mod event_probe;
 pub mod fakes;

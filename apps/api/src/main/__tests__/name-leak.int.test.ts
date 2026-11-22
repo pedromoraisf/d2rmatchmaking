@@ -10,6 +10,7 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { sql } from 'kysely';
+import { STAGING_ONLY_KEYS } from '@d2rmm/telemetry';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   createMigratedTestDatabase,
@@ -18,7 +19,7 @@ import {
 import { FakeClock, FakeScheduler } from '../../shared-kernel/index.ts';
 import { buildApp, type AppDatabase, type BuiltApp } from '../app.ts';
 import { NodeRandomSource, RandomUuidGenerator } from '../runtime.ts';
-import { findLeaks, type Observed } from './name-leak-scan.ts';
+import { findLeaks, type Observed, type Tier } from './name-leak-scan.ts';
 
 const SITE_ORIGIN = 'https://site.example';
 const AGENT_VERSION = '1.0.0';
@@ -26,6 +27,10 @@ const AGENT_VERSION = '1.0.0';
 /** Stored `Oxzqy`; the screen reads `Gxzqy` (the `O` read as `g`). Nothing else in the suite looks like either. */
 const STORED = 'Oxzqy';
 const MISREAD = 'Gxzqy';
+
+/** The two tiers of ADR 037: every scenario runs in each (OBT-09). */
+const TIERS: readonly Tier[] = ['production', 'full'];
+let tier: Tier = 'production';
 
 const exporter = new InMemorySpanExporter();
 let database: MigratedTestDatabase<AppDatabase>;
@@ -50,7 +55,13 @@ beforeEach(async () => {
   const clock = new FakeClock(new Date('2026-10-31T12:00:00.000Z'));
   app = await buildApp({
     db: database.db,
-    config: { stagingEndpoints: true, minAgentVersion: '0.0.1', siteOrigin: SITE_ORIGIN, trustProxyHops: 1 },
+    config: {
+      stagingEndpoints: true,
+      minAgentVersion: '0.0.1',
+      siteOrigin: SITE_ORIGIN,
+      trustProxyHops: 1,
+      telemetryTier: tier,
+    },
     clock,
     scheduler: new FakeScheduler(clock),
     random: new NodeRandomSource(),
@@ -67,6 +78,24 @@ beforeEach(async () => {
 afterEach(async () => {
   await app.app.close();
 });
+
+/** The values the spans hold under the keys only the full tier carries (OBT-04). */
+function stagingOnlyValues(): string[] {
+  return exporter
+    .getFinishedSpans()
+    .flatMap((span) => Object.entries(span.attributes))
+    .filter(([key]) => STAGING_ONLY_KEYS.has(key))
+    .map(([, value]) => String(value));
+}
+
+/** Production carries no staging-only key at all; the full tier carries the read name under one (OBT-04, OBT-09). */
+function expectTierDetail(read: string): void {
+  if (tier === 'production') {
+    expect(stagingOnlyValues()).toEqual([]);
+  } else {
+    expect(stagingOnlyValues().some((value) => value.includes(read))).toBe(true);
+  }
+}
 
 export function bodyOf<T>(response: { readonly body: string }): T {
   return JSON.parse(response.body) as T;
@@ -235,7 +264,11 @@ async function addMemberWithCharacter(roomId: string, name: string): Promise<voi
     .execute();
 }
 
-describe('a chat name leaves no trace (SNM-04)', () => {
+describe.each(TIERS)('the %s tier: a chat name leaves no trace (SNM-04)', (tierName) => {
+  beforeAll(() => {
+    tier = tierName;
+  });
+
   it('is in no span, log line, answer or row, on every path of the observation route', async () => {
     const { roomId, token } = await roomWithCharacter(STORED);
     const send = (payload: unknown) =>
@@ -296,8 +329,9 @@ describe('a chat name leaves no trace (SNM-04)', () => {
       ['Qzxjvkwpyqzxjvkw', 'Zzzzzz'],
       ['Pqzxkjv', 'Zzzzzz'],
     ] as const) {
-      expect(findLeaks(read, canonical, observed), read).toEqual([]);
+      expect(findLeaks(read, canonical, observed, tier), read).toEqual([]);
     }
+    expectTierDetail(MISREAD);
     // The span says only which of three words the match was, and the ambiguous path was reached.
     const words = new Set(
       exporter
@@ -310,7 +344,9 @@ describe('a chat name leaves no trace (SNM-04)', () => {
     const kept = await sql<{
       value: string;
       type: string;
-    }>`select value, type from lobby.observations order by type`.execute(database.db);
+    }>`select value, type from lobby.observations where room_id = ${roomId} order by type`.execute(
+      database.db,
+    );
     expect(kept.rows).toEqual([
       { value: '1', type: 'PLAYER_JOINED_SEEN' },
       { value: '1', type: 'PLAYER_LEFT_SEEN' },
@@ -419,12 +455,16 @@ describe('a chat name leaves no trace (SNM-04)', () => {
       [MISREAD, STORED],
       ['Qwvkjh', 'Zzzzzz'],
     ] as const) {
-      expect(findLeaks(read, canonical, observed), read).toEqual([]);
+      expect(findLeaks(read, canonical, observed, tier), read).toEqual([]);
     }
   });
 });
 
-describe('a misread card name leaves no trace (SNM-04)', () => {
+describe.each(TIERS)('the %s tier: a misread card name leaves no trace (SNM-04)', (tierName) => {
+  beforeAll(() => {
+    tier = tierName;
+  });
+
   it('is in no span, log line, answer or row once it was reconciled', async () => {
     const cookie = await sessionFor(app);
     const token = await tokenFor(app, cookie);
@@ -466,6 +506,7 @@ describe('a misread card name leaves no trace (SNM-04)', () => {
       rows: await rowsWritten(),
     };
     expect(observed.spans.some((span) => span.name === 'identity.record-characters')).toBe(true);
-    expect(findLeaks(MISREAD, STORED, observed)).toEqual([]);
+    expect(findLeaks(MISREAD, STORED, observed, tier)).toEqual([]);
+    expectTierDetail(MISREAD);
   });
 });

@@ -57,12 +57,12 @@ export const AgentRoomRunOpenedEvent = z.object({
 });
 export type AgentRoomRunOpenedEvent = z.infer<typeof AgentRoomRunOpenedEvent>;
 
-// A member confirmed, left, or the host changed (LBR-04, LBR-07, LBR-08): the members after the change.
+// A member confirmed, left, went to another game or came back, or the host changed (LBR-04, LBR-07, LBR-08, ARL-10): the members after the change.
 export const RoomMemberChangedEvent = z.object({
   type: z.literal('room.member_changed'),
   data: z.object({
     roomId: Id,
-    change: z.enum(['confirmed', 'left', 'host_changed']),
+    change: z.enum(['confirmed', 'left', 'host_changed', 'elsewhere', 'returned']),
     accountId: Id,
     members: z.array(Member),
   }),

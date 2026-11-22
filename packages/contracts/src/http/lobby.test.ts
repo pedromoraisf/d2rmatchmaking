@@ -30,6 +30,16 @@ describe('Observation', () => {
     expect(Observation.safeParse({ ...observation, value: 'x'.repeat(65) }).success).toBe(false);
   });
 
+  it('accepts OTHER_GAME_SEEN with an empty value (ARL-09)', () => {
+    expect(Observation.safeParse({ ...observation, type: 'OTHER_GAME_SEEN', value: '' }).success).toBe(true);
+  });
+
+  it('rejects OTHER_GAME_SEEN carrying a name, so the other game is never sent (ARL-09)', () => {
+    expect(Observation.safeParse({ ...observation, type: 'OTHER_GAME_SEEN', value: 'duels' }).success).toBe(
+      false,
+    );
+  });
+
   it('rejects a confidence above 1', () => {
     expect(Observation.safeParse({ ...observation, confidence: 1.1 }).success).toBe(false);
   });

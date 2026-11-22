@@ -36,3 +36,24 @@ Feature: The agent and the site follow the room's life
     Given Alice has the site open and her agent online
     When the site's stream reconnects and the agent stops sending heartbeats
     Then the site shows the agent offline within 60 seconds
+
+  @ARL-08 @ARL-09 @ARL-10 @ARL-11 @FR-17 @agent
+  Scenario: The host who moves to another game is shown in another game
+    Given Alice hosts a room "mmbaalh-28" with Bob, and her headless agent confirmed her presence
+    When Alice's agent reads the game name "duels" in the Party panel on two looks in a row
+    Then Alice's agent window says she is in another game
+    And Bob's site shows Alice "In another game"
+    And the room is still "Created"
+    And no observation carried the name "duels"
+
+  @ARL-08 @FR-17 @agent
+  Scenario: A misread of the room's own name is not another game
+    Given Alice hosts a room "mmbaalh-28" with Bob, and her headless agent confirmed her presence
+    When Alice's agent reads the game name "mmbaa1h-28" in the Party panel on two looks in a row
+    Then Alice's agent window still says presence confirmed
+
+  @ARL-08 @ARL-10 @ARL-11 @FR-17 @agent
+  Scenario: Coming back to the room's game confirms again
+    Given Alice's headless agent shows her in another game for her room "mmbaalh-28"
+    When Alice's agent reads the game name "mmbaalh-28" in the Party panel
+    Then Bob's site shows Alice "Confirmed by the agent"

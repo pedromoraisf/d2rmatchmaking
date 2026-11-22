@@ -114,6 +114,7 @@ impl ScreenReader {
         frame: &Rgba,
         tracker: &Mutex<Tracker>,
         find: FindLabel,
+        every: u32,
         how: &Cell<Option<Search>>,
         config: &Effective,
     ) -> Vec<Vec<TextLine>> {
@@ -158,7 +159,7 @@ impl ScreenReader {
         tracker
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .record(found, frame.width, frame.height);
+            .record_every(found, frame.width, frame.height, every);
         lines
     }
 
@@ -176,6 +177,7 @@ impl ScreenReader {
                     frame,
                     &self.hud,
                     anchors::find_hud_in_variants,
+                    1,
                     how,
                     config,
                 );
@@ -185,6 +187,7 @@ impl ScreenReader {
                     frame,
                     &self.automap,
                     anchors::find_automap_in_variants,
+                    config.cadence.automap_search_every,
                     how,
                     config,
                 );
@@ -194,6 +197,7 @@ impl ScreenReader {
                     frame,
                     &self.create_new,
                     anchors::find_create_new_in_variants,
+                    config.cadence.list_search_every,
                     how,
                     config,
                 );
@@ -787,6 +791,153 @@ mod tests {
             assert_eq!(reading.screen, Screen::CharacterSelect);
             assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
         }
+    }
+
+    /// A text reader that counts the reads asked of it and shows the sidecar it was last given: one pass of a reader asks a
+    /// fixed number of reads for a frame, so the count says how many passes (English, pt-BR) a frame cost.
+    struct Counting {
+        shown: Mutex<Sidecar>,
+        asked: std::sync::atomic::AtomicUsize,
+    }
+
+    impl Counting {
+        fn showing(json: &str) -> Arc<Self> {
+            Arc::new(Self {
+                shown: Mutex::new(Sidecar::of(json, 1920, 1080)),
+                asked: std::sync::atomic::AtomicUsize::new(0),
+            })
+        }
+
+        fn show(&self, json: &str) {
+            *self.shown.lock().expect("the shown sidecar") = Sidecar::of(json, 1920, 1080);
+        }
+
+        /// The frame of the sidecar on show.
+        fn frame(&self) -> Rgba {
+            frame(&self.shown.lock().expect("the shown sidecar"), Some(0), &[])
+        }
+
+        /// The reads asked since the last call.
+        fn take(&self) -> usize {
+            self.asked.swap(0, std::sync::atomic::Ordering::Relaxed)
+        }
+
+        fn count(&self) {
+            self.asked
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    impl TextReader for Counting {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.count();
+            self.shown
+                .lock()
+                .expect("the shown sidecar")
+                .read(image, region)
+        }
+
+        fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+            self.count();
+            self.shown
+                .lock()
+                .expect("the shown sidecar")
+                .read_variants(image, region)
+        }
+
+        fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.count();
+            self.shown
+                .lock()
+                .expect("the shown sidecar")
+                .read_lines(image, region)
+        }
+    }
+
+    /// The reads one fresh pass of `pack` costs on the frame of `json` (a reader with no fallback).
+    fn one_pass_cost(json: &str, pack: LanguagePack) -> usize {
+        let counting = Counting::showing(json);
+        let image = counting.frame();
+        ScreenReader::new(
+            Arc::clone(&counting) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(pack),
+        )
+        .read(&image);
+        counting.take()
+    }
+
+    #[test]
+    fn the_language_that_read_the_last_frame_is_read_first_and_no_english_read_happens() {
+        let pt_pass = one_pass_cost(PT_SELECT, brazilian());
+        let english_miss = one_pass_cost(PT_SELECT, LanguagePack::english());
+        let english_pass = one_pass_cost(SELECT_NORMAL, LanguagePack::english());
+        assert!(pt_pass > 0 && english_miss > 0 && english_pass > 0);
+
+        let counting = Counting::showing(PT_SELECT);
+        let pt_image = counting.frame();
+        let reader = ScreenReader::new(
+            Arc::clone(&counting) as Arc<dyn TextReader + Send + Sync>,
+            shipped_like(),
+        );
+        // The first pt-BR frame: English first finds nothing, then pt-BR reads it.
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert_eq!(counting.take(), english_miss + pt_pass);
+        // The next ones: pt-BR first, one pass, no English read.
+        for _ in 0..2 {
+            assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+            assert_eq!(counting.take(), pt_pass);
+        }
+        // A known English frame: pt-BR first finds nothing, English reads it, and the order flips back.
+        counting.show(SELECT_NORMAL);
+        let english_image = counting.frame();
+        assert_eq!(reader.read(&english_image).screen, Screen::CharacterSelect);
+        assert_eq!(
+            counting.take(),
+            one_pass_cost(SELECT_NORMAL, brazilian()) + english_pass
+        );
+        assert_eq!(reader.read(&english_image).screen, Screen::CharacterSelect);
+        assert_eq!(counting.take(), english_pass);
+        // And back to pt-BR: English first again (a miss, its trackers warm), so more than the one pt-BR pass.
+        counting.show(PT_SELECT);
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert!(counting.take() > pt_pass);
+    }
+
+    /// A pt-BR in-game frame whose Life line the engine lost: only the Mana label, a word both packs share.
+    const SHARED_MANA_HUD: &str = r#"{ "lines": [
+        { "text": "Mana: 400 / 400", "x": 1500, "y": 868, "width": 200, "height": 24 }
+    ] }"#;
+
+    #[test]
+    fn a_word_both_packs_share_reads_the_frame_in_whichever_language_goes_first_and_keeps_that_order()
+     {
+        let pt_pass = one_pass_cost(PT_SELECT, brazilian());
+        let counting = Counting::showing(SHARED_MANA_HUD);
+        let mana_image = counting.frame();
+        let reader = ScreenReader::new(
+            Arc::clone(&counting) as Arc<dyn TextReader + Send + Sync>,
+            shipped_like(),
+        );
+        // A fresh reader: English goes first and its "Mana:" matches, so the frame is in game and pt-BR is never asked.
+        assert_eq!(reader.read(&mana_image).screen, Screen::InGame);
+        let english_only = counting.take();
+        assert_eq!(
+            one_pass_cost(SHARED_MANA_HUD, LanguagePack::english()),
+            english_only
+        );
+        // The order is still English first: a pt-BR selection screen pays the English miss before its own pass.
+        counting.show(PT_SELECT);
+        let pt_image = counting.frame();
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert!(counting.take() > pt_pass);
+        // Now pt-BR goes first: the shared word reads in game in pt-BR, with no English read, and the order stays pt-BR.
+        counting.show(SHARED_MANA_HUD);
+        assert_eq!(reader.read(&mana_image).screen, Screen::InGame);
+        let pt_on_mana = counting.take();
+        assert_eq!(one_pass_cost(SHARED_MANA_HUD, brazilian()), pt_on_mana);
+        counting.show(PT_SELECT);
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert_eq!(counting.take(), pt_pass);
     }
 
     fn read(json: &str, selected: Option<u8>) -> FrameReading {
@@ -1651,6 +1802,54 @@ mod hud_tests {
             per_frame.push(marker_area_reads(&hud.take_asked()));
         }
         assert_eq!(per_frame, [1, 0, 1, 0, 1, 0]);
+    }
+
+    /// ocr-protection (remote-config T23, rule 14): how often the two wide areas are searched while their marker is not
+    /// found, as measured before the cadences come from the configuration. 600 looks of a frame that shows nothing: the band
+    /// every look, the automap area and the list marker area every second look. They pass on the code as it was and must
+    /// pass with the defaults threaded in.
+    #[test]
+    fn six_hundred_looks_of_nothing_search_each_wide_area_three_hundred_times() {
+        let hud = Hud::new(vec![]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let (mut band, mut automap, mut marker) = (0, 0, 0);
+        for _ in 0..600 {
+            assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+            let asked = hud.take_asked();
+            band += band_reads(&asked);
+            automap += automap_reads(&asked);
+            marker += marker_area_reads(&asked);
+        }
+        assert_eq!((band, automap, marker), (600, 300, 300));
+    }
+
+    /// remote-config T25: the two search periods come from the configuration. 600 looks of a frame that shows nothing search
+    /// each wide area 300 times at the default and today's floor of 2, and 60 times at the ceiling of 10; the band is read on
+    /// every look whatever the periods.
+    #[test]
+    fn the_search_cadences_of_the_configuration_set_how_often_each_wide_area_is_read() {
+        let searches = |automap_every: u32, list_every: u32| {
+            let hud = Hud::new(vec![]);
+            let screens = reader(&hud);
+            let frame = frame(1920, 1080);
+            let mut config = d2rmm_agent_domain::remote_config::Effective::built_in();
+            config.cadence.automap_search_every = automap_every;
+            config.cadence.list_search_every = list_every;
+            let (mut band, mut automap, mut marker) = (0, 0, 0);
+            for _ in 0..600 {
+                assert_eq!(screens.read_with(&frame, &config).screen, Screen::Unknown);
+                let asked = hud.take_asked();
+                band += band_reads(&asked);
+                automap += automap_reads(&asked);
+                marker += marker_area_reads(&asked);
+            }
+            (band, automap, marker)
+        };
+        assert_eq!(searches(2, 2), (600, 300, 300), "today's period");
+        assert_eq!(searches(10, 10), (600, 60, 60), "the ceiling");
+        assert_eq!(searches(10, 2), (600, 60, 300), "each area on its own");
+        assert_eq!(searches(2, 10), (600, 300, 60), "each area on its own");
     }
 
     #[test]

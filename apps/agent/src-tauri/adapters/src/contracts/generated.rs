@@ -20,10 +20,20 @@ pub struct AgentConfig {
 #[serde(deny_unknown_fields)]
 pub struct AgentConfigCadence {
     #[serde(
+        rename = "automapSearchEvery",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub automap_search_every: ::std::option::Option<i64>,
+    #[serde(
         rename = "demoteAfter",
         skip_serializing_if = "::std::option::Option::is_none"
     )]
     pub demote_after: ::std::option::Option<::std::num::NonZeroU64>,
+    #[serde(
+        rename = "listSearchEvery",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub list_search_every: ::std::option::Option<i64>,
     #[serde(
         rename = "lookIntervalMs",
         skip_serializing_if = "::std::option::Option::is_none"
@@ -55,6 +65,13 @@ pub struct AgentConfigPhrases {
 pub struct AgentConfigPhrasesEn {
     #[serde(rename = "gameName", skip_serializing_if = "::std::option::Option::is_none")]
     pub game_name: ::std::option::Option<AgentConfigPhrasesEnGameName>,
+    #[serde(
+        rename = "joinedGame",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub joined_game: ::std::option::Option<AgentConfigPhrasesEnJoinedGame>,
+    #[serde(rename = "leftGame", skip_serializing_if = "::std::option::Option::is_none")]
+    pub left_game: ::std::option::Option<AgentConfigPhrasesEnLeftGame>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub party: ::std::option::Option<AgentConfigPhrasesEnParty>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -113,6 +130,134 @@ impl ::std::convert::TryFrom<::std::string::String> for AgentConfigPhrasesEnGame
     }
 }
 impl<'de> ::serde::Deserialize<'de> for AgentConfigPhrasesEnGameName {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`AgentConfigPhrasesEnJoinedGame`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct AgentConfigPhrasesEnJoinedGame(::std::string::String);
+impl ::std::ops::Deref for AgentConfigPhrasesEnJoinedGame {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<AgentConfigPhrasesEnJoinedGame> for ::std::string::String {
+    fn from(value: AgentConfigPhrasesEnJoinedGame) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for AgentConfigPhrasesEnJoinedGame {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 40usize {
+            return Err("longer than 40 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        static PATTERN: ::std::sync::LazyLock<::regress::Regex> = ::std::sync::LazyLock::new(||
+        { ::regress::Regex::new("^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$").unwrap() });
+        if PATTERN.find(value).is_none() {
+            return Err(
+                "doesn't match pattern \"^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$\"".into(),
+            );
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for AgentConfigPhrasesEnJoinedGame {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for AgentConfigPhrasesEnJoinedGame {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for AgentConfigPhrasesEnJoinedGame {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`AgentConfigPhrasesEnLeftGame`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct AgentConfigPhrasesEnLeftGame(::std::string::String);
+impl ::std::ops::Deref for AgentConfigPhrasesEnLeftGame {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<AgentConfigPhrasesEnLeftGame> for ::std::string::String {
+    fn from(value: AgentConfigPhrasesEnLeftGame) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for AgentConfigPhrasesEnLeftGame {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 40usize {
+            return Err("longer than 40 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        static PATTERN: ::std::sync::LazyLock<::regress::Regex> = ::std::sync::LazyLock::new(||
+        { ::regress::Regex::new("^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$").unwrap() });
+        if PATTERN.find(value).is_none() {
+            return Err(
+                "doesn't match pattern \"^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$\"".into(),
+            );
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for AgentConfigPhrasesEnLeftGame {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for AgentConfigPhrasesEnLeftGame {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for AgentConfigPhrasesEnLeftGame {
     fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
     where
         D: ::serde::Deserializer<'de>,
@@ -258,6 +403,13 @@ impl<'de> ::serde::Deserialize<'de> for AgentConfigPhrasesEnPassword {
 pub struct AgentConfigPhrasesPtBr {
     #[serde(rename = "gameName", skip_serializing_if = "::std::option::Option::is_none")]
     pub game_name: ::std::option::Option<AgentConfigPhrasesPtBrGameName>,
+    #[serde(
+        rename = "joinedGame",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub joined_game: ::std::option::Option<AgentConfigPhrasesPtBrJoinedGame>,
+    #[serde(rename = "leftGame", skip_serializing_if = "::std::option::Option::is_none")]
+    pub left_game: ::std::option::Option<AgentConfigPhrasesPtBrLeftGame>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub party: ::std::option::Option<AgentConfigPhrasesPtBrParty>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -316,6 +468,135 @@ impl ::std::convert::TryFrom<::std::string::String> for AgentConfigPhrasesPtBrGa
     }
 }
 impl<'de> ::serde::Deserialize<'de> for AgentConfigPhrasesPtBrGameName {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`AgentConfigPhrasesPtBrJoinedGame`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct AgentConfigPhrasesPtBrJoinedGame(::std::string::String);
+impl ::std::ops::Deref for AgentConfigPhrasesPtBrJoinedGame {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<AgentConfigPhrasesPtBrJoinedGame> for ::std::string::String {
+    fn from(value: AgentConfigPhrasesPtBrJoinedGame) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for AgentConfigPhrasesPtBrJoinedGame {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 40usize {
+            return Err("longer than 40 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        static PATTERN: ::std::sync::LazyLock<::regress::Regex> = ::std::sync::LazyLock::new(||
+        { ::regress::Regex::new("^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$").unwrap() });
+        if PATTERN.find(value).is_none() {
+            return Err(
+                "doesn't match pattern \"^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$\"".into(),
+            );
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for AgentConfigPhrasesPtBrJoinedGame {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+for AgentConfigPhrasesPtBrJoinedGame {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for AgentConfigPhrasesPtBrJoinedGame {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`AgentConfigPhrasesPtBrLeftGame`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct AgentConfigPhrasesPtBrLeftGame(::std::string::String);
+impl ::std::ops::Deref for AgentConfigPhrasesPtBrLeftGame {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<AgentConfigPhrasesPtBrLeftGame> for ::std::string::String {
+    fn from(value: AgentConfigPhrasesPtBrLeftGame) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for AgentConfigPhrasesPtBrLeftGame {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 40usize {
+            return Err("longer than 40 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        static PATTERN: ::std::sync::LazyLock<::regress::Regex> = ::std::sync::LazyLock::new(||
+        { ::regress::Regex::new("^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$").unwrap() });
+        if PATTERN.find(value).is_none() {
+            return Err(
+                "doesn't match pattern \"^[A-Za-z0-9 À-ÖØ-öø-ÿ]+$\"".into(),
+            );
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for AgentConfigPhrasesPtBrLeftGame {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for AgentConfigPhrasesPtBrLeftGame {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for AgentConfigPhrasesPtBrLeftGame {
     fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
     where
         D: ::serde::Deserializer<'de>,
@@ -589,6 +870,8 @@ pub struct AssignmentMembersItem {
     pub character_id: ::std::option::Option<AssignmentMembersItemCharacterId>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub confirmed: ::std::option::Option<bool>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elsewhere: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: AssignmentMembersItemRole,
@@ -1406,7 +1689,7 @@ pub struct Observation {
     >,
     #[serde(rename = "type")]
     pub type_: ObservationType,
-    ///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). Other types: free text of at most 64 characters.
+    ///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). OTHER_GAME_SEEN: always the empty string, never the name of the other game (ARL-09). Other types: free text of at most 64 characters.
     pub value: ObservationValue,
 }
 ///`ObservationIdempotencyKey`
@@ -1547,6 +1830,8 @@ pub enum ObservationType {
     RoundReported,
     #[serde(rename = "PLAYER_SLAIN_SEEN")]
     PlayerSlainSeen,
+    #[serde(rename = "OTHER_GAME_SEEN")]
+    OtherGameSeen,
     #[serde(rename = "UNKNOWN")]
     Unknown,
 }
@@ -1559,6 +1844,7 @@ impl ::std::fmt::Display for ObservationType {
             Self::ScreenChanged => f.write_str("SCREEN_CHANGED"),
             Self::RoundReported => f.write_str("ROUND_REPORTED"),
             Self::PlayerSlainSeen => f.write_str("PLAYER_SLAIN_SEEN"),
+            Self::OtherGameSeen => f.write_str("OTHER_GAME_SEEN"),
             Self::Unknown => f.write_str("UNKNOWN"),
         }
     }
@@ -1575,6 +1861,7 @@ impl ::std::str::FromStr for ObservationType {
             "SCREEN_CHANGED" => Ok(Self::ScreenChanged),
             "ROUND_REPORTED" => Ok(Self::RoundReported),
             "PLAYER_SLAIN_SEEN" => Ok(Self::PlayerSlainSeen),
+            "OTHER_GAME_SEEN" => Ok(Self::OtherGameSeen),
             "UNKNOWN" => Ok(Self::Unknown),
             _ => Err("invalid value".into()),
         }
@@ -1601,7 +1888,7 @@ impl ::std::default::Default for ObservationType {
         ObservationType::Unknown
     }
 }
-///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). Other types: free text of at most 64 characters.
+///What was read. GAME_NAME_SEEN: the game name. PLAYER_JOINED_SEEN and PLAYER_LEFT_SEEN: one character name read from the chat (2 to 15 characters of letters and the digits 0 and 1, at most one inner - or _); the API matches it to the room members and never keeps it, and its answer is the same whether it matched or not (ADR 036). OTHER_GAME_SEEN: always the empty string, never the name of the other game (ARL-09). Other types: free text of at most 64 characters.
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[serde(transparent)]
 pub struct ObservationValue(::std::string::String);
@@ -2511,6 +2798,8 @@ pub struct RoomAssignedEventDataMembersItem {
     pub character_id: ::std::option::Option<RoomAssignedEventDataMembersItemCharacterId>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub confirmed: ::std::option::Option<bool>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elsewhere: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: RoomAssignedEventDataMembersItemRole,
@@ -2899,6 +3188,8 @@ pub struct RoomRunOpenedEventDataMembersItem {
     >,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub confirmed: ::std::option::Option<bool>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elsewhere: ::std::option::Option<bool>,
     #[serde(rename = "joinOrder")]
     pub join_order: ::std::num::NonZeroU64,
     pub role: RoomRunOpenedEventDataMembersItemRole,

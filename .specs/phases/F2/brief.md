@@ -128,6 +128,7 @@ Every item needs a proof in the phase review.
 | stream-egress        | Medium | nightly-report                           | yes                    | cloud               | NFR-14 (egress)                  |
 | upkeep               | Medium | —                                        | yes (fills free slots) | cloud               | CI, review items of #77/#80/#81  |
 | agent-release        | Medium | agent-room-lifecycle, screen-recognition | no                     | cloud + CI          | FR-29, ADR 015, ADR 016          |
+| observability-tiers  | Large  | —                                        | yes                    | cloud + CI          | NFR-09, NFR-04, ADR 037          |
 
 Notes:
 
@@ -298,3 +299,54 @@ text read from the screen. A new feature `observability-tiers` (agent, site and 
 production redaction) joins F2; its spec and tasks are written by the orchestrator before dispatch.
 
 **Approved**: 2026-11-21 - user: "aprovo."
+
+## Revision 3 — the read rate is measured on real rooms; synthetic variations become a ratchet (2026-11-22)
+
+**Why.** The `ocr-variations` set multiplies each real print into hundreds of synthetic variants (blur, JPEG quality,
+brightness, scale). Several of them are degradations a real capture never produces (strong blur, JPEG q30), and tuning the
+reading modules to read them risks wrong reads on real frames, which the brief already ranks as worse than a refusal. The
+real goal of FR-27 is that real rooms confirm.
+
+**What changes.**
+
+- The exit criterion "Read rate of 95% or more (FR-27, roadmap exit)" reads: _the game name is never read as another
+  room's name (zero wrong confirmations, in `ocr-real` and in every `ocr-variations` run), and at least 95% of the rooms in
+  the maintainer's field log reach "Confirmed by the agent" (at least 20 rooms across normal, nightmare and hell). Proof:
+  the field log, `ocr-real` and the `ocr-variations` wrong ceiling._
+- The `ocr-variations` correct count is a **ratchet**, not a target: every PR keeps it at or above the floor and the wrong
+  count at or below the ceiling. The 95% share of synthetic variations (game name, popups, selection screens) moves to
+  **F3** as a target.
+- The criterion "Character and screen reading" keeps its scenarios and unit tests; its "95% of their variations" part
+  moves to F3 with the rest of the synthetic share.
+- The ratchet floor of `ocr.variations.correct` moves from 5665 to 5727 (the count after #133), approved the same day.
+
+**Approved**: 2026-11-22 - user: "Opção 2" (the read-rate decision) and "Ok" (the ratchet floor 5727)
+
+## Revision 4 — no assisted typing in the agent; telemetry consent; the load target moves (2026-11-22)
+
+**Why.** The agent's clipboard copy of Revision 1 pulled a BSL-1.0 dependency (`arboard`) that `deny.toml` refuses, and
+it duplicates what the site already does: the player copies the name on the site and pastes it with the game's own
+Ctrl+V. The security review of #148 found that agent release builds export spans with no notice and no opt-out. The load
+bytes per player-hour are 412,510 on the nightly against the 125,000 target, and the stream-egress cuts took 5.6 %.
+
+**What changes.**
+
+- **Assisted typing is discontinued in the agent.** The agent never types, pastes, writes the clipboard or listens to a
+  hotkey for the game name; the code already on `phase/F2` is removed (`feat/F2-assisted-typing-removal`), #145 is
+  closed, and the sensor entries kept only for it go. FR-28 is met by the site's copy button (with its select-and-Ctrl+C
+  fallback) and the game's native Ctrl+V. The exit criterion "Assisted typing (FR-28)" reads: _the site copies the game
+  name; the agent sends no input and touches no clipboard. Proof: the site's unit test, the source-rule test that the
+  agent sends no input, and the removal PR._
+- **Telemetry consent in the agent.** The agent window shows what its diagnostics carry in its tier and a "send
+  diagnostics" switch, on by default, en and pt-BR; off means the agent exports no span at all
+  (`feat/F2-telemetry-consent`, `observability-tiers`). Matchmaking traffic is not affected.
+- **Load.** The bytes target of 125,000 per player-hour moves to **F3**. F2 keeps the ratchet: baseline 405,334 and
+  ceiling 447,000 in `.quality-baseline.json` (already applied). The criterion "Load" reads: _100 or more players with 0
+  errors on the real journey, run by the nightly, and bytes per player-hour at or below the ratchet ceiling._
+- **Staging follows the phase branch.** A push to `phase/**` that touches the API deploys the staging API through the
+  existing stages (`feat/F2-delivery-platform-7`), so no manual Render step is needed during a phase.
+
+**Approved**: 2026-11-22 - user: "sobre esse ctrl+v, vamos descontinuar essa feature. o usuario copia o valor pelo site,
+e da ctrl+v nativo no jogo. não existe codigo nem feature aqui, além do de copiar o nome do jogo pelo site" (assisted
+typing), "aceito o recomendado" (consent: notice and switch), "aplica" (load) and "seja pragmatico e remova complexidade
+desnecessaria" (staging)

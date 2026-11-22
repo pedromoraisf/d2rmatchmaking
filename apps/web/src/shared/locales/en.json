@@ -7,7 +7,8 @@
     "notice": "D2R Match Making is a community project and is not affiliated with Blizzard Entertainment.",
     "downloadAgent": "Download the agent",
     "smartScreenNote": "The installer is not code-signed yet, so Windows SmartScreen may warn you before it runs.",
-    "codeSigningLink": "Code signing policy"
+    "codeSigningLink": "Code signing policy",
+    "recordingNotice": "Everything you do on this environment is recorded for debugging, including your BattleTag and your characters' names."
   },
   "nav": {
     "label": "Sections",
@@ -135,7 +136,8 @@
     "unknownCharacter": "Character not shown",
     "presence": {
       "waiting": "Waiting",
-      "confirmed": "Confirmed by the agent"
+      "confirmed": "Confirmed by the agent",
+      "elsewhere": "In another game"
     },
     "runsLabel": "Runs",
     "run": "Run {{run}}",

@@ -17,8 +17,8 @@ use d2rmm_agent_domain::vision::{ReadText, Region};
 
 use crate::check_update::Updater;
 use crate::messages::{
-    FrameReading, GameNameObservation, IssuedCode, PlayerObservation, Presence, ReadyCheckOpen,
-    Screen,
+    FrameReading, GameNameObservation, IssuedCode, OtherGameObservation, PlayerObservation,
+    Presence, ReadyCheckOpen, Screen,
 };
 use crate::ports::{
     ApiError, ApiGateway, ConsentStore, EndReason, EventStream, ForegroundWindow, FrameReader,
@@ -37,6 +37,7 @@ pub enum Call {
     Assignment,
     PostObservation(GameNameObservation),
     PostPlayerObservation(PlayerObservation),
+    PostOtherGame(OtherGameObservation),
     PostCharacters { cards: Vec<Card> },
     OpenStream { last_event_id: Option<String> },
     AcceptReadyCheck { check_id: String },
@@ -70,6 +71,7 @@ struct Script {
     assignment: VecDeque<Result<Option<Assignment>, ApiError>>,
     post_observation: VecDeque<Result<(), ApiError>>,
     post_player_observation: VecDeque<Result<(), ApiError>>,
+    post_other_game: VecDeque<Result<(), ApiError>>,
     post_characters: VecDeque<Result<(), ApiError>>,
     open_stream: VecDeque<Result<Vec<StreamItem>, ApiError>>,
     accept_ready_check: VecDeque<Result<(), ApiError>>,
@@ -135,6 +137,10 @@ impl FakeApiGateway {
         answers: impl IntoIterator<Item = Result<(), ApiError>>,
     ) {
         self.with(|script| script.post_player_observation.extend(answers));
+    }
+
+    pub fn script_post_other_game(&self, answers: impl IntoIterator<Item = Result<(), ApiError>>) {
+        self.with(|script| script.post_other_game.extend(answers));
     }
 
     pub fn script_post_characters(&self, answers: impl IntoIterator<Item = Result<(), ApiError>>) {
@@ -256,6 +262,17 @@ impl ApiGateway for FakeApiGateway {
                 .calls
                 .push(Call::PostPlayerObservation(observation.clone()));
             answer(&mut script.post_player_observation)
+        })
+    }
+
+    async fn post_other_game(
+        &self,
+        _token: &Secret,
+        observation: &OtherGameObservation,
+    ) -> Result<(), ApiError> {
+        self.with(|script| {
+            script.calls.push(Call::PostOtherGame(observation.clone()));
+            answer(&mut script.post_other_game)
         })
     }
 

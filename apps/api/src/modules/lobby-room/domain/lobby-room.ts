@@ -15,7 +15,7 @@ import type { Observation } from './observation.ts';
 export const AWAITING_HOST_EXPIRY_MS = 3 * 60 * 1000;
 
 /** A member of a room: the match's member and whether the member's agent confirmed the current run (INV-06). */
-export type RoomMember = MatchMember & { readonly confirmed: boolean };
+export type RoomMember = MatchMember & { readonly confirmed: boolean; readonly elsewhere: boolean };
 
 /** Stage change or assignment produced by the aggregate, with the events to write to the outbox. */
 export interface RoomChange {
@@ -24,7 +24,8 @@ export interface RoomChange {
 }
 
 export type ObservationOutcome =
-  { readonly outcome: 'ignored' } | ({ readonly outcome: 'created' | 'confirmed' | 'active' } & RoomChange);
+  | { readonly outcome: 'ignored' }
+  | ({ readonly outcome: 'created' | 'confirmed' | 'active' | 'elsewhere' | 'returned' } & RoomChange);
 
 /** Why a member's request to the room is refused. */
 export type RoomRefusal = 'not-member' | 'not-host' | 'wrong-stage';
@@ -151,7 +152,7 @@ export class LobbyRoom {
       stage: 'formed',
       currentRun: 1,
       gameName: gameName.value,
-      members: assigned.map((member) => ({ ...member, confirmed: false })),
+      members: assigned.map((member) => ({ ...member, confirmed: false, elsewhere: false })),
       awaitingSince: null,
       createdAt: now,
     });
@@ -204,7 +205,11 @@ export class LobbyRoom {
         stage: props.stage,
         currentRun: props.currentRun,
         gameName: props.gameName,
-        members: members.map((member) => ({ ...member, confirmed: member.confirmed ?? false })),
+        members: members.map((member) => ({
+          ...member,
+          confirmed: member.confirmed ?? false,
+          elsewhere: member.elsewhere ?? false,
+        })),
         awaitingSince: props.stage === 'awaiting_host' ? awaitingSince : null,
         createdAt: props.createdAt,
       }),
@@ -230,6 +235,9 @@ export class LobbyRoom {
    * - from another member while `created`: that member is confirmed, and the room is `active` once every member is.
    */
   observe(observation: Observation): ObservationOutcome {
+    if (observation.type === 'OTHER_GAME_SEEN') {
+      return this.#observeElsewhere(observation);
+    }
     const matches =
       observation.roomId === this.id &&
       observation.type === 'GAME_NAME_SEEN' &&
@@ -237,6 +245,11 @@ export class LobbyRoom {
       this.gameName.matches(observation.value);
     if (!matches) {
       return { outcome: 'ignored' };
+    }
+    const seen = this.members.find((candidate) => candidate.accountId === observation.accountId);
+    if (seen?.elsewhere === true) {
+      // Back in the room's game (ARL-10): the member is confirmed again. No stage moves.
+      return this.#setElsewhere(seen.accountId, false);
     }
     const isHost = observation.accountId === this.hostAccountId;
     if (isHost && (this.stage === 'formed' || this.stage === 'awaiting_host')) {
@@ -269,6 +282,39 @@ export class LobbyRoom {
   }
 
   /**
+   * An `OTHER_GAME_SEEN` of this room's current run from a confirmed member whose game is `created` or `active`: the
+   * member is elsewhere (ARL-10). Any other case changes nothing, and the stage never moves (INV-06 untouched).
+   */
+  #observeElsewhere(observation: Observation): ObservationOutcome {
+    const member = this.members.find((candidate) => candidate.accountId === observation.accountId);
+    const live = this.stage === 'created' || this.stage === 'active';
+    if (
+      observation.roomId !== this.id ||
+      observation.run !== this.currentRun ||
+      !live ||
+      member === undefined ||
+      !member.confirmed ||
+      member.elsewhere
+    ) {
+      return { outcome: 'ignored' };
+    }
+    return this.#setElsewhere(member.accountId, true);
+  }
+
+  #setElsewhere(accountId: string, elsewhere: boolean): ObservationOutcome {
+    const room = this.#with({
+      members: this.members.map((member) =>
+        member.accountId === accountId ? { ...member, elsewhere } : member,
+      ),
+    });
+    return {
+      outcome: elsewhere ? 'elsewhere' : 'returned',
+      room,
+      events: [room.#memberEvent(elsewhere ? 'elsewhere' : 'returned', accountId)],
+    };
+  }
+
+  /**
    * Expires a room that is still `awaiting_host` once 3:00.000 have passed since it entered that stage, or still
    * `formed` once 3:00.000 have passed since it opened (LBR-05).
    */
@@ -297,7 +343,7 @@ export class LobbyRoom {
       currentRun: this.currentRun + 1,
       gameName: nextName,
       awaitingSince: now,
-      members: this.members.map((member) => ({ ...member, confirmed: false })),
+      members: this.members.map((member) => ({ ...member, confirmed: false, elsewhere: false })),
     });
     return ok({
       room,
@@ -381,7 +427,10 @@ export class LobbyRoom {
     };
   }
 
-  #memberEvent(change: 'confirmed' | 'left' | 'host_changed', accountId: string): AnyDomainEvent {
+  #memberEvent(
+    change: 'confirmed' | 'left' | 'host_changed' | 'elsewhere' | 'returned',
+    accountId: string,
+  ): AnyDomainEvent {
     return {
       type: 'RoomMemberChanged',
       payload: { roomId: this.id, change, accountId, members: this.members },

@@ -25,6 +25,9 @@ pub use d2rmm_agent_domain::fusion::GameNameObservation;
 /// builds one.
 pub use d2rmm_agent_domain::player_observation::{NameRefused, PlayerKind, PlayerObservation};
 
+/// The `OTHER_GAME_SEEN` observation (agent-room-lifecycle): it holds no name.
+pub use d2rmm_agent_domain::other_game::OtherGameObservation;
+
 /// The heartbeat's presence and screen are the domain's value objects (M5).
 pub use d2rmm_agent_domain::presence::{CaptureReport, Presence, Screen};
 

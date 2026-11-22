@@ -50,8 +50,17 @@ pub async fn look_named<G>(
     };
     // The shipped pack first, then its fallback (the Brazilian one): the chat of a pt-BR client says the same things in
     // other words.
-    let mut packs: Vec<&LanguagePack> = vec![&ports.language];
-    packs.extend(ports.language.fallback());
+    // The chat phrases of the configuration of this look, over the shipped pack and its fallback (RCF-08).
+    let language = {
+        let config = device.config.borrow();
+        if config.phrases.is_configured() {
+            Arc::new(ports.language.with_phrases(&config.phrases))
+        } else {
+            Arc::clone(&ports.language)
+        }
+    };
+    let mut packs: Vec<&LanguagePack> = vec![&language];
+    packs.extend(language.fallback());
     let span = tracing::info_span!("agent.vision.read-chat", events = tracing::field::Empty);
     let _entered = span.enter();
     let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
@@ -240,6 +249,32 @@ mod tests {
             "Bob entrou em nosso mundo",
             "Eve saiu de nosso mundo",
             "Bob: hello there",
+        ]);
+
+        assert_eq!(look_at(&rig).await, [ChatEvent::Joined, ChatEvent::Left]);
+    }
+
+    /// remote-config T26: the chat phrases of the configuration are what a look compares the lines with, per language.
+    #[tokio::test(start_paused = true)]
+    async fn the_configured_chat_phrases_are_the_ones_a_look_reads_with() {
+        use d2rmm_agent_domain::remote_config::Words;
+        let rig = rig();
+        hold_a_room(&rig);
+        rig.device.config.send_modify(|config| {
+            config.phrases.en = Words {
+                joined_game: Some("entered the realm".to_string()),
+                ..Words::default()
+            };
+            config.phrases.pt_br = Words {
+                left_game: Some("deixou o mundo".to_string()),
+                ..Words::default()
+            };
+        });
+        rig.chat.say(&[
+            "Bob entered the realm",
+            "Eve deixou o mundo",
+            "Cal joined our world",
+            "Dan saiu de nosso mundo",
         ]);
 
         assert_eq!(look_at(&rig).await, [ChatEvent::Joined, ChatEvent::Left]);

@@ -3,8 +3,8 @@
 //! reaches the message type unchanged. The pure mapping lives here; the HTTP calls live in `gateway.rs`.
 
 use d2rmm_agent_core::messages::{
-    GameNameObservation, InvalidPairingCode, IssuedCode, PairingCode, PlayerKind,
-    PlayerObservation, Presence, Screen,
+    GameNameObservation, InvalidPairingCode, IssuedCode, OtherGameObservation, PairingCode,
+    PlayerKind, PlayerObservation, Presence, Screen,
 };
 use d2rmm_agent_domain::characters::{Card, Class, Difficulty, Mode};
 use d2rmm_agent_domain::room_assignment::{Assignment, GameName, Member, MemberRole, RoomId};
@@ -173,6 +173,21 @@ pub fn player_observation_to_contract(
         "type": kind,
         "run": value.run.get(),
         "value": value.name(),
+        "confidence": value.confidence,
+        "capturedAt": value.captured_at,
+    }))
+}
+
+/// An `OTHER_GAME_SEEN` observation in its contract shape: the empty value, because the other game's name is never sent
+/// (ARL-09).
+pub fn other_game_observation_to_contract(
+    value: &OtherGameObservation,
+) -> Result<contract::Observation, serde_json::Error> {
+    serde_json::from_value(json!({
+        "idempotencyKey": value.key.to_string(),
+        "type": "OTHER_GAME_SEEN",
+        "run": value.run.get(),
+        "value": "",
         "confidence": value.confidence,
         "capturedAt": value.captured_at,
     }))
@@ -582,6 +597,27 @@ mod tests {
                 .parse::<DateTime<Utc>>()
                 .expect("an instant"),
         )
+    }
+
+    #[test]
+    fn an_other_game_body_has_the_type_and_an_empty_value() {
+        let observation = super::OtherGameObservation::of(
+            Uuid::from_u128(1),
+            NonZeroU64::MIN,
+            Uuid::from_u128(2),
+            1.0,
+            "2026-11-21T10:00:00Z"
+                .parse::<DateTime<Utc>>()
+                .expect("an instant"),
+        );
+        let body = serde_json::to_value(
+            super::other_game_observation_to_contract(&observation).expect("a body"),
+        )
+        .expect("json");
+        assert_eq!(body["type"], "OTHER_GAME_SEEN");
+        assert_eq!(body["value"], "");
+        assert_eq!(body["run"], 1);
+        assert_eq!(body.as_object().expect("an object").len(), 6);
     }
 
     #[test]

@@ -25,6 +25,8 @@ export interface LobbyDatabase {
     join_order: number;
     /** The run this member's agent confirmed (INV-06); null before any confirmation. */
     confirmed_run: number | null;
+    /** The run for which this member's agent saw the member in another game (ARL-10); null otherwise. */
+    elsewhere_run: number | null;
     /** When the member left the room (FR-32); null while they are in it. */
     left_at: Date | null;
   };

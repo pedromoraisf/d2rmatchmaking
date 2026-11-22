@@ -9,7 +9,14 @@ import {
 const valid = (config: unknown): boolean => AgentConfig.safeParse(config).success;
 
 describe('AgentConfig ranges (RCF-03)', () => {
-  const cadenceFields = ['demoteAfter', 'probeEvery', 'rateWindow', 'lookIntervalMs'] as const;
+  const cadenceFields = [
+    'demoteAfter',
+    'probeEvery',
+    'rateWindow',
+    'lookIntervalMs',
+    'automapSearchEvery',
+    'listSearchEvery',
+  ] as const;
   for (const field of cadenceFields) {
     const { min, max } = AGENT_CONFIG_RANGES[field];
     it(`accepts ${field} at ${min} and ${max}, refuses ${min - 1} and ${max + 1} and a fraction`, () => {
@@ -20,6 +27,13 @@ describe('AgentConfig ranges (RCF-03)', () => {
       expect(valid({ version: 1, cadence: { [field]: min + 0.5 } })).toBe(false);
     });
   }
+
+  it("keeps the search cadences at today's floor of 2: no configuration searches more often (RCF-09)", () => {
+    expect(AGENT_CONFIG_RANGES.automapSearchEvery).toEqual({ min: 2, max: 10 });
+    expect(AGENT_CONFIG_RANGES.listSearchEvery).toEqual({ min: 2, max: 10 });
+    expect(valid({ version: 1, cadence: { automapSearchEvery: 1 } })).toBe(false);
+    expect(valid({ version: 1, cadence: { listSearchEvery: 1 } })).toBe(false);
+  });
 
   it('keeps the look interval at one second or more (CHR-03)', () => {
     expect(AGENT_CONFIG_RANGES.lookIntervalMs.min).toBe(1000);
@@ -113,6 +127,24 @@ describe('AgentConfig phrases (RCF-03, RCF-10)', () => {
     expect(valid({ version: 1, phrases: { en: { party: '' } } })).toBe(false);
     expect(valid({ version: 1, phrases: { en: { party: 'a'.repeat(40) } } })).toBe(true);
     expect(valid({ version: 1, phrases: { en: { party: 'a'.repeat(41) } } })).toBe(false);
+  });
+
+  it('accepts the chat phrases joinedGame and leftGame and refuses a hostile one', () => {
+    expect(
+      valid({ version: 1, phrases: { en: { joinedGame: 'joined the game', leftGame: 'left the game' } } }),
+    ).toBe(true);
+    expect(
+      valid({ version: 1, phrases: { 'pt-BR': { joinedGame: 'entrou no jogo', leftGame: 'saiu do jogo' } } }),
+    ).toBe(true);
+    for (const phrase of ['', '.*', 'joined|left', 'a'.repeat(41), 'http://x.y', 'a\nb']) {
+      expect(valid({ version: 1, phrases: { en: { joinedGame: phrase } } }), JSON.stringify(phrase)).toBe(
+        false,
+      );
+      expect(valid({ version: 1, phrases: { en: { leftGame: phrase } } }), JSON.stringify(phrase)).toBe(
+        false,
+      );
+    }
+    expect(valid({ version: 1, phrases: { en: { joinedGame: 'a'.repeat(40) } } })).toBe(true);
   });
 
   it('refuses an unknown language and an unknown word', () => {
