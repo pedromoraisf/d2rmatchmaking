@@ -899,6 +899,43 @@ mod tests {
         assert!(counting.take() > pt_pass);
     }
 
+    /// A pt-BR in-game frame whose Life line the engine lost: only the Mana label, a word both packs share.
+    const SHARED_MANA_HUD: &str = r#"{ "lines": [
+        { "text": "Mana: 400 / 400", "x": 1500, "y": 868, "width": 200, "height": 24 }
+    ] }"#;
+
+    #[test]
+    fn a_word_both_packs_share_reads_the_frame_in_whichever_language_goes_first_and_keeps_that_order()
+     {
+        let pt_pass = one_pass_cost(PT_SELECT, brazilian());
+        let counting = Counting::showing(SHARED_MANA_HUD);
+        let mana_image = counting.frame();
+        let reader = ScreenReader::new(
+            Arc::clone(&counting) as Arc<dyn TextReader + Send + Sync>,
+            shipped_like(),
+        );
+        // A fresh reader: English goes first and its "Mana:" matches, so the frame is in game and pt-BR is never asked.
+        assert_eq!(reader.read(&mana_image).screen, Screen::InGame);
+        let english_only = counting.take();
+        assert_eq!(
+            one_pass_cost(SHARED_MANA_HUD, LanguagePack::english()),
+            english_only
+        );
+        // The order is still English first: a pt-BR selection screen pays the English miss before its own pass.
+        counting.show(PT_SELECT);
+        let pt_image = counting.frame();
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert!(counting.take() > pt_pass);
+        // Now pt-BR goes first: the shared word reads in game in pt-BR, with no English read, and the order stays pt-BR.
+        counting.show(SHARED_MANA_HUD);
+        assert_eq!(reader.read(&mana_image).screen, Screen::InGame);
+        let pt_on_mana = counting.take();
+        assert_eq!(one_pass_cost(SHARED_MANA_HUD, brazilian()), pt_on_mana);
+        counting.show(PT_SELECT);
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert_eq!(counting.take(), pt_pass);
+    }
+
     fn read(json: &str, selected: Option<u8>) -> FrameReading {
         read_at(json, 1920, 1080, selected)
     }
