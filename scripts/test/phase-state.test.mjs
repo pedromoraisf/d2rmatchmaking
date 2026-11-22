@@ -171,3 +171,15 @@ test('a closed phase stays closed: no discovered spec or old open box reopens it
     ],
   );
 });
+
+test('a ### subsection inherits the "waits for the maintainer" marker of its ## section', () => {
+  const text = [
+    '## Batch 3 — waits for the maintainer',
+    '### Part A',
+    '- [ ] T1 — field',
+    '## Batch 4',
+    '### Part B',
+    '- [ ] T2 — work',
+  ].join('\n');
+  assert.deepEqual(taskCount(text), { done: 0, total: 2, open: 2, waiting: 1 });
+});
