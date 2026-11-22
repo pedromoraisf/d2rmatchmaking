@@ -10,6 +10,9 @@ import {
   activeTraceparent,
   addActiveSpanEvent,
   annotateActiveSpan,
+  gameFacts,
+  journeyIds,
+  runIdOf,
   matchCharacterName,
   err,
   linkActiveSpan,
@@ -157,6 +160,8 @@ function roomAttributes(room: LobbyRoom) {
     [D2R_DIFFICULTY]: room.difficulty,
     [D2R_ROOM_ACTIVITY]: room.activity,
     [D2R_QUEUE_MODE]: room.mode,
+    ...journeyIds({ runId: runIdOf(room.id, room.currentRun) }),
+    ...gameFacts({ gameName: room.gameName.value, stage: room.stage }),
   };
 }
 
@@ -329,7 +334,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
         if (accountId === null || room === null || !isMember) {
           return err('forbidden');
         }
-        annotateActiveSpan(roomAttributes(room));
+        annotateActiveSpan({ ...roomAttributes(room), ...journeyIds({ accountId, agentId: input.agentId }) });
         // The span links to the match that opened the room, for a repeated or UNKNOWN observation too (RTL-03, RTL-04).
         const traceparent = await deps.traceContexts.find(room.id);
         if (traceparent !== null) {

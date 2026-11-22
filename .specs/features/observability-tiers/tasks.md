@@ -27,7 +27,7 @@ Rules:
       production); resource gets `deployment.environment` and `d2r.telemetry.tier`; contract first, the boot configuration
       gains `telemetryTier`; regenerate `openapi.json`. Unit tests on the mapping and the resource.
       Gate: `pnpm contracts:openapi && pnpm --filter @d2rmm/contracts test && pnpm --filter @d2rmm/api test`
-- [ ] T3 — API ids and game data on spans (OBT-03): `d2r.account.id`, `d2r.agent.id`, `d2r.room.id`, `d2r.run.id`,
+- [x] T3 — API ids and game data on spans (OBT-03): `d2r.account.id`, `d2r.agent.id`, `d2r.room.id`, `d2r.run.id`,
       `d2r.ticket.id`, `d2r.ready_check.id`, `d2r.game.name`, `d2r.difficulty`, `d2r.queue.mode`, `d2r.room.stage` where
       each use case knows them (journey table in `telemetry.md`); the attribute builders are pure functions with unit
       tests (lessons: extract and unit-test). No metric gains an id label. Gate: `pnpm --filter @d2rmm/api test`

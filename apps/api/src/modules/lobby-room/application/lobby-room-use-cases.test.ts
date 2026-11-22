@@ -329,7 +329,7 @@ describe('lobby-room use cases', () => {
     expect(exporter.getFinishedSpans().map((span) => span.name)).toContain('lobby.record-observation');
   });
 
-  it('no span of lobby or matchmaking carries an account or agent id and the room id uses the d2r constant', async () => {
+  it('the observation span carries the journey ids and game data under the d2r keys, never under bare key names (OBT-03)', async () => {
     const { useCases } = setup();
     await useCases.onMatchFormed(match());
     await useCases.recordObservation({ agentId: 'agent-1', roomId: 'room-1', body: body() });
@@ -360,6 +360,11 @@ describe('lobby-room use cases', () => {
       'd2r.difficulty': 'hell',
       'd2r.room.activity': 'baal',
       'd2r.queue.mode': 'leveling',
+      'd2r.run.id': 'room-1/1',
+      'd2r.game.name': 'mmbaalh-1',
+      'd2r.room.stage': 'formed',
+      'd2r.account.id': 'account-1',
+      'd2r.agent.id': 'agent-1',
     });
     expect(D2R_ROOM_ID).toBe('d2r.room.id');
     for (const span of spans) {
