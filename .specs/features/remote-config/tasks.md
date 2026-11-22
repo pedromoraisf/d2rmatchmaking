@@ -156,3 +156,35 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 - [x] T21 — Document the operation (RCF-12): `docs/engineering/remote-config.md` (the file, every field's range, how to raise the
       version, how a configuration is rolled back by a revert and a release) and a line in `AGENTS.md`'s map. Gate:
       `pnpm format:check && pnpm specs:check`
+
+## Batch 5 — the deferred fields of RCF-03 (search cadences, chat phrases), contract first
+
+Batch 3 left out the screen search cadences and the chat "joined"/"left" phrases because they were not in the schema
+(decisions.md → To confirm). RCF-03 names both, so they close here. Agents ignore unknown fields (RCF-05), so a newer
+schema never breaks an older agent; `agent-config.json` keeps serving today's values.
+
+- [x] T22 — **Contract first** (ADR 020, rule 2). Add to `AgentConfig` (`packages/contracts/src/http/agent-config.ts`):
+      `cadence.automapSearchEvery` and `cadence.listSearchEvery` (whole, range **2–10**: the floor is today's
+      `AUTOMAP_SEARCH_EVERY` / `LIST_SEARCH_EVERY` = 2, so no value searches more often than today), and per language
+      `phrases.<lang>.joinedGame` and `phrases.<lang>.leftGame` (the existing phrase rule: 1–40 safe characters, literals).
+      Ranges in `AGENT_CONFIG_RANGES`; regenerate and commit JSON Schema, `openapi.json`, `asyncapi.json`
+      (`pnpm contracts:openapi`); contract tests for each bound and a hostile phrase; `agent-config.json` unchanged except
+      what the schema now requires (nothing). Gate: `pnpm contracts:openapi && git diff --exit-code -- packages/contracts`
+      after the commit, `pnpm --filter @d2rmm/contracts test` and the API agent-config tests
+- [x] T23 — **[R14] Pin first**: tests that pin today's search cadences (`AUTOMAP_SEARCH_EVERY`, `LIST_SEARCH_EVERY`, the
+      search call counts over 600 looks while the automap or the list marker is not found) and today's chat phrases per
+      language (`joinedGame`, `leftGame` from the language packs, the classify results of `chat.rs`'s existing cases). No
+      non-test line changes. Gate: `CARGO nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib`
+- [x] T24 — **[R14] Parse** the four fields in `domain/src/remote_config.rs` (clamp into the same ranges; a phrase only when
+      it passes its rule), add them to `FIELDS` and to the source-rule test; defaults equal today's constants (RCF-07).
+      Gate: as T23
+- [x] T25 — **[R14] Search cadences** from `Effective.cadence` into the automap and list-marker trackers read by
+      `core/src/screen_reader.rs`, one reading module per commit, byte-identical at the defaults; call counts at 2 and 10.
+      Real-print proof in CI: `ocr-real` green, `ocr-variations` counts equal to the base. Gate: as T23, plus
+      `CARGO clippy -p d2rmm-agent-domain -p d2rmm-agent-core --all-targets -- -D warnings`
+- [x] T26 — **[R14] Chat phrases** from `Effective.phrases` into the language pack (`language.rs` `with_phrases`: add
+      `JOINED_GAME` and `LEFT_GAME` beside the Party words), compared as literals by `chat.rs`'s existing rules; tests with
+      English and pt-BR phrases and a hostile one. Real-print proof as T25 (the chat prints). Gate: as T25
+- [x] T27 — Close the proofs and the doc: the PR table (each new range and its test, call counts at the extremes,
+      `ocr-real` per print, `ocr-variations` before and after), and `docs/engineering/remote-config.md` gains the four
+      fields. Gate: `pnpm specs:check && pnpm test:harness && pnpm format:check`

@@ -34,6 +34,8 @@ pub fn wire_of(body: &[u8]) -> Option<Wire> {
         probe_every: number(field(cadence, "probeEvery")),
         rate_window: number(field(cadence, "rateWindow")),
         look_interval_ms: number(field(cadence, "lookIntervalMs")),
+        automap_search_every: number(field(cadence, "automapSearchEvery")),
+        list_search_every: number(field(cadence, "listSearchEvery")),
         track_pad: number(field(thresholds, "trackPad")),
         hud_band: area(field(regions, "hudBand")),
         automap_area: area(field(regions, "automapArea")),
@@ -70,6 +72,8 @@ fn words(value: Option<&Value>) -> WireWords {
         party: text(field(value, "party")),
         game_name: text(field(value, "gameName")),
         password: text(field(value, "password")),
+        joined_game: text(field(value, "joinedGame")),
+        left_game: text(field(value, "leftGame")),
     }
 }
 
@@ -124,6 +128,7 @@ mod tests {
                 party: Some("Party".into()),
                 game_name: Some("Game Name".into()),
                 password: Some("Password".into()),
+                ..Words::default()
             }
         );
         assert_eq!(applied.phrases.pt_br, Words::default());
@@ -245,12 +250,13 @@ mod tests {
         let region = |x: f64| json!({ "x": x, "y": 0.1, "width": 0.3, "height": 0.3 });
         let wire = wire_of(&body(&json!({
             "version": 9,
-            "cadence": { "demoteAfter": 1, "probeEvery": 2, "rateWindow": 3, "lookIntervalMs": 4 },
+            "cadence": { "demoteAfter": 1, "probeEvery": 2, "rateWindow": 3, "lookIntervalMs": 4,
+                "automapSearchEvery": 6, "listSearchEvery": 7 },
             "thresholds": { "trackPad": 5 },
             "regions": { "hudBand": region(0.1), "automapArea": region(0.2), "partyArea": region(0.3) },
             "phrases": {
-                "en": { "party": "a", "gameName": "b", "password": "c" },
-                "pt-BR": { "party": "d", "gameName": "e", "password": "f" },
+                "en": { "party": "a", "gameName": "b", "password": "c", "joinedGame": "g", "leftGame": "h" },
+                "pt-BR": { "party": "d", "gameName": "e", "password": "f", "joinedGame": "i", "leftGame": "j" },
             },
         })))
         .expect("a document");
@@ -261,9 +267,19 @@ mod tests {
                 wire.probe_every,
                 wire.rate_window,
                 wire.look_interval_ms,
-                wire.track_pad
+                wire.track_pad,
+                wire.automap_search_every,
+                wire.list_search_every
             ],
-            [Some(1.0), Some(2.0), Some(3.0), Some(4.0), Some(5.0)]
+            [
+                Some(1.0),
+                Some(2.0),
+                Some(3.0),
+                Some(4.0),
+                Some(5.0),
+                Some(6.0),
+                Some(7.0)
+            ]
         );
         let x = |area: Option<d2rmm_agent_domain::remote_config::WireArea>| area.and_then(|a| a.x);
         assert_eq!(
@@ -276,15 +292,21 @@ mod tests {
             (Some(0.1), Some(0.3), Some(0.3))
         );
         let words = |w: &d2rmm_agent_domain::remote_config::WireWords| {
-            [w.party.clone(), w.game_name.clone(), w.password.clone()]
+            [
+                w.party.clone(),
+                w.game_name.clone(),
+                w.password.clone(),
+                w.joined_game.clone(),
+                w.left_game.clone(),
+            ]
         };
         assert_eq!(
             words(&wire.en),
-            [Some("a".into()), Some("b".into()), Some("c".into())]
+            ["a", "b", "c", "g", "h"].map(|word| Some(word.into()))
         );
         assert_eq!(
             words(&wire.pt_br),
-            [Some("d".into()), Some("e".into()), Some("f".into())]
+            ["d", "e", "f", "i", "j"].map(|word| Some(word.into()))
         );
     }
 }
