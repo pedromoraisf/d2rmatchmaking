@@ -544,6 +544,25 @@ const chatPostTelemetryViolations = (base) =>
         .map(() => `${rel} puts the name or the observation in a span, an event or a counter`),
     );
 
+// The diagnostics switch (observability-tiers OBT-17): only the span processor and the export loop read it. The settings store and
+// the composition roots build it; the gateway, the heartbeat, the observations and the rest of the adapters and core never name it.
+const DIAGNOSTICS_SWITCH_ALLOW_LIST = [
+  'adapters/src/telemetry/switch.rs',
+  'adapters/src/telemetry/export.rs',
+  'adapters/src/telemetry/mod.rs',
+  'adapters/examples/headless.rs',
+  'src/app.rs',
+];
+const DIAGNOSTICS_SWITCH = /\b(?:DiagnosticsSwitch|FileDiagnosticsStore|diagnostics_store_in)\b/;
+const diagnosticsSwitchViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => !DIAGNOSTICS_SWITCH_ALLOW_LIST.includes(rel))
+    .filter(({ text }) => DIAGNOSTICS_SWITCH.test(codeOnly(text)))
+    .map(
+      ({ rel }) =>
+        `${rel} names the diagnostics switch and is not the span processor, the export loop or a composition root`,
+    );
+
 // Capture scope (ADR 010, capture-cascade CAP-04): the capture adapters see the game window and nothing else. No monitor, no
 // desktop or screen device context, no duplication of the output. The allowed `IGraphicsCaptureItemInterop` and
 // `Graphics::Capture` imports reach these through method calls, so the rule matches calls and uses, not import paths.
@@ -936,6 +955,16 @@ test('the outgoing data rule covers the span exporter client too', () => {
   assert.match(violations, /relay_client\.rs names a frame or pixel type/);
   assert.match(violations, /relay_client\.rs sends more than the one protobuf batch body/);
   assert.match(violations, /relay_client\.rs sends a raw body, a multipart part or an image/);
+});
+
+test('the diagnostics switch is read only by the span processor and the export loop (OBT-17)', () => {
+  assert.deepEqual(diagnosticsSwitchViolations(root), []);
+});
+
+test('the diagnostics switch rule rejects a reference from the HTTP adapters or core', () => {
+  const violations = diagnosticsSwitchViolations(fixtureBase('diagnostics-switch-leak')).join('\n');
+  assert.match(violations, /adapters\/src\/http\/heartbeat\.rs names the diagnostics switch/);
+  assert.match(violations, /core\/src\/gate\.rs names the diagnostics switch/);
 });
 
 test('the instrument rule rejects arguments without skip_all', () => {
