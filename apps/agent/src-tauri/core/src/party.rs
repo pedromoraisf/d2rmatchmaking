@@ -1544,6 +1544,44 @@ mod anchored_tests {
         assert_eq!(fields(&reading), ["mmbaalm-99"]);
     }
 
+    /// `Lines` that counts the reads asked of it.
+    struct ReadsCounted(Lines, std::sync::atomic::AtomicUsize);
+
+    impl TextReader for ReadsCounted {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.1.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.0.read(image, region)
+        }
+
+        fn read_lines(&self, image: &Rgba, area: Region) -> Vec<TextLine> {
+            self.1.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.0.read_lines(image, area)
+        }
+    }
+
+    fn reads_of(lines: Lines, language: &LanguagePack, height: u32) -> usize {
+        let counted = ReadsCounted(lines, std::sync::atomic::AtomicUsize::new(0));
+        read_panel(&counted, language, &frame(height));
+        counted.1.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    #[test]
+    fn the_fallback_pack_reads_the_panel_with_no_second_ocr_pass() {
+        // The Brazilian words are matched against the lines already read: a pt-BR panel costs what an English one does, and
+        // a closed panel (which tries both packs on the same lines) costs what it does with the English pack alone.
+        let english = reads_of(
+            panel(136, 176, Some(("mmbaalm-99", 204))),
+            &LanguagePack::english(),
+            1045,
+        );
+        let portuguese = reads_of(portuguese_panel(), &english_with_portuguese(), 1045);
+        assert!(english > 0);
+        assert_eq!(portuguese, english);
+        let closed_with = reads_of(Lines(Vec::new()), &english_with_portuguese(), 1045);
+        let closed_without = reads_of(Lines(Vec::new()), &LanguagePack::english(), 1045);
+        assert_eq!(closed_with, closed_without);
+    }
+
     #[test]
     fn a_pt_br_panel_never_confirms_another_rooms_name_and_a_pt_br_word_is_no_panel_elsewhere() {
         use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
