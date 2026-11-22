@@ -19,6 +19,8 @@ pub mod ready_check;
 pub mod runtime;
 pub mod screen_reader;
 pub mod secret;
+#[cfg(test)]
+mod test_interest;
 pub mod title_ink;
 pub mod view;
 pub mod watch_screen;
