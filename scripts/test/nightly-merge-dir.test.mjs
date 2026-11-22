@@ -48,3 +48,22 @@ test('mergeDirectory with no reports writes nothing', () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('mergeDirectory merges the four domain shards of the nightly into one agent-domain file (NGT-01)', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'ngt-merge-'));
+  try {
+    for (const k of [1, 2, 3, 4]) {
+      const target = path.join(root, 'in', `agent-mutation-domain-${k}`, 'mutants.out', 'outcomes.json');
+      mkdirSync(path.dirname(target), { recursive: true });
+      cpSync(path.join(fixtures, 'cargo-mutants-domain.json'), target);
+    }
+    const written = mergeDirectory(path.join(root, 'in'), path.join(root, 'out'));
+    assert.equal(written.length, 1);
+    const single = JSON.parse(readFileSync(path.join(fixtures, 'cargo-mutants-domain.json'), 'utf8'));
+    const merged = JSON.parse(readFileSync(written[0], 'utf8'));
+    assert.equal(merged.caught, single.caught * 4);
+    assert.equal(merged.missed, single.missed * 4);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

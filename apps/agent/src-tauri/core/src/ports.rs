@@ -12,7 +12,6 @@ use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::frame_content::FrameContent;
 use d2rmm_agent_domain::remote_config::{Effective, Wire};
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomId};
-use d2rmm_agent_domain::typing::{Modifiers, TypableChar};
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use uuid::Uuid;
 
@@ -534,24 +533,6 @@ mod read_lines_tests {
         }
         assert!(Broken.read_lines(&frame(), REGION).is_empty());
     }
-}
-
-/// Types one character into the foreground window (AST-06, ADR 010). The character is a `TypableChar`: one of `a`–`z`,
-/// `0`–`9` and `-`. The port has no other method, so the agent cannot ask for Enter, Tab, Space, Escape, a modifier, a
-/// mouse event or the clipboard. Only the app crate's typing adapter implements it.
-pub trait KeyTyper {
-    fn type_char(&self, character: TypableChar);
-}
-
-/// Whether the foreground window belongs to a D2R process (AST-03). Only the app crate's foreground adapter implements it.
-pub trait ForegroundWindow {
-    fn game_has_focus(&self) -> bool;
-}
-
-/// Whether any of these modifier keys is held down now (AST-05). It answers for the hotkey's own modifiers only and reads
-/// no other key.
-pub trait ModifierState {
-    fn any_held(&self, modifiers: Modifiers) -> bool;
 }
 
 /// What one request for the remote configuration came to (remote-config RCF-04). The body is bytes: the core never reads JSON,
