@@ -55,15 +55,16 @@ pixels, crops), and the agent's exporter drops every event, link, status text, U
 
 **Desktop agent** (spans through the relay; `d2r.telemetry.tier` and `deployment.environment` = the channel on the resource):
 
-| Data                                                                                                                  | Production |  Full   |
-| --------------------------------------------------------------------------------------------------------------------- | :--------: | :-----: |
-| `d2r.room.id`, `d2r.run.id`, `d2r.game.name`, `d2r.ocr.confidence` of a posted observation (`agent.observation.post`) |    yes     |   yes   |
-| Recognised screen (`vision.screen`), capture method and outcome (`capture.*`), search words (`vision.search`)         |    yes     |   yes   |
-| `d2r.step.duration_ms` of the observation post and of the character-screen read                                       |    yes     |   yes   |
-| `d2r.ocr.corrections` (correction classes such as `rn>m`, never a name), `d2r.agent.id`                               |  allowed   | allowed |
-| `d2r.ocr.names` (the character names read on the selection screen)                                                    |     no     |   yes   |
-| `d2r.ocr.text`, `d2r.character.name`, `d2r.account.battletag`                                                         |     no     | allowed |
-| Sampling                                                                                                              |    10%     |  100%   |
+| Data                                                                                                                     | Production |  Full   |
+| ------------------------------------------------------------------------------------------------------------------------ | :--------: | :-----: |
+| `d2r.room.id`, `d2r.run.id`, `d2r.game.name`, `d2r.ocr.confidence` of a posted observation (`agent.observation.post`)    |    yes     |   yes   |
+| Recognised screen (`vision.screen`), capture method and outcome (`capture.*`), search words (`vision.search`)            |    yes     |   yes   |
+| Whether the other-game post went through (`post.outcome` of `agent.other_game.post`: `posted` or `failed`, nothing else) |    yes     |   yes   |
+| `d2r.step.duration_ms` of the observation post and of the character-screen read                                          |    yes     |   yes   |
+| `d2r.ocr.corrections` (correction classes such as `rn>m`, never a name), `d2r.agent.id`                                  |  allowed   | allowed |
+| `d2r.ocr.names` (the character names read on the selection screen)                                                       |     no     |   yes   |
+| `d2r.ocr.text`, `d2r.character.name`, `d2r.account.battletag`                                                            |     no     | allowed |
+| Sampling                                                                                                                 |    10%     |  100%   |
 
 "Allowed" means the sanitizer lets the key through (the value must have the fixed shape of its key: a correction list,
 a confidence from 0 to 1, a generated game name, a timing up to an hour) and the agent does not record it yet:
