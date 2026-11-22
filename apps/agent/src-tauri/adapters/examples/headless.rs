@@ -145,6 +145,24 @@ impl StateSink for Lines {
         {
             let _ = self.events.send(json!({ "event": "presence-confirmed" }));
         }
+        // The window's room line, by state, when it changes (ARL-03, ARL-08): `waiting`, `confirmed` or `elsewhere`. No name.
+        let line_of = |room: Option<&RoomView>| {
+            room.map(|room| {
+                if room.elsewhere {
+                    "elsewhere"
+                } else if room.confirmed {
+                    "confirmed"
+                } else {
+                    "waiting"
+                }
+            })
+        };
+        let line = line_of(view.room.as_ref());
+        if line.is_some() && line != line_of(held_before) {
+            let _ = self
+                .events
+                .send(json!({ "event": "room-line", "line": line }));
+        }
         if let Some(room) = &view.room {
             let held = before.as_ref().and_then(|previous| previous.room.as_ref());
             if held != Some(room) {

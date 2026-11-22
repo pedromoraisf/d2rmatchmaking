@@ -5,13 +5,16 @@
 // A headless agent heartbeats on the wall clock, the stack's clock moves only when a step moves it. A step that passes
 // stack time therefore moves it in short chunks and waits a heartbeat between them, so no agent goes offline on the way.
 import { expect } from '@playwright/test';
-import { Given, Then, When, test } from '../fixtures.ts';
+import { After, Given, Then, When, test } from '../fixtures.ts';
+import { closeWires, enableWire, wireOf } from '../support/agent-wire.ts';
 import { HeadlessAgent } from '../support/headless-agent.ts';
 import {
   ensureHeadless,
   expectStage,
   formRoom,
+  expectSiteStage,
   headlessOf,
+  memberRow,
   pageOf,
   roomViewOf,
   showPanel,
@@ -160,4 +163,112 @@ Then('the site shows the agent offline within 60 seconds', async ({ world }) => 
     world.currentVisitor.page.getByText('Agent offline', { exact: true }),
     'the presence after the reconnect',
   ).toBeVisible({ timeout: 60_000 });
+});
+
+// --- ARL-08 to ARL-11: the host in another game --------------------------------------------------------------------
+// The headless agent reads the Party panel the scenario draws. The scenario texts name the room "mmbaalh-28", but the API
+// numbers the rooms of a stack, so a name in the text stands for the room's own: "mmbaalh-28" is the held name and
+// "mmbaa1h-28" is that name with the l read as a 1 (one edit, a misread). Any other text ("duels") is used as written.
+
+/** How long the agent has to take its looks and the API and the site to show the change. */
+const ELSEWHERE_WAIT_MS = 45_000;
+/** Enough looks (one a second) to have taken the two the scenario draws. */
+const LOOKS_MS = 6_000;
+
+/** The watch on Alice's requests for the name a scenario draws. */
+const watches = new WeakMap<World, { carried(): boolean }>();
+
+function panelTextFor(held: string, text: string): string {
+  if (text === 'mmbaalh-28') return held;
+  if (text === 'mmbaa1h-28') return held.replace(/^(mm[a-z]*?)l/, '$11');
+  return text;
+}
+
+After({ tags: '@ARL-08' }, async ({ world }) => {
+  await closeWires(world);
+});
+
+async function hostWithConfirmedPresence(world: World): Promise<void> {
+  test.setTimeout(SCENARIO_TIMEOUT_MS);
+  enableWire(world);
+  await formRoom(world);
+  await toStage(world, true, 'created');
+  const confirmed = await headlessOf(world, 'Alice').agent.waitFor('presence-confirmed', DROP_WAIT_MS);
+  expect(confirmed.event, "Alice's window says presence confirmed").toBe('presence-confirmed');
+}
+
+function lineOf(world: World, name: string): string | undefined {
+  return headlessOf(world, name)
+    .agent.events.filter((event) => event.event === 'room-line')
+    .at(-1)?.['line'] as string | undefined;
+}
+
+Given(
+  'Alice hosts a room {string} with Bob, and her headless agent confirmed her presence',
+  async ({ world }) => {
+    await hostWithConfirmedPresence(world);
+  },
+);
+
+Given("Alice's headless agent shows her in another game for her room {string}", async ({ world }) => {
+  await hostWithConfirmedPresence(world);
+  showPanel(world, 'Alice', 'duels');
+  await headlessOf(world, 'Alice').agent.waitFor(
+    'room-line',
+    ELSEWHERE_WAIT_MS,
+    (event) => event['line'] === 'elsewhere',
+  );
+});
+
+When(
+  "Alice's agent reads the game name {string} in the Party panel on two looks in a row",
+  async ({ world }, text: string) => {
+    // Watching starts before the name is on screen: no later request may carry it.
+    watches.set(world, wireOf(world, 'Alice').watch(text));
+    showPanel(world, 'Alice', panelTextFor((await roomViewOf(world, 'Alice')).expectedGameName, text));
+    if (text === 'duels') {
+      // The agent looks about once a second: its second look is the one that posts.
+      await headlessOf(world, 'Alice').agent.waitFor('elsewhere-observed', ELSEWHERE_WAIT_MS);
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, LOOKS_MS));
+    }
+  },
+);
+
+When("Alice's agent reads the game name {string} in the Party panel", async ({ world }, text: string) => {
+  showPanel(world, 'Alice', panelTextFor((await roomViewOf(world, 'Alice')).expectedGameName, text));
+});
+
+Then("Alice's agent window says she is in another game", async ({ world }) => {
+  const away = await headlessOf(world, 'Alice').agent.waitFor(
+    'room-line',
+    ELSEWHERE_WAIT_MS,
+    (event) => event['line'] === 'elsewhere',
+  );
+  expect(away['line'], "Alice's window line").toBe('elsewhere');
+});
+
+Then("Alice's agent window still says presence confirmed", ({ world }) => {
+  const agent = headlessOf(world, 'Alice').agent;
+  expect(lineOf(world, 'Alice'), "Alice's window line after the looks").toBe('confirmed');
+  expect(
+    agent.events.some((event) => event.event === 'elsewhere-observed'),
+    'an OTHER_GAME_SEEN was posted for a misread of the room name',
+  ).toBe(false);
+});
+
+Then("Bob's site shows Alice {string}", async ({ world }, text: string) => {
+  await expect(memberRow(pageOf(world, 'Bob'), 'Alice'), `Alice's presence on Bob's site`).toContainText(
+    text,
+    { timeout: ELSEWHERE_WAIT_MS },
+  );
+});
+
+Then('the room is still {string}', async ({ world }, label: string) => {
+  await expectSiteStage(pageOf(world, 'Bob'), label);
+  await expectStage(world, 'Alice', 'created');
+});
+
+Then('no observation carried the name {string}', ({ world }, text: string) => {
+  expect(watches.get(world)?.carried(), `an observation of Alice's agent carried "${text}"`).toBe(false);
 });

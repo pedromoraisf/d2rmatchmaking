@@ -112,6 +112,27 @@ describe('the recording proxy and a chat sighting', () => {
   });
 });
 
+describe('the recording proxy watching for a name', () => {
+  it('notes a body that carries the text, in any case, and keeps no body', async () => {
+    proxy = await startRecordingProxy(upstreamUrl);
+    const post = (body: string) =>
+      fetch(`${proxy?.url}/v1/lobby-rooms/r/observations`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+      });
+    await post(JSON.stringify({ type: 'GAME_NAME_SEEN', value: 'mmbaalh-1' }));
+    const watching = proxy.watch('Duels');
+    await post(JSON.stringify({ type: 'OTHER_GAME_SEEN', value: '' }));
+    await expect.poll(() => proxy?.requests().length).toBe(2);
+    expect(watching.carried()).toBe(false);
+
+    await post(JSON.stringify({ type: 'OTHER_GAME_SEEN', value: 'a DUELS game' }));
+    await expect.poll(() => watching.carried()).toBe(true);
+    expect(JSON.stringify(proxy.requests())).not.toContain('DUELS');
+  });
+});
+
 describe('the recording proxy streams', () => {
   it('hands the headers of an event stream on at once, before any body chunk', async () => {
     let release: (() => void) | undefined;

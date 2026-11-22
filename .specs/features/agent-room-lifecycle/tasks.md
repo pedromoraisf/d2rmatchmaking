@@ -59,5 +59,5 @@ Rules:
       reading module must change, rule 14 applies. Gate: `CARGO nextest run -p d2rmm-agent-core --lib`
 - [x] T11 — Site (ARL-11): "In another game" / "Em outro jogo" in the members list; component test.
       Gate: `pnpm --filter @d2rmm/web exec vitest run src/features/lobby-room && pnpm --filter @d2rmm/web lint`
-- [ ] T12 — Acceptance steps for the new `@ARL-` scenarios with the headless agent (a fake Party read). Gate:
+- [x] T12 — Acceptance steps for the new `@ARL-` scenarios with the headless agent (a fake Party read). Gate:
       `pnpm exec turbo run test:acceptance -- --grep @ARL-`
