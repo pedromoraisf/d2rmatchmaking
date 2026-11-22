@@ -63,9 +63,12 @@ ones. That is a second reason the absolute shares above are an order of magnitud
   frame), but it doubles them, and `Unknown` is the state of a player in the main menu, a loading screen or off the game.
 - A known screen, English or pt-BR, pays one pass: **the fallback costs nothing in steady state**, which is what the
   ordering of the packs (the language that read the last frame goes first) is for.
-- **The guard is needed** (skip the second pack when the first found no anchor at all): it would remove up to half of an
-  `Unknown` frame, 36 of 72 calls. It changes a non-test line of `screen_reader.rs`, so it waits for the real-print proof
-  (rule 14); tasks.md T17.
+- **The guard (T17, done in batch 8)**: the second pack is asked on the first `Unknown` frame of a run and then every 5th
+  (`SECOND_PACK_EVERY`), so the average `Unknown` frame falls from 72 to 43 engine calls (English alone: 36). "No anchor at
+  all" could not be the criterion: an `Unknown` reading drops the partial-anchor counts, so a pt-BR screen the English
+  words miss looks the same as a menu. The bound keeps pt-BR recognised on the first frame and within 4 s after an
+  `Unknown` run. It changes a non-test line of `screen_reader.rs`: the real-print proof (`ocr-real`, `ocr-variations`) is
+  run by CI (rule 14).
 
 ## What this does not prove
 
@@ -73,4 +76,5 @@ ones. That is a second reason the absolute shares above are an order of magnitud
   session, the agent's CPU telemetry on the maintainer's PC) is the measure; it replaces the three assumed columns.
 - The `Unknown` counts come from drawn fixtures whose reader returns no line on those areas. A real loading screen or
   desktop with text in the search areas can make the engine and the anchors do more (never fewer) reads than counted.
-- The guard's own saving on real frames: it needs the `ocr-real` and `ocr-variations` runs.
+- The guard's effect on real frames: it needs the `ocr-real` and `ocr-variations` runs (CI), and the saving is 29 of 72
+  calls on an `Unknown` frame at the assumed counts, not a measured CPU figure.
