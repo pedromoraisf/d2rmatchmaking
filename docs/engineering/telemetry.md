@@ -203,11 +203,21 @@ log record and metric.
 Grouped by origin, over all 42 names: **the `pg` auto-instrumentation (`pg.query:*` and `pg-pool.connect`) is 781 of the
 1 198 spans (65%) and about 52% of the trace wire bytes** (39 320 of 75 762); the HTTP spans (`POST`, `GET`, `PATCH`) are
 68 spans and 8%; the application's own spans (`agents.*`, `lobby.*`, `matchmaking.*`, `identity.*`, `platform.*`) are 349
-spans and 20%. Per room that is 41 database spans, 4 HTTP spans and 18 application spans.
+spans and 20%. The three groups cover all 1 198 spans (781 + 68 + 349), so the remaining **20% of the wire bytes is not
+a fourth origin**: it is the part no span name adds on its own, the request envelope (resource and scope, repeated once
+per `ResourceSpans`) and the gzip savings the per-name marginals share, which do not add up to the total (see Two
+measures). Per room that is 41 database spans, 4 HTTP spans and 18 application spans.
 
-**Logs: all the records** (2 distinct names; wire share of 16 508 bytes). Every record is the pino request log: one
-`incoming request` and one `request completed` per HTTP request, from the scope `@opentelemetry/instrumentation-pino`, at
-severity `info`, with no event name.
+**Logs: all the records** (2 distinct names; wire share of 16 508 bytes). Every record is the pino request log: Fastify
+writes one `incoming request` and one `request completed` per request it handles, from the scope
+`@opentelemetry/instrumentation-pino`, at severity `info`, with no event name. The app logger has no skip rule
+(`appLoggerOptions` sets no `disableRequestLogging` and no per-route level), so every request that reaches the API is
+logged twice. The capture holds 68 `incoming request` and 63 `completed` records, 131 in all: the five without a
+completion are most likely requests still open when the run ended (the event streams; not checked). The
+358 requests of the run summary are k6's counter, not the API's log: they are not all API requests this run logged
+and **the gap between 358 and 68 is not
+explained by the code; it is an open question** for T12 (count the API's own requests in the same run to close it).
+"Two records per request" therefore holds for the requests that reach the API's logger, not for the 358.
 
 | #   | Log record (scope / severity / body) | Records | Per room | Raw share | Wire share | Mean bytes | Attribute keys (bytes per record) |
 | --- | ------------------------------------ | ------: | -------: | --------: | ---------: | ---------: | --------------------------------- |
@@ -233,9 +243,9 @@ histograms are 80% of the metric bytes, and one export carries them for every ro
    (`BEGIN`, `COMMIT`, `START`) and `db.query.text` is a change to the instrumentation setup, not to the application.
 2. The application's own spans are 20% of the trace wire bytes. The sampler decides how many traces are kept; this
    split says what each kept trace costs, and most of it is the `pg` spans.
-3. The request log is the whole log signal: two records per request, about 120 bytes each, unsampled. A filter on the pino
-   instrumentation (or logging requests at a lower level in the full tier) removes the 21% of the nightly bytes that logs
-   carry.
+3. The request log is the whole log signal: up to two records per request the API logs, about 120 bytes each, unsampled.
+   A filter on the pino instrumentation (or logging requests at a lower level in the full tier) targets the log signal,
+   which is 21% of the nightly's wire bytes and 17% in this run; how much it saves is not measured here.
 4. The metrics are 2% of the nightly and have no single lever.
 
 Reproduce: the commands above, then compare shares, not bytes.
