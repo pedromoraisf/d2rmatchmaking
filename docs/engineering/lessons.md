@@ -145,6 +145,12 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
 - **A revert that makes more variants readable can raise `wrong` as well as `correct`.** Compare the reasons per
   print against the last green baseline run before choosing what to revert. Why: #104 spent two 70-minute runs on
   reverts that did not touch the failing class.
+- **A test that records `tracing` spans or events must have a process-wide global subscriber that enables everything
+  (`core/src/test_interest.rs`), not only `set_default` plus `rebuild_interest_cache`.** Why: `tracing` caches each
+  callsite's interest for the whole process, a callsite first registered by another test's thread can cache "never", and
+  the span tests then failed at random under `cargo test` (one process) while passing under nextest. The nightly's
+  cargo-mutants baseline runs `cargo test`, so `the_span_of_a_closed_panel_says_neither` failed it on 2026-11-21 and 22
+  (about 10% of party-only runs, 1% of whole-suite runs before the fix, 0 of 500 after).
 
 ## Harness
 

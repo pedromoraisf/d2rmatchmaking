@@ -1994,6 +1994,7 @@ mod hud_tests {
     /// The `agent.vision.read` fields of one read, as `screen/search/area_class`.
     pub(super) fn words_of(screens: &ScreenReader, frame: &Rgba) -> String {
         let spans = Arc::new(Spans::default());
+        crate::test_interest::always();
         let guard = tracing::subscriber::set_default(Arc::clone(&spans));
         tracing::callsite::rebuild_interest_cache();
         screens.read(frame);
