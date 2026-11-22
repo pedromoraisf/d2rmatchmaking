@@ -10,7 +10,9 @@ import {
   PRINT_BUDGET_MINUTES,
   checkBudget,
   findPartials,
+  formatRefusals,
   mergeShards,
+  refusalReasons,
 } from '../agent/ocr-variations-shards.mjs';
 
 const script = path.join(
@@ -35,6 +37,9 @@ function unsharded() {
   const variants = [];
   const byPrint = {};
   const families = { scale: {}, shift: {} };
+  // Refusals alternate between two classes, counted here by hand (not with the code under test).
+  const refusalTotal = {};
+  const refusalByPrint = {};
   for (const name of FOLDER) {
     const [correct, refused, wrong] = COUNTS[name];
     totals.correct += correct;
@@ -48,9 +53,18 @@ function unsharded() {
       ...Array(refused).fill('refused'),
       ...Array(wrong).fill('wrong'),
     ];
-    outcomes.forEach((outcome, n) =>
-      variants.push({ screenshot: name, id: `v${n}`, family: 'scale', outcome, reason_class: 'none' }),
-    );
+    refusalByPrint[name] = {};
+    let refusedSoFar = 0;
+    outcomes.forEach((outcome, n) => {
+      let reason = 'none';
+      if (outcome === 'refused') {
+        reason = refusedSoFar % 2 === 0 ? 'no-card' : 'title-unseen';
+        refusedSoFar += 1;
+        refusalByPrint[name][reason] = (refusalByPrint[name][reason] ?? 0) + 1;
+        refusalTotal[reason] = (refusalTotal[reason] ?? 0) + 1;
+      }
+      variants.push({ screenshot: name, id: `v${n}`, family: 'scale', outcome, reason_class: reason });
+    });
   }
   return {
     seed: 7,
@@ -61,6 +75,7 @@ function unsharded() {
     families,
     elapsed_seconds: Object.fromEntries(FOLDER.map((name, n) => [name, 60 * (n + 1)])),
     variants,
+    refusal_reasons: { total: refusalTotal, by_screenshot: refusalByPrint },
   };
 }
 
@@ -211,4 +226,41 @@ test('the command line budget check exits 1 over the budget', () => {
   const fine = spawnSync('node', [script, 'budget', '--json', file], { encoding: 'utf8' });
   assert.equal(fine.status, 0, fine.stderr);
   assert.match(fine.stdout, /ok\.png: 18\.3 min \(budget 20 min\)/);
+});
+
+test('the merge counts refusals by reason class, per print and in total, from the variants', () => {
+  const merged = mergeShards(all(3), 3);
+  assert.deepEqual(merged.refusal_reasons.total, { 'no-card': 3, 'title-unseen': 1 });
+  assert.deepEqual(merged.refusal_reasons.by_screenshot['c.png'], { 'no-card': 1, 'title-unseen': 1 });
+  assert.deepEqual(merged.refusal_reasons.by_screenshot['a.png'], {});
+});
+
+test('refusals are formatted most frequent first, then by name, and nothing when none was refused', () => {
+  assert.equal(
+    formatRefusals({ 'title-unseen': 30, 'no-card': 120, 'a-class': 30 }),
+    'refused: no-card 120, a-class 30, title-unseen 30',
+  );
+  assert.equal(formatRefusals({}), null);
+  assert.deepEqual(
+    refusalReasons([
+      { outcome: 'refused', reason_class: 'x' },
+      { outcome: 'wrong', reason_class: 'x' },
+      { outcome: 'refused', reason_class: 'x' },
+    ]),
+    { x: 2 },
+  );
+});
+
+test('the merge command prints the refusal reasons per print and for all prints', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'ocr-shards-reasons-'));
+  all(2).forEach((p, n) => writeFileSync(path.join(dir, `p${n}.json`), JSON.stringify(p)));
+  const out = path.join(dir, 'merged', 'ocr-variations.json');
+  mkdirSync(path.dirname(out));
+  const run = spawnSync('node', [script, 'merge', '--dir', dir, '--count', '2', '--out', out], {
+    encoding: 'utf8',
+  });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^ {2}c\.png: refused: no-card 1, title-unseen 1$/m);
+  assert.match(run.stdout, /^all prints: refused: no-card 3, title-unseen 1$/m);
+  assert.deepEqual(JSON.parse(readFileSync(out, 'utf8')).refusal_reasons, unsharded().refusal_reasons);
 });
