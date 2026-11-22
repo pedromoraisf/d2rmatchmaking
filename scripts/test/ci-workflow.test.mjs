@@ -227,3 +227,11 @@ test('the agent build starts the built binary with --self-check before uploading
   assert.equal(steps[check]['continue-on-error'], undefined, 'the self-check can fail the job');
   assert.match(steps[check].run, /-ne 0/u, 'a non-zero exit fails the step');
 });
+
+// A merge into phase/<F> creates a SHA with no pull_request run; stage-deploy's verify waits for a green ci run of that
+// exact SHA, so ci runs on a push to main and to phase/** (and to no other branch, which would run twice with its PR).
+test('ci runs on a push to main and to phase branches only', () => {
+  assert.deepEqual(workflow.on.push.branches, ['main', 'phase/**']);
+  assert.ok('pull_request' in workflow.on, 'pull requests keep their run');
+  assert.ok('workflow_dispatch' in workflow.on, 'the release PR dispatch stays');
+});
