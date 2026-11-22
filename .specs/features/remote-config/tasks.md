@@ -188,3 +188,10 @@ schema never breaks an older agent; `agent-config.json` keeps serving today's va
 - [x] T27 — Close the proofs and the doc: the PR table (each new range and its test, call counts at the extremes,
       `ocr-real` per print, `ocr-variations` before and after), and `docs/engineering/remote-config.md` gains the four
       fields. Gate: `pnpm specs:check && pnpm test:harness && pnpm format:check`
+
+- [x] Batch F2-6 (review of #139, minor) — **[R14]** T1 pinned the chat step's configuration changes (built-in words,
+      configured phrases, next version, back to shipped) in `chat_step.rs` tests; T2 caches the pack built from the
+      configured phrases in `DeviceState::chat_language` (keyed by the phrases' value and the base pack), so
+      `with_phrases` runs once per change, not per look; test counts builds over 10 looks and after a change. Gates:
+      `cargo nextest run -p d2rmm-agent-domain -p d2rmm-agent-core --lib`, `cargo clippy -p d2rmm-agent-core --all-targets -- -D warnings`,
+      `pnpm test:harness`. Real-print proof (`ocr-real`, `ocr-variations`) in CI.

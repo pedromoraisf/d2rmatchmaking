@@ -54,7 +54,9 @@ pub async fn look_named<G>(
     let language = {
         let config = device.config.borrow();
         if config.phrases.is_configured() {
-            Arc::new(ports.language.with_phrases(&config.phrases))
+            device.chat_language(&ports.language, &config.phrases, || {
+                ports.language.with_phrases(&config.phrases)
+            })
         } else {
             Arc::clone(&ports.language)
         }
