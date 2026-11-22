@@ -133,7 +133,7 @@ fn span_exporter(
         .with_http_client(client)
         .with_retry_policy(RetryPolicy::disabled())
         .build()?;
-    Ok(SanitizingExporter::new(exporter))
+    Ok(SanitizingExporter::new(exporter, config.tier))
 }
 
 /// The runtime of the export task: the caller's when it runs inside one, otherwise a thread of its own, so the app starts

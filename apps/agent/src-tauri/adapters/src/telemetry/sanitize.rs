@@ -11,12 +11,14 @@ use opentelemetry::{Array, KeyValue, Value};
 use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::trace::{SpanData, SpanEvents, SpanExporter, SpanLinks};
 
+use super::tier::TelemetryTier;
+
 /// The longest string value a span keeps, in characters (design § Agent exporter).
 pub const MAX_STRING_CHARS: usize = 128;
 /// Span names must start with this prefix; any other span is dropped.
 pub const SPAN_NAME_PREFIX: &str = "agent.";
 /// The only attribute keys a span keeps. The match is exact: `http.url` is not `http.request.method`.
-pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 14] = [
+pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 20] = [
     "vision.screen",
     "vision.search",
     "vision.area_class",
@@ -31,6 +33,23 @@ pub const ALLOWED_ATTRIBUTE_KEYS: [&str; 14] = [
     "d2r.queue.mode",
     "http.request.method",
     "http.response.status_code",
+    // OBT-05, both tiers: the ids and the game data of the journey, how sure the read was, the correction classes applied
+    // and the time of a step. Never a name and never the text read.
+    "d2r.agent.id",
+    "d2r.run.id",
+    "d2r.game.name",
+    "d2r.ocr.confidence",
+    "d2r.ocr.corrections",
+    "d2r.step.duration_ms",
+];
+/// The attribute keys only the full tier keeps (OBT-06, OBT-08): the text the OCR read and every name read on screen. In
+/// the production tier these are dropped by key, whatever the value. The agent's spans set them through the full-tier
+/// helpers only (OBT-10).
+pub const FULL_TIER_KEYS: [&str; 4] = [
+    "d2r.ocr.text",
+    "d2r.ocr.names",
+    "d2r.character.name",
+    "d2r.account.battletag",
 ];
 /// The values a vision attribute may carry (screen-recognition T8, SCR-09): fixed words, never a coordinate, a read text or a
 /// pixel. Any other value of these keys is dropped with its key.
@@ -62,11 +81,57 @@ pub const VISION_VALUES: [(&str, &[&str]); 6] = [
 const CONFIG_VERSION_KEY: &str = "config.version";
 const CONFIG_VERSION_MAX: i64 = 2_147_483_647;
 
-/// Whether an attribute may leave the machine: its key is allowed and, for a vision key, its value is one of the fixed words.
-fn attribute_allowed(attribute: &KeyValue) -> bool {
+const CONFIDENCE_KEY: &str = "d2r.ocr.confidence";
+const CORRECTIONS_KEY: &str = "d2r.ocr.corrections";
+const DURATION_KEY: &str = "d2r.step.duration_ms";
+const GAME_NAME_KEY: &str = "d2r.game.name";
+/// The longest a step may take and still be a timing: one hour in milliseconds.
+const DURATION_MAX_MS: i64 = 3_600_000;
+/// The longest correction class, in characters (`rn>m`): a longer value could carry a read name.
+const CORRECTION_CLASS_MAX_CHARS: usize = 8;
+/// The longest generated game name (`mm{activity}{difficulty}-{n}`, ADR 017).
+const GAME_NAME_MAX_CHARS: usize = 32;
+
+/// Whether `text` is a generated game name: `mm`, then lowercase letters, digits and hyphens, so a player's name under this
+/// key (capitals, spaces, other marks) is dropped.
+fn is_generated_game_name(text: &str) -> bool {
+    text.starts_with("mm")
+        && text.chars().count() <= GAME_NAME_MAX_CHARS
+        && text
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// Whether `text` is a list of correction classes: comma-separated `from>to` pairs, each short (OBT-05).
+fn is_correction_list(text: &str) -> bool {
+    !text.is_empty()
+        && text.split(',').all(|class| {
+            class.chars().count() <= CORRECTION_CLASS_MAX_CHARS
+                && class.matches('>').count() == 1
+                && class.chars().all(|c| c.is_ascii_alphanumeric() || c == '>')
+        })
+}
+
+/// Whether an attribute may leave the machine in `tier`: its key is allowed (a full-tier key only in the full tier) and,
+/// for a key with a fixed shape, its value has that shape.
+fn attribute_allowed(attribute: &KeyValue, tier: TelemetryTier) -> bool {
     let key = attribute.key.as_str();
+    if FULL_TIER_KEYS.contains(&key) {
+        return tier == TelemetryTier::Full;
+    }
     if !ALLOWED_ATTRIBUTE_KEYS.contains(&key) {
         return false;
+    }
+    match (key, &attribute.value) {
+        (CONFIDENCE_KEY, Value::F64(confidence)) => return (0.0..=1.0).contains(confidence),
+        (CONFIDENCE_KEY, _) => return false,
+        (CORRECTIONS_KEY, Value::String(text)) => return is_correction_list(text.as_str()),
+        (CORRECTIONS_KEY, _) => return false,
+        (DURATION_KEY, Value::I64(ms)) => return (0..=DURATION_MAX_MS).contains(ms),
+        (DURATION_KEY, _) => return false,
+        (GAME_NAME_KEY, Value::String(text)) => return is_generated_game_name(text.as_str()),
+        (GAME_NAME_KEY, _) => return false,
+        _ => {}
     }
     if key == CONFIG_VERSION_KEY {
         return matches!(&attribute.value, Value::I64(version) if (0..=CONFIG_VERSION_MAX).contains(version));
@@ -88,15 +153,16 @@ pub const ALLOWED_RESOURCE_KEYS: [&str; 5] = [
     "d2r.telemetry.tier",
 ];
 
-/// Sanitizes one span. A span whose name does not start with `agent.` is dropped (`None`).
-pub fn sanitize_span(span: SpanData) -> Option<SpanData> {
+/// Sanitizes one span for `tier`. A span whose name does not start with `agent.` is dropped (`None`). Events, links, status
+/// text, URLs, paths and window titles go in every tier; credentials are on no list, so they never leave (OBT-11).
+pub fn sanitize_span(span: SpanData, tier: TelemetryTier) -> Option<SpanData> {
     if !span.name.starts_with(SPAN_NAME_PREFIX) {
         return None;
     }
     let attributes = span
         .attributes
         .into_iter()
-        .filter(attribute_allowed)
+        .filter(|attribute| attribute_allowed(attribute, tier))
         .map(|attribute| KeyValue::new(attribute.key, truncate_value(attribute.value)))
         .collect();
     Some(SpanData {
@@ -144,17 +210,22 @@ fn without_status_text(status: Status) -> Status {
 #[derive(Debug)]
 pub struct SanitizingExporter<E> {
     inner: E,
+    tier: TelemetryTier,
 }
 
 impl<E> SanitizingExporter<E> {
-    pub fn new(inner: E) -> Self {
-        Self { inner }
+    pub fn new(inner: E, tier: TelemetryTier) -> Self {
+        Self { inner, tier }
     }
 }
 
 impl<E: SpanExporter> SpanExporter for SanitizingExporter<E> {
     fn export(&self, batch: Vec<SpanData>) -> impl Future<Output = OTelSdkResult> + Send {
-        let clean: Vec<SpanData> = batch.into_iter().filter_map(sanitize_span).collect();
+        let tier = self.tier;
+        let clean: Vec<SpanData> = batch
+            .into_iter()
+            .filter_map(|span| sanitize_span(span, tier))
+            .collect();
         self.inner.export(clean)
     }
 
@@ -174,14 +245,19 @@ mod tests {
     use std::future::Future;
     use std::sync::{Arc, Mutex};
 
-    use opentelemetry::{InstrumentationScope, KeyValue, Value};
+    use opentelemetry::{Array, InstrumentationScope, KeyValue, Value};
     use opentelemetry_sdk::error::OTelSdkResult;
     use opentelemetry_sdk::trace::{SpanData, SpanEvents, SpanExporter, SpanLinks};
 
     use super::{
-        ALLOWED_RESOURCE_KEYS, MAX_STRING_CHARS, SanitizingExporter, sanitize_resource_key,
-        sanitize_span,
+        ALLOWED_ATTRIBUTE_KEYS, ALLOWED_RESOURCE_KEYS, FULL_TIER_KEYS, MAX_STRING_CHARS,
+        SanitizingExporter, TelemetryTier, sanitize_resource_key,
     };
+
+    /// The production tier, which the older tests below were written for.
+    fn sanitize_span(span: SpanData) -> Option<SpanData> {
+        super::sanitize_span(span, TelemetryTier::Production)
+    }
 
     /// Keeps what it is given, so a test reads the batch the wrapped exporter received.
     #[derive(Debug, Clone, Default)]
@@ -499,7 +575,7 @@ mod tests {
     #[tokio::test]
     async fn the_exporter_sends_only_the_sanitized_spans() {
         let recorded = Recording::default();
-        let exporter = SanitizingExporter::new(recorded.clone());
+        let exporter = SanitizingExporter::new(recorded.clone(), TelemetryTier::Production);
         let batch = vec![
             span(
                 "agent.heartbeat",
@@ -517,5 +593,198 @@ mod tests {
         let sent = std::mem::take(&mut *recorded.0.lock().expect("the recording"));
         assert_eq!(sent.len(), 1, "the non-agent span is not sent");
         assert!(keys(&sent[0]).is_empty(), "the window title is not sent");
+    }
+
+    fn in_tier(tier: TelemetryTier, attributes: Vec<KeyValue>) -> Vec<String> {
+        let fixture = span("agent.vision.read", attributes, Status::Unset);
+        keys(&super::sanitize_span(fixture, tier).expect("an agent span is kept"))
+    }
+
+    #[test]
+    fn every_full_tier_key_is_dropped_in_production_and_kept_in_full() {
+        for key in FULL_TIER_KEYS {
+            let attributes = || vec![KeyValue::new(key, "Alice#1234")];
+            assert!(
+                in_tier(TelemetryTier::Production, attributes()).is_empty(),
+                "{key} must not leave in production"
+            );
+            assert_eq!(
+                in_tier(TelemetryTier::Full, attributes()),
+                [key],
+                "{key} passes in the full tier"
+            );
+        }
+        // A list of names, as the party panel gives them.
+        let names = Value::Array(Array::String(vec!["Alice".into(), "Bob".into()]));
+        let attributes = || vec![KeyValue::new("d2r.ocr.names", names.clone())];
+        assert!(in_tier(TelemetryTier::Production, attributes()).is_empty());
+        assert_eq!(
+            in_tier(TelemetryTier::Full, attributes()),
+            ["d2r.ocr.names"]
+        );
+    }
+
+    #[test]
+    fn the_full_tier_keys_are_on_no_production_list() {
+        for key in FULL_TIER_KEYS {
+            assert!(!ALLOWED_ATTRIBUTE_KEYS.contains(&key), "{key}");
+        }
+    }
+
+    #[test]
+    fn the_ids_and_game_data_pass_in_both_tiers() {
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            let kept = in_tier(
+                tier,
+                vec![
+                    KeyValue::new("d2r.agent.id", "agent-1"),
+                    KeyValue::new("d2r.room.id", "room-1"),
+                    KeyValue::new("d2r.run.id", "room-1/2"),
+                    KeyValue::new("d2r.game.name", "mmpvphell-12"),
+                    KeyValue::new("d2r.difficulty", "hell"),
+                    KeyValue::new("d2r.ocr.confidence", 0.87_f64),
+                    KeyValue::new("d2r.ocr.corrections", "rn>m,k>h"),
+                    KeyValue::new("d2r.step.duration_ms", 42_i64),
+                    KeyValue::new("vision.screen", "automap"),
+                    KeyValue::new("capture.method", "print-window"),
+                ],
+            );
+            assert_eq!(
+                kept,
+                [
+                    "d2r.agent.id",
+                    "d2r.room.id",
+                    "d2r.run.id",
+                    "d2r.game.name",
+                    "d2r.difficulty",
+                    "d2r.ocr.confidence",
+                    "d2r.ocr.corrections",
+                    "d2r.step.duration_ms",
+                    "vision.screen",
+                    "capture.method"
+                ],
+                "{tier:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_name_or_text_under_a_production_key_is_dropped_in_both_tiers() {
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            let dropped = in_tier(
+                tier,
+                vec![
+                    KeyValue::new("d2r.game.name", "Alice the Sorceress"),
+                    KeyValue::new("d2r.game.name", "Mm-Alice"),
+                    KeyValue::new("d2r.game.name", "mm".to_string() + &"x".repeat(31)),
+                    KeyValue::new("d2r.ocr.corrections", "Alice"),
+                    KeyValue::new("d2r.ocr.corrections", "rn>m,Alice"),
+                    KeyValue::new("d2r.ocr.corrections", "rn>m,"),
+                    KeyValue::new("d2r.ocr.corrections", "abcdefg>h"),
+                    KeyValue::new("d2r.ocr.corrections", "a>b>c"),
+                    KeyValue::new("d2r.ocr.corrections", ""),
+                    KeyValue::new("d2r.ocr.confidence", "high"),
+                    KeyValue::new("d2r.ocr.confidence", 1.5_f64),
+                    KeyValue::new("d2r.ocr.confidence", -0.1_f64),
+                    KeyValue::new("d2r.step.duration_ms", "42"),
+                    KeyValue::new("d2r.step.duration_ms", -1_i64),
+                    KeyValue::new("d2r.step.duration_ms", 3_600_001_i64),
+                ],
+            );
+            assert!(dropped.is_empty(), "{tier:?}: {dropped:?}");
+        }
+    }
+
+    #[test]
+    fn the_bounds_of_the_fixed_shapes_are_kept() {
+        let kept = in_tier(
+            TelemetryTier::Production,
+            vec![
+                KeyValue::new("d2r.ocr.confidence", 0.0_f64),
+                KeyValue::new("d2r.ocr.confidence", 1.0_f64),
+                KeyValue::new("d2r.step.duration_ms", 0_i64),
+                KeyValue::new("d2r.step.duration_ms", 3_600_000_i64),
+                KeyValue::new("d2r.ocr.corrections", "abcdef>h"),
+                KeyValue::new("d2r.ocr.corrections", "a>"),
+                KeyValue::new("d2r.game.name", "mm".to_string() + &"x".repeat(30)),
+            ],
+        );
+        assert_eq!(kept.len(), 7, "{kept:?}");
+    }
+
+    #[test]
+    fn credentials_and_identifying_data_leave_in_no_tier() {
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            let kept = in_tier(
+                tier,
+                vec![
+                    KeyValue::new("authorization", "Bearer abc"),
+                    KeyValue::new("http.request.header.authorization", "Bearer abc"),
+                    KeyValue::new("token", "abc"),
+                    KeyValue::new("d2r.agent.token", "abc"),
+                    KeyValue::new("cookie", "sid=1"),
+                    KeyValue::new("d2r.pairing.code", "ABC123"),
+                    KeyValue::new("client.address", "203.0.113.7"),
+                    KeyValue::new("user_agent.original", "Mozilla"),
+                    KeyValue::new("d2r.window.title", "Diablo II Resurrected - Alice"),
+                    KeyValue::new("d2r.frame.pixels", "AAAA"),
+                    KeyValue::new("http.url", "https://api.example.test/x?token=1"),
+                    KeyValue::new("process.executable.path", "C:\\Games\\D2R.exe"),
+                ],
+            );
+            assert!(kept.is_empty(), "{tier:?}: {kept:?}");
+        }
+    }
+
+    #[test]
+    fn events_links_and_status_text_go_in_the_full_tier_too() {
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(2);
+        let mut fixture = span(
+            "agent.vision.read",
+            vec![KeyValue::new("d2r.ocr.text", "Alice")],
+            Status::Error {
+                description: Cow::Borrowed("failed at C:\\Users\\alice"),
+            },
+        );
+        fixture.events.events.push(Event::new(
+            "exception",
+            now,
+            vec![KeyValue::new("d2r.ocr.text", "Alice")],
+            0,
+        ));
+        fixture
+            .links
+            .links
+            .push(Link::new(SpanContext::empty_context(), vec![], 0));
+
+        let clean = super::sanitize_span(fixture, TelemetryTier::Full).expect("kept");
+
+        assert_eq!(keys(&clean), ["d2r.ocr.text"]);
+        assert!(clean.events.events.is_empty());
+        assert!(clean.links.links.is_empty());
+        assert_eq!(
+            clean.status,
+            Status::Error {
+                description: Cow::Borrowed("")
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn the_exporter_applies_its_tier() {
+        for (tier, expected) in [(TelemetryTier::Production, 0), (TelemetryTier::Full, 1)] {
+            let recorded = Recording::default();
+            let exporter = SanitizingExporter::new(recorded.clone(), tier);
+            exporter
+                .export(vec![span(
+                    "agent.vision.read",
+                    vec![KeyValue::new("d2r.ocr.text", "Alice")],
+                    Status::Unset,
+                )])
+                .await
+                .expect("the recording exporter takes the batch");
+            let sent = std::mem::take(&mut *recorded.0.lock().expect("the recording"));
+            assert_eq!(keys(&sent[0]).len(), expected, "{tier:?}");
+        }
     }
 }

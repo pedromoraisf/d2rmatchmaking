@@ -52,7 +52,7 @@ Rules:
       release build (AD-098 lifted, the `D2RMM_TELEMETRY` switch removed), `deployment.environment` = the channel, ratio
       1.0 in full; resource gets `d2r.telemetry.tier`. Unit tests on `tier_of`.
       Gate: `CARGO nextest run -p d2rmm-agent-adapters --lib && CARGO clippy --all-targets -- -D warnings`
-- [ ] T8 — Agent sanitizer by tier (OBT-05, OBT-06, OBT-08, OBT-11): the production allow-list gains the ids, the game
+- [x] T8 — Agent sanitizer by tier (OBT-05, OBT-06, OBT-08, OBT-11): the production allow-list gains the ids, the game
       name, confidence, correction classes and timings; `FULL_TIER_KEYS` (`d2r.ocr.text`, `d2r.ocr.names`, character names)
       pass only in full; the fixed vision words stay. Unit tests: every key in both tiers, events/links/status text still
       dropped. Gate: `CARGO nextest run -p d2rmm-agent-adapters --lib`
