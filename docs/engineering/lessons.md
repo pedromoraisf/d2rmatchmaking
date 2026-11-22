@@ -86,6 +86,11 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
   traced process records about 47 roots before the first request, and a request that arrives after the budget is spent
   loses its server span. Migrate in an untraced process before the traced one starts. Why: the CI failure of
   `instrument.int.test.ts` (run 42965570821) showed the migration statements and no server span.
+- **A reset that truncates must first stop everything that writes by itself** (streams, site-closed timers, the relay),
+  not clear them after the truncate. A write alive during the truncate holds a row lock the truncate queues behind, and
+  its next statement queues behind the truncate: Postgres ends that as a deadlock (40P01) after its 1 s timeout, and the
+  API answers 503. Why: CI run 45038986776, one 1.0 s `reset ... answered 503` on SNM-03 that did not repeat locally
+  (376 passed); the artifact was not readable, so the cause is inferred from the 1.0 s and the order of the reset.
 
 ## Observability and load
 
