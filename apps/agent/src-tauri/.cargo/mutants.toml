@@ -28,7 +28,7 @@ examine_globs = [
 # Every entry of `exclude_re` needs the comment block above it: the `file:line` and the mutation, why it is equivalent,
 # and an `Evidence:` line (`scripts/agent/mutation-config.mjs`, ocr-protection OCP-06).
 #
-# Equivalent mutant, excluded by the maintainer's decision (2026-11-02): `core/src/pair.rs:87`, `delete ! in pair_once`.
+# Equivalent mutant, excluded by the maintainer's decision (2026-11-02): `core/src/pair.rs:88:20`, `delete ! in pair_once`.
 # With `!` deleted, `pause` returning true ends `pair_once` with `Interrupted` and `run` re-enters it at once with a fresh
 # `Pairing`, which equals the aggregate after the pause; with `!` kept, `pause` returning false loops once and
 # `obtain_code` returns `None`, also `Interrupted`. No unit test can tell the two apart.
