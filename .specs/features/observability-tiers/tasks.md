@@ -56,7 +56,7 @@ Rules:
       name, confidence, correction classes and timings; `FULL_TIER_KEYS` (`d2r.ocr.text`, `d2r.ocr.names`, character names)
       pass only in full; the fixed vision words stay. Unit tests: every key in both tiers, events/links/status text still
       dropped. Gate: `CARGO nextest run -p d2rmm-agent-adapters --lib`
-- [ ] T9 — Agent span fields (OBT-05, OBT-06): the core steps that hold a read result record the ids, game name,
+- [x] T9 — Agent span fields (OBT-05, OBT-06): the core steps that hold a read result record the ids, game name,
       screen, capture method, confidence, corrections and timings, and the full-tier text and names; unit tests with
       fakes on the recorded fields. Prefer callers over reading modules (design § Risks).
       Gate: `CARGO nextest run -p d2rmm-agent-core --lib && CARGO clippy --all-targets -- -D warnings`

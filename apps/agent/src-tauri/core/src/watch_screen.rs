@@ -15,6 +15,7 @@ use d2rmm_agent_domain::remote_config::Effective;
 use crate::automap_name;
 use crate::chat_post;
 use crate::chat_step;
+use crate::detail;
 use crate::device_state::DeviceState;
 use crate::messages::{CaptureReport, FrameReading, Screen};
 use crate::party::{self, PartyLook, PartyPorts};
@@ -308,7 +309,10 @@ async fn read_screen<G>(
         "agent.vision.read-characters",
         screen = tracing::field::Empty,
         cards = tracing::field::Empty,
+        "d2r.ocr.names" = tracing::field::Empty,
+        "d2r.step.duration_ms" = tracing::field::Empty,
     );
+    let started = std::time::Instant::now();
     let reader = Arc::clone(&ports.reader);
     let frame = Arc::clone(frame);
     let reading = tokio::task::spawn_blocking(move || reader.read_with(&frame, &config))
@@ -316,6 +320,13 @@ async fn read_screen<G>(
         .unwrap_or_else(|_| FrameReading::without_cards(Screen::Unknown));
     span.record("screen", tracing::field::debug(&reading.screen));
     span.record("cards", reading.cards.len());
+    detail::record_duration(&span, started.elapsed());
+    // The names on the selection screen: the full tier only (OBT-06).
+    detail::record_names(
+        &span,
+        detail::full_tier(),
+        reading.cards.iter().map(Card::name),
+    );
     reading
 }
 

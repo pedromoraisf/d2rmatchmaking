@@ -262,7 +262,9 @@ mod shell {
     use d2rmm_agent_adapters::http::gateway::HttpGateway;
     use d2rmm_agent_adapters::remote_config::WireReader;
     use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
-    use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode, ratio_of, tier_of};
+    use d2rmm_agent_adapters::telemetry::{
+        self, ExportConfig, Mode, TelemetryTier, ratio_of, tier_of,
+    };
     use d2rmm_agent_core::fill_name::FillPorts;
     use d2rmm_agent_core::groups::Groups;
     use d2rmm_agent_core::ports::{StateSink, TokenStore};
@@ -581,6 +583,10 @@ mod shell {
             Mode::Release
         };
         let version = app_context().package_info().version.to_string();
+        // The spans' detail follows the build channel in every profile; the names are recorded in the full tier only (OBT-06).
+        d2rmm_agent_core::detail::set_full_tier(
+            tier_of(crate::channel::build_channel()) == TelemetryTier::Full,
+        );
         let export = export_config(&api_base, &version);
         let telemetry =
             telemetry::init(mode, export).expect("the telemetry subscriber is installed once");
