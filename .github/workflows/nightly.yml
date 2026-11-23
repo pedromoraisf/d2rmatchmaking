@@ -35,7 +35,8 @@ jobs:
 
   agent-mutation:
     # Linux: the three crates have no Windows-only code, and integration already builds the adapters on Ubuntu (AD-149).
-    # One job per crate; domain runs in four shards and adapters in two, so each job fits well under 40 minutes (NGT-01).
+    # One job per crate; domain runs in five round-robin shards and adapters in two, so each job fits well under 40 minutes (NGT-01).
+    # Round-robin, not the default slice: slice gave consecutive mutants to a shard, so one shard held the slow files (53.5 min vs 31-35).
     name: agent-mutation (${{ matrix.name }})
     needs: detect
     if: >-
@@ -59,36 +60,44 @@ jobs:
               artifact: agent-mutation-core,
             }
           - {
-              name: domain 1/4,
+              name: domain 1/5,
               crate: domain,
-              shard: '--shard 0/4',
+              shard: '--shard 0/5 --sharding round-robin',
               in_place: '',
               out: agent-domain-1,
               artifact: agent-mutation-domain-1,
             }
           - {
-              name: domain 2/4,
+              name: domain 2/5,
               crate: domain,
-              shard: '--shard 1/4',
+              shard: '--shard 1/5 --sharding round-robin',
               in_place: '',
               out: agent-domain-2,
               artifact: agent-mutation-domain-2,
             }
           - {
-              name: domain 3/4,
+              name: domain 3/5,
               crate: domain,
-              shard: '--shard 2/4',
+              shard: '--shard 2/5 --sharding round-robin',
               in_place: '',
               out: agent-domain-3,
               artifact: agent-mutation-domain-3,
             }
           - {
-              name: domain 4/4,
+              name: domain 4/5,
               crate: domain,
-              shard: '--shard 3/4',
+              shard: '--shard 3/5 --sharding round-robin',
               in_place: '',
               out: agent-domain-4,
               artifact: agent-mutation-domain-4,
+            }
+          - {
+              name: domain 5/5,
+              crate: domain,
+              shard: '--shard 4/5 --sharding round-robin',
+              in_place: '',
+              out: agent-domain-5,
+              artifact: agent-mutation-domain-5,
             }
           - {
               name: adapters 1/2,
