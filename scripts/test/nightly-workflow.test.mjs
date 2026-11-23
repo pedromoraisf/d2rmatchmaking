@@ -284,6 +284,14 @@ test('the backup runs only on main', () => {
   assert.equal(jobs.backup.if, "github.ref == 'refs/heads/main'");
 });
 
+// Cloudflare R2 rejects every region but `auto`; the AWS CLI would default to us-west-2 (InvalidRegionName).
+test('the backup uploads to R2 with region auto and removes the dump', () => {
+  assert.equal(jobs.backup.env.AWS_DEFAULT_REGION, 'auto');
+  const run = stepNamed(jobs.backup, 'pg_dump → R2').run;
+  assert.ok(run.includes(`trap 'rm -f "$f"' EXIT`));
+  assert.ok(!/\becho\b/.test(run));
+});
+
 // NGT-01 and the supply chain: every action is pinned by its full commit SHA.
 test('every action in the nightly is pinned by its full commit SHA', () => {
   const uses = Object.values(jobs).flatMap((job) => job.steps.map((step) => step.uses).filter(Boolean));
