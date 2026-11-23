@@ -1090,4 +1090,27 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn an_array_value_under_a_shaped_key_is_dropped_in_both_tiers() {
+        // A list of values that are each valid alone (and a list of free text) is still no value of the key's shape.
+        let valid_strings = |items: &[&str]| {
+            Value::Array(Array::String(
+                items.iter().map(|i| i.to_string().into()).collect(),
+            ))
+        };
+        for key in ALLOWED_ATTRIBUTE_KEYS {
+            assert_shape(
+                key,
+                vec![],
+                vec![
+                    valid_strings(&["in_game", "pvp", "GET", ROOM]),
+                    valid_strings(&["john.doe@example.com C:\\Users\\john"]),
+                    Value::Array(Array::I64(vec![200, 404])),
+                    Value::Array(Array::F64(vec![0.5])),
+                    Value::Array(Array::Bool(vec![true])),
+                ],
+            );
+        }
+    }
 }
