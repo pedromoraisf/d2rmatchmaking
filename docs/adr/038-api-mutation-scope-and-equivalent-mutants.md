@@ -1,7 +1,7 @@
 # ADR 038 — API mutation scope and equivalent mutants
 
-**Status**: Proposed
-**Date**: 2026-11-22
+**Status**: Accepted
+**Date**: 2026-11-22 (accepted 2026-11-23 by the maintainer: "aceito")
 **Deciders**: maintainer
 **Supersedes**: none
 
@@ -30,7 +30,7 @@ in AGENTS.md is the precedent.
 
 ## Decision
 
-The three items below are proposed; nothing is applied in this branch.
+The three items below are accepted; they are applied by a follow-up feature PR.
 
 1. **Equivalent mutants.** The preferred path stays refactoring the redundancy away (done in #168 where possible). Where
    a mutant is truly equivalent and cannot be removed, the source may carry
