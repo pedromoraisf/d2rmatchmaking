@@ -22,7 +22,6 @@ import {
   journeyIds,
   ok,
   withRecordingSpan,
-  type Cancel,
   type Clock,
   type EventBus,
   type IdGenerator,
@@ -32,6 +31,7 @@ import {
   type Scheduler,
   type UnitOfWork,
 } from '../../../shared-kernel/index.ts';
+import { createDeadlineRegistry } from './deadline-registry.ts';
 import { matchFormedEvent } from './match-formed.ts';
 import type { QueueNotifier } from './queue-notifier.ts';
 import type { PenaltyStore, QueueMetrics, QueueStore, ReadyCheckStore } from './ports.ts';
@@ -66,6 +66,8 @@ export interface ReadyCheckFlow extends ReadyCheckOpener {
   }): Promise<Result<void, ReadyCheckAnswerRefusal>>;
   /** The account's open check as its members see it, or null when the account is in no open check (RDY-11). */
   openFor(accountId: string): Promise<ReadyCheckChangedPayload | null>;
+  /** How many open checks still wait for their deadline: zero once every check has ended (read only). */
+  pendingDeadlines(): number;
 }
 
 /** The state of an open check as the members' streams carry it: the marks, the accepted and the deadline (RDY-01, RDY-02). */
@@ -87,8 +89,8 @@ export function changedPayloadOf(check: ReadyCheck, now: Date): ReadyCheckChange
 }
 
 export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
-  /** The pending deadline of each open check, cancelled when the check ends before it. */
-  const deadlines = new Map<string, Cancel>();
+  /** The pending deadline of each open check, cancelled and dropped when the check ends. */
+  const deadlines = createDeadlineRegistry();
 
   /** The tickets of the accepted members go back to the queue with their join instants (RDY-04, RDY-05). */
   async function returnToQueue(tickets: readonly QueueTicket[], now: Date): Promise<void> {
@@ -106,8 +108,7 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
   /** Ends the check with its outcome: the match is written (accepted), or the penalties and the re-entry are (otherwise). */
   async function settle(check: ReadyCheck, outcome: ReadyCheckOutcome, now: Date): Promise<void> {
     await deps.checks.put(check);
-    deadlines.get(check.id)?.();
-    deadlines.delete(check.id);
+    deadlines.release(check.id);
     if (outcome === 'accepted') {
       const matchId = deps.ids.next();
       await deps.uow.run(async (tx) => {
@@ -168,10 +169,12 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
           const cancel = deps.scheduler.at(check.deadline, () => {
             deps.exclusive(() => expireCheck(check.id)).catch(deps.onError);
           });
-          deadlines.set(check.id, cancel);
+          deadlines.hold(check.id, cancel);
         },
       );
     },
+
+    pendingDeadlines: () => deadlines.pending(),
 
     async openFor(accountId: string): Promise<ReadyCheckChangedPayload | null> {
       const check = await deps.checks.openOf(accountId);

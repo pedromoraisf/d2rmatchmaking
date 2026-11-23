@@ -115,7 +115,8 @@ export class LobbyRoom {
    * after it opened while it is still `formed` (LBR-05); null in every other stage.
    */
   get expiresAt(): Date | null {
-    if (this.stage === 'awaiting_host' && this.awaitingSince !== null) {
+    // `awaitingSince` is non-null only in `awaiting_host`: `restore` keeps it in no other stage and every stage change clears it
+    if (this.awaitingSince !== null) {
       return new Date(this.awaitingSince.getTime() + AWAITING_HOST_EXPIRY_MS);
     }
     return this.stage === 'formed' ? new Date(this.createdAt.getTime() + AWAITING_HOST_EXPIRY_MS) : null;
@@ -186,7 +187,7 @@ export class LobbyRoom {
     // The host is the one member the match named (queues QUE-12), whatever its join order; every other member is a member.
     const hosts = members.filter((member) => member.role === 'host');
     const host = hosts[0];
-    if (hosts.length !== 1 || host === undefined || host.accountId !== props.hostAccountId) {
+    if (host === undefined || host.accountId !== props.hostAccountId) {
       return err('invalid-room');
     }
     if (members.some((member) => member !== host && member.role !== 'member')) {
@@ -445,12 +446,9 @@ export class LobbyRoom {
     const room = this.#with({
       stage: next.stage,
       awaitingSince: next.awaitingSince,
-      members:
-        next.confirm === undefined
-          ? this.members
-          : this.members.map((member) =>
-              member.accountId === next.confirm ? { ...member, confirmed: true } : member,
-            ),
+      members: this.members.map((member) =>
+        member.accountId === next.confirm ? { ...member, confirmed: true } : member,
+      ),
     });
     return { room, events: [room.#stageEvent()] };
   }
