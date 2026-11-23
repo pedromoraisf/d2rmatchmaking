@@ -115,8 +115,8 @@ export class LobbyRoom {
    * after it opened while it is still `formed` (LBR-05); null in every other stage.
    */
   get expiresAt(): Date | null {
-    // Stryker disable next-line ConditionalExpression: equivalent — defensive: restore and every stage change keep awaitingSince non-null only in awaiting_host, so the stage test never differs from the null test
-    if (this.stage === 'awaiting_host' && this.awaitingSince !== null) {
+    // `awaitingSince` is non-null only in `awaiting_host`: `restore` keeps it in no other stage and every stage change clears it
+    if (this.awaitingSince !== null) {
       return new Date(this.awaitingSince.getTime() + AWAITING_HOST_EXPIRY_MS);
     }
     return this.stage === 'formed' ? new Date(this.createdAt.getTime() + AWAITING_HOST_EXPIRY_MS) : null;
