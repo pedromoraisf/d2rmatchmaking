@@ -211,7 +211,11 @@ mod tests {
     #[test]
     fn the_debug_form_hides_the_name_and_the_words_are_fixed() {
         let observation = make("Zzyzx", 0.8).expect("ok");
-        assert!(!format!("{observation:?}").contains("Zzyzx"));
+        let shown = format!("{observation:?}");
+        assert!(!shown.contains("Zzyzx"));
+        assert!(shown.starts_with("PlayerObservation {"), "{shown}");
+        assert!(shown.contains("name: \"<hidden>\""), "{shown}");
+        assert!(shown.contains("confidence: 0.8"), "{shown}");
         assert_eq!(observation.name(), "Zzyzx");
         assert_eq!(PlayerKind::Joined.word(), "joined");
         assert_eq!(PlayerKind::Left.word(), "left");

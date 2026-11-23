@@ -91,4 +91,15 @@ exclude_re = [
   # Evidence: run 44558970584 (nightly of 2026-11-19), `agent-domain/mutants.out/timeout.txt`:
   # `domain/src/name_diff.rs:83:15: replace -= with /= in edit_operations_with`, the only entry of that file's timeouts.
   "name_diff\\.rs:(?:83|86):15: replace -= with /= in edit_operations_with",
+
+  # Equivalent mutant: `domain/src/player_observation.rs:107:40`, `replace - with / in is_player_name` (the slice
+  # `&bytes[1..bytes.len() - 1]` of the loop over the inner bytes). Dividing by one makes the slice `1..len`, which adds the
+  # last byte to the loop; the last byte was already checked to be an ASCII letter, so the `match` takes its letter arm,
+  # counts no separator and returns no refusal, and the result is the same for every input. No unit test can tell the two apart.
+  # Position-bound: `is_player_name` holds two `replace - with /` mutants (102:54, 107:40) with the same name; 102:54 panics
+  # (`bytes[len]` is out of range) and is killed, so this entry keeps its position.
+  # Evidence: `is_player_name` returns `false` at line 103 unless `last.is_ascii_alphabetic()`, so only a letter can be the
+  # extra byte; cargo-mutants lists both mutants of the function and the hand-applied `/` at 107:40 left the 462 domain unit
+  # tests green, the one at 102:54 does not.
+  "player_observation\\.rs:107:40: replace - with / in is_player_name",
 ]
