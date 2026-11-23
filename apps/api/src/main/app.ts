@@ -72,6 +72,7 @@ import { Forwarder } from '../platform/http/relay-forwarder.ts';
 import { RelayBudget } from '../platform/http/relay-budget.ts';
 import { RelayLimiter } from '../platform/http/relay-limiter.ts';
 import { telemetryRelayPlugin } from '../platform/http/telemetry-relay.ts';
+import { BackgroundWork } from '../platform/background-work.ts';
 import { OutboxRelay } from '../platform/outbox-relay.ts';
 import type { PlatformDatabase } from '../platform/postgres/database.ts';
 import { PostgresOutbox } from '../platform/postgres/outbox.ts';
@@ -200,6 +201,8 @@ export interface BuiltApp {
   readonly hub: StreamHub;
   /** The pending site-closed drops (QUE-14). The test controls cancel them on reset. */
   readonly siteClosedTimers: { clear(): void };
+  /** The scheduled database jobs. The test controls pause them for the length of a reset. */
+  readonly background: BackgroundWork;
   /** The in-memory stores of the process (ADR 006): the only state outside Postgres. */
   readonly stores: {
     readonly presence: MemoryPresenceStore;
@@ -409,6 +412,8 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   });
   // A site stream that stays closed for 30 seconds takes the ticket out of the queue; a reconnect in time keeps it (QUE-14).
   const siteClosedClocks = new Map<string, Cancel>();
+  // Every scheduled job that writes to the database, so the acceptance reset can stop them before it truncates.
+  const background = new BackgroundWork();
   // Cancels every pending 30-second drop: the test controls' reset calls it so no timer of a scenario fires in the next.
   const siteClosedTimers = {
     clear(): void {
@@ -424,17 +429,21 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     const cancel = scheduler.at(new Date(clock.now().getTime() + SITE_CLOSED_DROP_MS), () => {
       siteClosedClocks.delete(accountId);
       if (!hub.hasSiteStream(accountId)) {
-        queue.dropTicket({ accountId, reason: 'site-closed' }).catch(() => {
-          app.log.error('dropping a queue ticket after the site closed failed');
-        });
+        background.run(() =>
+          queue.dropTicket({ accountId, reason: 'site-closed' }).catch(() => {
+            app.log.error('dropping a queue ticket after the site closed failed');
+          }),
+        );
       }
     });
     siteClosedClocks.set(accountId, cancel);
   });
   const stopMatcher = scheduler.every(MATCHER_EVERY_MS, () => {
-    void queue.runMatcher().catch(() => {
-      app.log.error('queue matcher run failed; it runs again in one second');
-    });
+    background.run(() =>
+      queue.runMatcher().catch(() => {
+        app.log.error('queue matcher run failed; it runs again in one second');
+      }),
+    );
   });
 
   // Rooms expire 3 minutes after they wait for the host, and members who stayed away for the tolerance leave (LBR-05, LBR-08).
@@ -446,21 +455,28 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
       return;
     }
     roomSweepRunning = true;
-    void lobby
-      .expireRooms()
-      .then(() => lobby.dropAbsentMembers())
-      .catch(() => {
-        app.log.error('room sweep failed; it runs again in one second');
-      })
-      .finally(() => {
-        roomSweepRunning = false;
-      });
+    const started = background.run(() =>
+      lobby
+        .expireRooms()
+        .then(() => lobby.dropAbsentMembers())
+        .catch(() => {
+          app.log.error('room sweep failed; it runs again in one second');
+        })
+        .finally(() => {
+          roomSweepRunning = false;
+        }),
+    );
+    if (!started) {
+      roomSweepRunning = false;
+    }
   });
 
   const stopSweep = scheduler.every(SWEEP_EVERY_MS, () => {
-    void agents.sweep().catch(() => {
-      app.log.error('agents sweep failed; it runs again in one second');
-    });
+    background.run(() =>
+      agents.sweep().catch(() => {
+        app.log.error('agents sweep failed; it runs again in one second');
+      }),
+    );
   });
 
   registerRequestMetrics(app, metrics.getMeter(APP_METER_NAME));
@@ -539,6 +555,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     bus,
     hub,
     siteClosedTimers,
+    background,
     stores: { ...stores, queue: queueStore, joins: joinLimits, readyChecks },
   };
 }

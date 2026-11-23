@@ -80,6 +80,8 @@ export interface TestControlDeps {
     closeSiteStreams(accountId: string): number;
   };
   readonly relay: { sweep(): Promise<void>; quiesce(): Promise<void> };
+  /** The scheduled database jobs (matcher, sweeps, site-closed drops): paused, and awaited, for the length of a reset. */
+  readonly background: { pause(): Promise<void>; resume(): void };
   /** The pending site-closed drops: reset cancels them, after the streams close (QUE-14). */
   readonly siteClosedTimers: ClearableStore;
   /** The bus the redelivery publishes on: the one the relay and the consumers of this process share (AD-062). */
@@ -173,6 +175,9 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
         stopLeftoverWork(deps);
         // A drain still running from the last scenario holds locks the truncate needs (see OutboxRelay.quiesce).
         step = 'quiesce';
+        // The clock advance of the last scenario started jobs that outlive its step: stop them, and wait for the ones
+        // that are writing, before the truncate (they would hold locks it queues behind: 40P01).
+        await deps.background.pause();
         await deps.relay.quiesce();
         step = 'truncate';
         await sql`truncate table ${sql.raw(TABLES.join(', '))} restart identity cascade`.execute(deps.db);
@@ -193,6 +198,8 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
         const code = (error as { code?: unknown }).code;
         request.log.error({ errorCode: code, message: (error as Error).message }, 'acceptance reset failed');
         return reply.code(503).send(resetFailure(error, step));
+      } finally {
+        deps.background.resume();
       }
       return reply.code(204).send(null);
     },
