@@ -338,6 +338,8 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      # Cloudflare R2 accepts only the region `auto`; the runner's AWS CLI would default to us-west-2.
+      AWS_DEFAULT_REGION: auto
     steps:
       - name: Skip until configured
         id: cfg
@@ -348,5 +350,7 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
           f="d2rmm-$(date -u +%Y%m%dT%H%M%SZ).dump"
+          # The dump is production data on a shared runner: remove it even when the dump or the upload fails.
+          trap 'rm -f "$f"' EXIT
           pg_dump --format=custom --no-owner "$NEON_DATABASE_URL" -f "$f"
-          aws s3 cp "$f" "s3://$R2_BUCKET/backups/$f" --endpoint-url "$R2_ENDPOINT"
+          aws s3 cp "$f" "s3://$R2_BUCKET/backups/$f" --endpoint-url "$R2_ENDPOINT" --only-show-errors
