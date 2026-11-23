@@ -117,9 +117,8 @@ impl Cascade {
     /// a window that shrinks drops the oldest looks at once.
     pub fn set_params(&mut self, params: CascadeParams) {
         self.params = params;
-        while self.recent.len() > params.rate_window {
-            self.recent.pop_front();
-        }
+        let excess = self.recent.len().saturating_sub(params.rate_window);
+        self.recent.drain(..excess);
     }
 
     /// The method the next look captures with, or `None` when the PC offers none.
@@ -160,9 +159,9 @@ impl Cascade {
     /// unusable looks, and the third unusable look in a row moves to the next method.
     pub fn record(&mut self, outcome: Outcome) -> Step {
         self.looks = self.looks.wrapping_add(1);
-        while self.recent.len() >= self.params.rate_window.max(1) {
-            self.recent.pop_front();
-        }
+        // Room for the look about to be pushed: the window keeps `rate_window` looks (at least one) with it.
+        let excess = (self.recent.len() + 1).saturating_sub(self.params.rate_window.max(1));
+        self.recent.drain(..excess);
         self.recent.push_back(outcome.usable());
         if outcome.usable() {
             self.unusable_run = 0;
@@ -492,6 +491,51 @@ mod tests {
             0,
             "the ten blank looks are all that is left"
         );
+    }
+
+    #[test]
+    fn a_shrinking_window_keeps_exactly_the_newest_looks() {
+        // Thirty blank looks then thirty frames: a window of 30 keeps only the frames, a window of 45 keeps 15 blank
+        // looks and the 30 frames, a window of 59 drops exactly the oldest blank look.
+        for (window, percent) in [(30_usize, 100_u8), (45, 66), (59, 50)] {
+            let mut cascade = with(1000, 60, 60);
+            for _ in 0..30 {
+                cascade.record(Outcome::Blank);
+            }
+            for _ in 0..30 {
+                cascade.record(Outcome::Frame);
+            }
+            cascade.set_params(CascadeParams {
+                rate_window: window,
+                demote_after: 1000,
+                ..CascadeParams::default()
+            });
+            assert_eq!(cascade.read_rate_percent(), percent, "window {window}");
+        }
+    }
+
+    #[test]
+    fn the_window_never_holds_more_than_its_size_however_many_looks_come_in() {
+        // Frames then one blank per size: the blank counts once and only the newest `size` looks are held.
+        for size in [1_usize, 2, 7, 60] {
+            let mut cascade = with(1000, 60, size);
+            for _ in 0..(size * 5) {
+                cascade.record(Outcome::Frame);
+            }
+            cascade.record(Outcome::Blank);
+            let expected = u8::try_from((size - 1) * 100 / size).expect("a percent");
+            assert_eq!(cascade.read_rate_percent(), expected, "size {size}");
+        }
+    }
+
+    #[test]
+    fn a_window_of_zero_still_holds_the_newest_look() {
+        let mut cascade = with(1000, 60, 0);
+        cascade.record(Outcome::Blank);
+        cascade.record(Outcome::Frame);
+        assert_eq!(cascade.read_rate_percent(), 100);
+        cascade.record(Outcome::Blank);
+        assert_eq!(cascade.read_rate_percent(), 0);
     }
 
     #[test]
