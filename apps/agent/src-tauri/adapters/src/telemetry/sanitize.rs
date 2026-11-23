@@ -170,14 +170,19 @@ fn is_correction_list(text: &str) -> bool {
         })
 }
 
-/// Whether an attribute may leave the machine in `tier`: its key is allowed (a full-tier key only in the full tier) and,
-/// for a key with a fixed shape, its value has that shape.
+/// Whether an attribute may leave the machine in `tier`: its key is allowed (a full-tier key only in the full tier) and
+/// its value has the key's fixed shape. A key without a shape is dropped.
 fn attribute_allowed(attribute: &KeyValue, tier: TelemetryTier) -> bool {
+    attribute_allowed_among(attribute, tier, &ALLOWED_ATTRIBUTE_KEYS)
+}
+
+/// [`attribute_allowed`] over an explicit list of allowed keys, so a test can name a key that has no shape.
+fn attribute_allowed_among(attribute: &KeyValue, tier: TelemetryTier, allowed: &[&str]) -> bool {
     let key = attribute.key.as_str();
     if FULL_TIER_KEYS.contains(&key) {
         return tier == TelemetryTier::Full;
     }
-    if !ALLOWED_ATTRIBUTE_KEYS.contains(&key) {
+    if !allowed.contains(&key) {
         return false;
     }
     match (key, &attribute.value) {
@@ -203,8 +208,9 @@ fn attribute_allowed(attribute: &KeyValue, tier: TelemetryTier) -> bool {
     if key == CONFIG_VERSION_KEY {
         return matches!(&attribute.value, Value::I64(version) if (0..=CONFIG_VERSION_MAX).contains(version));
     }
+    // Deny by default: an allowed key without a shape above is dropped, so a key added to the list alone leaks nothing.
     match VISION_VALUES.iter().find(|(name, _)| *name == key) {
-        None => true,
+        None => false,
         Some((_, words)) => {
             matches!(&attribute.value, Value::String(text) if words.contains(&text.as_str()))
         }
@@ -1030,5 +1036,58 @@ mod tests {
             ["pvp", "leveling"].map(text).to_vec(),
             vec![text("PvP"), text("ranked"), free_text(), Value::I64(1)],
         );
+    }
+
+    #[test]
+    fn an_allowed_key_without_a_shape_is_dropped_and_every_allowed_key_has_one() {
+        // One valid sample per allowed key: a key added to the list without a shape (and a sample here) fails this test.
+        let samples: Vec<(&str, Value)> = vec![
+            ("vision.screen", text("in_game")),
+            ("vision.search", text("track")),
+            ("vision.area_class", text("box")),
+            ("capture.method", text("print-window")),
+            ("capture.outcome", text("frame")),
+            ("config.outcome", text("applied")),
+            ("config.version", Value::I64(3)),
+            ("post.outcome", text("posted")),
+            ("status", Value::I64(200)),
+            ("d2r.room.id", text(ROOM)),
+            ("d2r.agent.version", text("1.2.3")),
+            ("d2r.difficulty", text("hell")),
+            ("d2r.queue.mode", text("pvp")),
+            ("http.request.method", text("GET")),
+            ("http.response.status_code", Value::I64(404)),
+            ("d2r.agent.id", text(ROOM)),
+            ("d2r.run.id", text(&format!("{ROOM}/12"))),
+            ("d2r.game.name", text("mmpvphell-1")),
+            ("d2r.ocr.confidence", Value::F64(0.5)),
+            ("d2r.ocr.corrections", text("rn>m")),
+            ("d2r.step.duration_ms", Value::I64(40)),
+        ];
+        let pii = text("john.doe@example.com C:\\Users\\john");
+        for key in ALLOWED_ATTRIBUTE_KEYS {
+            let (_, valid) = samples
+                .iter()
+                .find(|(name, _)| *name == key)
+                .unwrap_or_else(|| panic!("{key} has no sample: give it a shape and a sample"));
+            assert_shape(key, vec![valid.clone()], vec![pii.clone()]);
+        }
+        assert_eq!(samples.len(), ALLOWED_ATTRIBUTE_KEYS.len());
+
+        // A key on the allowed list that no shape knows is dropped, whatever its value.
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            for value in [
+                pii.clone(),
+                text("in_game"),
+                Value::I64(200),
+                Value::Bool(true),
+            ] {
+                let attribute = KeyValue::new("future.key", value.clone());
+                assert!(
+                    !super::attribute_allowed_among(&attribute, tier, &["future.key"]),
+                    "{value:?} {tier:?}"
+                );
+            }
+        }
     }
 }
