@@ -37,6 +37,29 @@ function addCounts(into, from) {
   for (const key of COUNT_KEYS) into[key] = (into[key] ?? 0) + from[key];
 }
 
+/**
+ * Counts the refused variants by reason class: `{ [reason_class]: n }`. Reason classes only, never read text; every
+ * `chat-no-phrase:<ops>` is counted under the bare `chat-no-phrase` (its ops may carry characters not from a public string).
+ */
+export function refusalReasons(variants) {
+  const counts = {};
+  for (const variant of variants) {
+    if (variant.outcome !== 'refused') continue;
+    const reason = variant.reason_class.startsWith('chat-no-phrase:')
+      ? 'chat-no-phrase'
+      : variant.reason_class;
+    counts[reason] = (counts[reason] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** `refused: no-card 120, title-unseen 30` (most frequent class first, then by name), or null when nothing was refused. */
+export function formatRefusals(counts) {
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  if (rows.length === 0) return null;
+  return `refused: ${rows.map(([reason, n]) => `${reason} ${n}`).join(', ')}`;
+}
+
 function sameList(a, b) {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
@@ -123,6 +146,11 @@ export function mergeShards(partials, count) {
       (a, b) => position.get(a.variant.screenshot) - position.get(b.variant.screenshot) || a.index - b.index,
     )
     .map(({ variant }) => variant);
+  const byScreenshot = {};
+  for (const name of folder) {
+    byScreenshot[name] = refusalReasons(merged.variants.filter((variant) => variant.screenshot === name));
+  }
+  merged.refusal_reasons = { total: refusalReasons(merged.variants), by_screenshot: byScreenshot };
   return merged;
 }
 
@@ -164,6 +192,12 @@ function main(argv) {
       `merged ${partials.length} shards: ${merged.supported.variations} supported variations, ` +
         `${merged.supported.correct} correct, ${merged.supported.refused} refused, ${merged.supported.wrong} wrong.`,
     );
+    for (const [name, counts] of Object.entries(merged.refusal_reasons.by_screenshot)) {
+      const line = formatRefusals(counts);
+      if (line !== null) console.log(`  ${name}: ${line}`);
+    }
+    const all = formatRefusals(merged.refusal_reasons.total);
+    if (all !== null) console.log(`all prints: ${all}`);
   } else {
     throw new Error('usage: ocr-variations-shards.mjs budget|merge ...');
   }
