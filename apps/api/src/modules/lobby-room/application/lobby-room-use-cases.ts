@@ -32,6 +32,7 @@ import {
   type SpanDetail,
   type UnitOfWork,
 } from '../../../shared-kernel/index.ts';
+import { createKeyedLock } from './keyed-lock.ts';
 import { GameName } from '../domain/game-name.ts';
 import { LobbyRoom, type RoomChange, type RoomMember } from '../domain/lobby-room.ts';
 import { Observation, type ObservationType } from '../domain/observation.ts';
@@ -119,6 +120,7 @@ export type RoomActionError = 'not-found' | 'forbidden' | 'conflict';
 
 function actionError(refusal: 'not-member' | 'not-host' | 'wrong-stage'): RoomActionError {
   switch (refusal) {
+    // Stryker disable next-line ConditionalExpression: equivalent — unreachable: roomAction refuses a non-member before any transition runs (pinned by the openNextRun stranger test)
     case 'not-member':
       return 'not-found';
     case 'not-host':
@@ -136,27 +138,6 @@ function toMatchMember(member: RoomMember): MatchMember {
     joinOrder: member.joinOrder,
     role: member.role,
     ...(member.team === undefined ? {} : { team: member.team }),
-  };
-}
-
-/** One promise chain per key: the work of a key runs one after the other (rooms are in one process, ADR 006). */
-function createKeyedLock() {
-  const tails = new Map<string, Promise<unknown>>();
-  return async function locked<T>(key: string, work: () => Promise<T>): Promise<T> {
-    const previous = tails.get(key) ?? Promise.resolve();
-    const run = previous.then(work, work);
-    const tail = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    tails.set(key, tail);
-    try {
-      return await run;
-    } finally {
-      if (tails.get(key) === tail) {
-        tails.delete(key);
-      }
-    }
   };
 }
 
@@ -187,7 +168,7 @@ function toAssignmentSnapshot(room: LobbyRoom): AssignmentSnapshot {
  * observation span is `lobby.record-observation` (AWS-35).
  */
 export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
-  const locked = createKeyedLock();
+  const { locked } = createKeyedLock();
 
   /** Writes the changed room and its events in one transaction. */
   async function persist(change: RoomChange): Promise<void> {
@@ -334,12 +315,11 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
       { [D2R_ROOM_ID]: input.roomId },
       async (): Promise<Result<{ readonly stored: boolean }, RecordObservationError>> => {
         const accountId = await deps.agents.accountOfAgent(input.agentId);
+        if (accountId === null) {
+          return err('forbidden');
+        }
         const room = await deps.rooms.findById(input.roomId);
-        const isMember =
-          accountId !== null &&
-          room !== null &&
-          room.members.some((member) => member.accountId === accountId);
-        if (accountId === null || room === null || !isMember) {
+        if (room === null || !room.members.some((member) => member.accountId === accountId)) {
           return err('forbidden');
         }
         annotateActiveSpan({ ...roomAttributes(room), ...journeyIds({ accountId, agentId: input.agentId }) });

@@ -196,6 +196,7 @@ export function createJoinQueue(deps: JoinQueueDeps) {
 
         // The pool cap (QUE-19) is read before the ticket takes an id: a refused join leaves no trace.
         const queued = await deps.store.all();
+        // Stryker disable next-line StringLiteral: equivalent — the probe ticket's id is not part of its pool key, so any id counts the same pool
         if (poolSizeOf(withId(''), queued) >= MAX_POOL_TICKETS) {
           return err('queue-full');
         }

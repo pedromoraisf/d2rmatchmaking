@@ -29,6 +29,7 @@ const CONSTRUCTS = {
   ArithmeticOperator: (code) => /[^+\-*/%=<>!&|?]\s*[+\-*/%]\s*[^+\-*/%=]/.test(code.replace(/=>/g, '')),
   MethodExpression: (code) => new RegExp(`\\.(${METHODS})\\s*\\(`).test(code),
   OptionalChaining: (code) => /\?\./.test(code),
+  CallExpression: (code) => /[\w\])]\s*\(/.test(code),
   ArrayDeclaration: (code) => /\[|\bArray\b/.test(code),
   ObjectLiteral: (code) => /\{/.test(code),
   UnaryOperator: (code) => /(^|[=(,:?&|!\s])[+-][\w(]/.test(code),

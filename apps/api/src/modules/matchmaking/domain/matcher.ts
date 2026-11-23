@@ -228,6 +228,7 @@ function toFormedGroup(tickets: readonly QueueTicket[]): FormedGroup {
   const members = [...tickets].sort(compareJoinOrder);
   const first = members[0];
   if (first === undefined) {
+    // Stryker disable next-line StringLiteral: equivalent — the message of an unreachable throw (the caller passes a non-empty group)
     throw new Error('a formed group has at least one member');
   }
   const common = {

@@ -29,6 +29,7 @@ test('a well-formed disable with a reason on a matching line passes', () => {
   ok('// Stryker disable next-line ArithmeticOperator: equivalent — sum\nconst v = a + b;');
   ok('// Stryker disable next-line MethodExpression: equivalent — order\nconst v = list.filter(isOk);');
   ok('// Stryker disable next-line OptionalChaining: equivalent — never null\nconst v = a?.b;');
+  ok('// Stryker disable next-line CallExpression: equivalent — cleanup\ncache.delete(key);');
   ok('const v = a && b; // Stryker disable-line LogicalOperator: equivalent — same');
 });
 
@@ -107,6 +108,7 @@ test('negative: a stale disable, one rule per mutator', () => {
     ['ArithmeticOperator', 'const a = b;'],
     ['MethodExpression', 'const a = b.length;'],
     ['OptionalChaining', 'const a = b.c;'],
+    ['CallExpression', 'const a = b;'],
   ];
   for (const [mutator, line] of stale)
     fails(`// Stryker disable next-line ${mutator}: equivalent — why\n${line}`, /stale/);

@@ -115,6 +115,7 @@ export class LobbyRoom {
    * after it opened while it is still `formed` (LBR-05); null in every other stage.
    */
   get expiresAt(): Date | null {
+    // Stryker disable next-line ConditionalExpression: equivalent — defensive: restore and every stage change keep awaitingSince non-null only in awaiting_host, so the stage test never differs from the null test
     if (this.stage === 'awaiting_host' && this.awaitingSince !== null) {
       return new Date(this.awaitingSince.getTime() + AWAITING_HOST_EXPIRY_MS);
     }
@@ -186,7 +187,7 @@ export class LobbyRoom {
     // The host is the one member the match named (queues QUE-12), whatever its join order; every other member is a member.
     const hosts = members.filter((member) => member.role === 'host');
     const host = hosts[0];
-    if (hosts.length !== 1 || host === undefined || host.accountId !== props.hostAccountId) {
+    if (host === undefined || host.accountId !== props.hostAccountId) {
       return err('invalid-room');
     }
     if (members.some((member) => member !== host && member.role !== 'member')) {
@@ -445,12 +446,9 @@ export class LobbyRoom {
     const room = this.#with({
       stage: next.stage,
       awaitingSince: next.awaitingSince,
-      members:
-        next.confirm === undefined
-          ? this.members
-          : this.members.map((member) =>
-              member.accountId === next.confirm ? { ...member, confirmed: true } : member,
-            ),
+      members: this.members.map((member) =>
+        member.accountId === next.confirm ? { ...member, confirmed: true } : member,
+      ),
     });
     return { room, events: [room.#stageEvent()] };
   }

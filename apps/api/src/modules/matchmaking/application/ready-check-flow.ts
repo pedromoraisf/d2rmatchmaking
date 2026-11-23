@@ -107,6 +107,7 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
   async function settle(check: ReadyCheck, outcome: ReadyCheckOutcome, now: Date): Promise<void> {
     await deps.checks.put(check);
     deadlines.get(check.id)?.();
+    // Stryker disable next-line CallExpression: equivalent — only frees the map entry; a stale entry's cancel is a no-op the second time
     deadlines.delete(check.id);
     if (outcome === 'accepted') {
       const matchId = deps.ids.next();
