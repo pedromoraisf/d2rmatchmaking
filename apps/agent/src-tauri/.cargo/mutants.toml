@@ -1,5 +1,5 @@
-# cargo-mutants builds with the `mutants` profile of the workspace Cargo.toml: an optimised test build, so the exhaustive
-# domain tests do not cost seconds per mutant. Debug assertions and overflow checks stay on there.
+# cargo-mutants builds with the `mutants` profile of the workspace Cargo.toml: unoptimised workspace crates built
+# incrementally, optimised dependencies (tuned on the nightly's slices). Debug assertions and overflow checks stay on there.
 profile = "mutants"
 
 # cargo-mutants scope of the agent (ADR 014, AGS-21, ADR 026; design.md § Mutation scope, AD-080). The nightly `agent-mutation`
