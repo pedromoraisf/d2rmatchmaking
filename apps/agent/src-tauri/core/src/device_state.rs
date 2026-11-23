@@ -9,9 +9,10 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use chrono::{DateTime, Utc};
 use d2rmm_agent_domain::chat::ChatTracker;
 use d2rmm_agent_domain::hotkey::HotkeyChoice;
+use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::paired_device::{DeviceEffect, PairedDevice};
 use d2rmm_agent_domain::post_bucket::PostBucket;
-use d2rmm_agent_domain::remote_config::Effective;
+use d2rmm_agent_domain::remote_config::{Effective, Phrases};
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
@@ -54,6 +55,8 @@ pub struct DeviceState {
     party: Mutex<PartyProgress>,
     /// The chat lines the last frame showed (GNR-07): a line that stays on screen is counted once. Never sent or logged.
     chat: Mutex<ChatTracker>,
+    /// The language pack built from the configured chat phrases, kept until the phrases change (the chat step).
+    chat_language: Mutex<Option<ChatLanguage>>,
     /// The cap on chat sightings posted (server-name-match): 20 a minute.
     chat_posts: Mutex<PostBucket>,
     /// The ready check the account is in, while its time has not run out (RDY-07). The hotkey answers it.
@@ -94,6 +97,7 @@ impl DeviceState {
             observations_dropped: AtomicU64::new(0),
             party: Mutex::new(PartyProgress::default()),
             chat: Mutex::new(ChatTracker::default()),
+            chat_language: Mutex::new(None),
             chat_posts: Mutex::new(PostBucket::per_minute(CHAT_POSTS_PER_MINUTE)),
             ready_check: Mutex::new(None),
             confirmed_run: Mutex::new(None),
@@ -283,6 +287,30 @@ impl DeviceState {
         apply(&mut lock(&self.chat))
     }
 
+    /// The pack `build` makes from `base` and `phrases`, built once and reused while the phrases (and the base pack) are the
+    /// same; a change of either builds it again.
+    pub fn chat_language(
+        &self,
+        base: &Arc<LanguagePack>,
+        phrases: &Phrases,
+        build: impl FnOnce() -> LanguagePack,
+    ) -> Arc<LanguagePack> {
+        let mut cached = lock(&self.chat_language);
+        if let Some(held) = cached.as_ref()
+            && Arc::ptr_eq(&held.base, base)
+            && held.phrases == *phrases
+        {
+            return Arc::clone(&held.pack);
+        }
+        let pack = Arc::new(build());
+        *cached = Some(ChatLanguage {
+            base: Arc::clone(base),
+            phrases: phrases.clone(),
+            pack: Arc::clone(&pack),
+        });
+        pack
+    }
+
     /// Takes a place under the chat post's cap at `now`: `false` when the minute's places are spent.
     pub fn take_chat_post(&self, now: DateTime<Utc>) -> bool {
         lock(&self.chat_posts).take(now)
@@ -452,6 +480,13 @@ fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     value.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// The pack of one set of chat phrases over one base pack.
+struct ChatLanguage {
+    base: Arc<LanguagePack>,
+    phrases: Phrases,
+    pack: Arc<LanguagePack>,
+}
+
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU64;
@@ -467,6 +502,46 @@ mod tests {
     use crate::view::{HotkeyFailure, HotkeyPress, PairingView, RoomView, UpdateView};
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
+
+    /// remote-config: the pack of the configured chat phrases is built once for the same phrases, and again after a change.
+    #[test]
+    fn the_chat_pack_is_built_once_per_phrases() {
+        use d2rmm_agent_domain::language::LanguagePack;
+        use d2rmm_agent_domain::remote_config::{Phrases, Words};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let (device, _tokens) = paired();
+        let base = Arc::new(LanguagePack::english());
+        let builds = AtomicUsize::new(0);
+        let mut phrases = Phrases {
+            en: Words {
+                joined_game: Some("entered".to_string()),
+                ..Words::default()
+            },
+            ..Phrases::default()
+        };
+        let get = |phrases: &Phrases| {
+            device.chat_language(&base, phrases, || {
+                builds.fetch_add(1, Ordering::SeqCst);
+                base.with_phrases(phrases)
+            })
+        };
+        let first = get(&phrases);
+        for _ in 0..10 {
+            assert!(
+                Arc::ptr_eq(&first, &get(&phrases)),
+                "the same pack is reused"
+            );
+        }
+        assert_eq!(builds.load(Ordering::SeqCst), 1);
+
+        phrases.en.joined_game = Some("arrived".to_string());
+        let second = get(&phrases);
+        assert!(!Arc::ptr_eq(&first, &second));
+        assert_eq!(builds.load(Ordering::SeqCst), 2);
+        assert!(Arc::ptr_eq(&second, &get(&phrases)));
+        assert_eq!(builds.load(Ordering::SeqCst), 2);
+    }
 
     /// A paired device and a token store that holds its token, with every port faked in memory.
     fn paired() -> (DeviceState, MemoryTokens) {
