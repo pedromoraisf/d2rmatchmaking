@@ -172,7 +172,7 @@ jobs:
       # it; Neon, on Render, is verified.
       D2RMM_ENV: staging
       ENABLE_STAGING_ENDPOINTS: 'true'
-      SITE_ORIGIN: https://d2rmatchmaking.pages.dev
+      SITE_ORIGIN: https://staging.d2rmatchmaking.pages.dev
       PORT: '8787'
       DATABASE_URL: postgres://smoke:smoke@localhost:5432/d2rmm_smoke?sslmode=disable
     steps:

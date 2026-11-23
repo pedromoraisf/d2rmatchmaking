@@ -146,6 +146,11 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
   rule once per key with a test and keep one deny path. Why: #189 made the sanitizer deny by default and left eight
   arms that no test could tell apart from the tail (#194).
 
+- **Settings land with the code that needs them.** A feature that needs a new environment, secret, variable or external
+  client (Battle.net redirect, Render service) merges only with a checklist the maintainer has ticked, and its first
+  real deploy is a task gate, not a later surprise. Docs say where a setting lives only after someone saw it there
+  (incident 2026-11-23, `docs/engineering/incidents/`).
+
 ## Agent reading
 
 - **Prove OCR on the real font with every glyph the server can generate, not on one fixed name.** Why: presence failed

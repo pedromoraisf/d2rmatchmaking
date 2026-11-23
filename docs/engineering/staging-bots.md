@@ -16,7 +16,7 @@ Spec: `.specs/features/staging-bots/spec.md` (SBT-01 to SBT-13, with the threat 
 - The server has no bot route. Bots use the staging-only test sign-in (`POST /v1/auth/test-login`), which a production API
   answers with 404; `staging-bots-production.int.test.ts` proves it, and fails if a staging-only route is added unlisted.
 - Bots never sign in through Battle.net and hold no secret. The `staging` environment needs two **variables** (not secrets):
-  `STAGING_API_URL` (today `https://d2rmm-api.onrender.com`) and `SITE_ORIGIN` (today `https://d2rmatchmaking.pages.dev`).
+  `STAGING_API_URL` (today `https://d2rmm-api.onrender.com`) and `SITE_ORIGIN` (today `https://staging.d2rmatchmaking.pages.dev`).
 
 ## How to run
 
@@ -41,7 +41,7 @@ variables are the inputs of the table under "Inputs", and an empty one takes its
 `BOTS_COUNT`, `BOTS_MINUTES`, `BOTS_HUMAN_FIRST` and `BOTS_HOST_POLICY`.
 
 ```powershell
-$env:STAGING_API_URL="https://d2rmm-api.onrender.com"; $env:SITE_ORIGIN="https://d2rmatchmaking.pages.dev"; $env:BOTS_MODE="pvp"; $env:BOTS_MINUTES="15"; node scripts/staging/bots.mjs
+$env:STAGING_API_URL="https://d2rmm-api.onrender.com"; $env:SITE_ORIGIN="https://staging.d2rmatchmaking.pages.dev"; $env:BOTS_MODE="pvp"; $env:BOTS_MINUTES="15"; node scripts/staging/bots.mjs
 ```
 
 Queue yourself first, as in "How to run". Ctrl+C makes the bots leave before the script ends. The safety is the same: the
