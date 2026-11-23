@@ -297,3 +297,22 @@ test('every job has a timeout', () => {
       assert.ok(job['timeout-minutes'] > 0, `${name} has a timeout`);
   }
 });
+
+// The cargo-mutants version is pinned, so a new release never changes the nightly's mutants or its score unannounced.
+const installedTools = (job) =>
+  job.steps
+    .filter((step) => String(step.uses ?? '').startsWith('taiki-e/install-action@'))
+    .flatMap((step) => String(step.with?.tool ?? '').split(','));
+const unpinnedMutants = (tools) =>
+  tools.filter((tool) => /^cargo-mutants(?!@\d+\.\d+\.\d+$)/u.test(tool.trim()));
+
+test('the nightly installs an exact cargo-mutants version', () => {
+  const tools = installedTools(agent);
+  assert.ok(
+    tools.some((tool) => tool.startsWith('cargo-mutants')),
+    'the job installs cargo-mutants',
+  );
+  assert.deepEqual(unpinnedMutants(tools), []);
+  assert.deepEqual(unpinnedMutants(['cargo-mutants']), ['cargo-mutants']);
+  assert.deepEqual(unpinnedMutants(['cargo-mutants@27']), ['cargo-mutants@27']);
+});
