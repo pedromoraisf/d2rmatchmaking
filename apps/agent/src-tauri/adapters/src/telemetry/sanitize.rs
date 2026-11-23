@@ -854,6 +854,38 @@ mod tests {
     }
 
     #[test]
+    fn a_value_of_the_wrong_type_is_dropped_for_every_allowed_key_in_both_tiers() {
+        // The type each allowed key holds: a decimal, a whole number or a text. A value of any other type is no value of
+        // the key, whatever its content (a number that is a valid duration under a text key, a decimal in range under a
+        // whole-number key, a text under the confidence).
+        let right_type = |key: &str| match key {
+            "d2r.ocr.confidence" => "f64",
+            "status" | "http.response.status_code" | "config.version" | "d2r.step.duration_ms" => {
+                "i64"
+            }
+            _ => "string",
+        };
+        let candidates: [(&str, Value); 4] = [
+            ("string", text("x")),
+            ("i64", Value::I64(250)),
+            ("f64", Value::F64(0.5)),
+            ("bool", Value::Bool(true)),
+        ];
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            for key in ALLOWED_ATTRIBUTE_KEYS {
+                let wrong: Vec<KeyValue> = candidates
+                    .iter()
+                    .filter(|(kind, _)| *kind != right_type(key))
+                    .map(|(_, value)| KeyValue::new(key, value.clone()))
+                    .collect();
+                assert_eq!(wrong.len(), 3, "{key}");
+                let kept = in_tier(tier, wrong);
+                assert!(kept.is_empty(), "{tier:?} {key}: {kept:?}");
+            }
+        }
+    }
+
+    #[test]
     fn the_bounds_of_the_fixed_shapes_are_kept() {
         let kept = in_tier(
             TelemetryTier::Production,
