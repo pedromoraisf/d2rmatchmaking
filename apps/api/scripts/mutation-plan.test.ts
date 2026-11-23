@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { glob, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -71,6 +71,7 @@ describe('mutation plan', () => {
       'src/modules/*/domain/**/*.ts',
       'src/shared-kernel/**/*.ts',
       '!src/**/*.test.ts',
+      '!src/**/testing/**',
     ]);
   });
 
@@ -78,6 +79,7 @@ describe('mutation plan', () => {
     expect(layerConfig('application').mutate).toEqual([
       'src/modules/*/application/**/*.ts',
       '!src/**/*.test.ts',
+      '!src/**/testing/**',
     ]);
   });
 
@@ -89,6 +91,7 @@ describe('mutation plan', () => {
       'src/modules/*/domain/**/*.ts',
       'src/shared-kernel/**/*.ts',
       '!src/**/*.test.ts',
+      '!src/**/testing/**',
     ]);
   });
 
@@ -96,7 +99,11 @@ describe('mutation plan', () => {
     const config = await loadStrykerConfig('application');
 
     expect(config.thresholds.break).toBe(70);
-    expect(config.mutate).toEqual(['src/modules/*/application/**/*.ts', '!src/**/*.test.ts']);
+    expect(config.mutate).toEqual([
+      'src/modules/*/application/**/*.ts',
+      '!src/**/*.test.ts',
+      '!src/**/testing/**',
+    ]);
   });
 
   it('report paths are reports/mutation/api-<layer>/mutation.json at the repository root', async () => {
@@ -124,6 +131,38 @@ describe('mutation plan', () => {
     expect((await planLayer(apiRoot, 'application')).files).toEqual([
       'src/modules/identity/application/register.ts',
     ]);
+  });
+
+  it('test-support fakes under testing/ are negated by layerConfig and omitted by planLayer (ADR 038)', async () => {
+    await writeSource('src/modules/identity/application/register.ts');
+    await writeSource('src/modules/identity/application/testing/in-memory-account-repository.ts');
+    await writeSource('src/shared-kernel/testing/fake-clock.ts');
+
+    expect(layerConfig('application').mutate).toContain('!src/**/testing/**');
+    expect(layerConfig('domain').mutate).toContain('!src/**/testing/**');
+    expect((await planLayer(apiRoot, 'application')).files).toEqual([
+      'src/modules/identity/application/register.ts',
+    ]);
+    expect((await planLayer(apiRoot, 'domain')).files).toEqual([]);
+    const changed = new Set(['src/modules/identity/application/testing/in-memory-account-repository.ts']);
+    expect((await planLayer(apiRoot, 'application', changed)).files).toEqual([]);
+  });
+
+  it('no product file lives in a testing/ folder: each one is imported only by tests or other testing files', async () => {
+    const src = join(process.cwd(), 'src');
+    const offenders: string[] = [];
+    const files: string[] = [];
+    for await (const file of glob('**/*.ts', { cwd: src })) files.push(file);
+    const supportNames = files.filter((file) => file.split('/').includes('testing'));
+    for (const support of supportNames) {
+      const base = support.replace(/\.ts$/, '').split('/').pop() ?? '';
+      for (const file of files) {
+        if (file.split('/').includes('testing') || file.endsWith('.test.ts')) continue;
+        const text = await readFile(join(src, file), 'utf8');
+        if (text.includes(`/testing/${base}`)) offenders.push(`${file} imports ${support}`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 
   it('planLayer keeps only the changed files when given the changed set', async () => {
