@@ -600,6 +600,15 @@ test('sequence and cleanup on every exit path', { timeout: SLOW_TEST_MS }, async
     assert.match(result.refusal, /LOAD_TARGET/u);
     assert.equal(scn.docker.state.calls.length, 0, 'the guard refuses before the first Docker call');
   });
+
+  await t.test('a capture directory inside the repository is refused before any Docker call', async () => {
+    const scn = scenario({ env: { LOAD_TELEMETRY_CAPTURE_DIR: `${ROOT}/captures` } });
+    const result = await runLoad(scn.input);
+
+    assert.equal(result.exitCode, 2);
+    assert.match(result.refusal, /LOAD_TELEMETRY_CAPTURE_DIR/u);
+    assert.equal(scn.docker.state.calls.length, 0, 'the guard refuses before the first Docker call');
+  });
 });
 
 test('no secret in arguments or logs', { timeout: SLOW_TEST_MS }, async () => {
@@ -854,4 +863,27 @@ test('k6Tail: the failed step carries the last lines of k6 stderr, or says there
   assert.ok(tail.includes('line 29') && tail.includes('line 15') && !tail.includes('line 14 '));
   assert.ok(k6Tail({ stdout: 'only stdout', stderr: '' }).includes('only stdout'));
   assert.equal(k6Tail({ stdout: '', stderr: '' }), '; k6 wrote no output');
+});
+
+test('LOAD_TELEMETRY_CAPTURE_DIR is the sink capture directory, and a run without it has none', async () => {
+  const sinkRunOf = (scn) => scn.docker.state.calls.find((call) => call.includes('--token-file'));
+  const plain = scenario({ profile: 'smoke' });
+  await runLoad(plain.input);
+  assert.equal(sinkRunOf(plain).includes('--capture-dir'), false);
+
+  const captured = scenario({ profile: 'smoke', env: { LOAD_TELEMETRY_CAPTURE_DIR: '/tmp/capture' } });
+  await runLoad(captured.input);
+  const args = sinkRunOf(captured);
+  assert.ok(args.includes('/tmp/capture:/capture:rw'));
+  assert.equal(args[args.indexOf('--capture-dir') + 1], '/capture');
+});
+
+test('LOAD_MAX_STEPS ends a local run after that many steps; unset, the ladder runs to its end', async () => {
+  const limited = scenario({ profile: 'full', env: { LOAD_MAX_STEPS: '2' } });
+  const result = await runLoad(limited.input);
+  assert.equal(result.summary.steps.length, 2);
+  assert.deepEqual(
+    result.summary.steps.map((step) => step.players),
+    [25, 50],
+  );
 });
