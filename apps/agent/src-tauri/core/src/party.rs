@@ -1958,6 +1958,145 @@ mod anchored_tests {
             "a blank layout box proves nothing"
         );
     }
+
+    // NFR-03: the Party panel at client sizes other than 1920×1080 (tests only; they pin today's reading).
+
+    const FULL_SIZES: [(u32, u32); 8] = [
+        (1280, 720),
+        (1366, 768),
+        (1600, 900),
+        (1920, 1080),
+        (2560, 1440),
+        (3840, 2160),
+        (1920, 1200),
+        (2560, 1600),
+    ];
+    const WINDOWED_SIZES: [(u32, u32); 8] = [
+        (1280, 689),
+        (1366, 735),
+        (1600, 861),
+        (1920, 1033),
+        (2560, 1378),
+        (3840, 2067),
+        (1920, 1148),
+        (2560, 1531),
+    ];
+    const UNSUPPORTED_SIZES: [(u32, u32); 4] =
+        [(2560, 1080), (3440, 1440), (1280, 1024), (1024, 768)];
+
+    /// The maintainer's English panel (full screen 1920×1080: PARTY 153, label 192, name 220; maximized 1920×1033: 146, 183,
+    /// 210, line middles) as a client of this height draws it: every offset, size and line scales with the height, and the
+    /// panel keeps its distance from the left edge. The rule is the layout's (linear in the height); no real print of another
+    /// size exists to check it.
+    fn scaled_panel(height: u32, windowed: bool, name: Option<&str>) -> Lines {
+        let (print_height, title, label, field) = if windowed {
+            (1033.0, 146.0, 183.0, 210.0)
+        } else {
+            (1080.0, 153.0, 192.0, 220.0)
+        };
+        let scale = f64::from(height) / print_height;
+        let at = |text: &str, x: f64, middle: f64, width: f64| {
+            let (middle, half) = (
+                (middle * scale).round() as u32,
+                (8.0 * scale).round() as u32,
+            );
+            TextLine {
+                text: text.to_string(),
+                region: Region {
+                    x: (x * scale).round() as u32,
+                    y: middle - half,
+                    width: (width * scale).round() as u32,
+                    height: 2 * half,
+                },
+            }
+        };
+        let mut lines = vec![
+            at("PARTY", 366.0, title, 60.0),
+            at("GAME NAME", 280.0, label, 90.0),
+            at("PASSWORD", 285.0, label + 70.0, 80.0),
+        ];
+        if let Some(name) = name {
+            lines.push(at(name, 255.0, field, 140.0));
+        }
+        Lines(lines)
+    }
+
+    #[test]
+    fn the_panel_reads_open_with_the_exact_name_at_every_supported_size() {
+        use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
+        for (windowed, sizes) in [(false, FULL_SIZES), (true, WINDOWED_SIZES)] {
+            for (width, height) in sizes {
+                let at = format!("{width}×{height} windowed={windowed}");
+                let panel = scaled_panel(height, windowed, Some("mmcowsh-1"));
+                let image = Rgba {
+                    width,
+                    height,
+                    pixels: Vec::new(),
+                };
+                let reading = read_panel(&panel, &LanguagePack::english(), &image);
+                assert!(reading.open && reading.label_found, "{at}");
+                let reads = fields(&reading);
+                assert_eq!(reads, ["mmcowsh-1"], "{at}");
+                assert_eq!(
+                    read_panel_field(reading.field_source, &reads, "mmcowsh-1"),
+                    FieldRead::Matched,
+                    "{at}"
+                );
+                for other in ["mmcowsh-2", "mmcowsn-1", "mmpvph-1"] {
+                    assert_ne!(
+                        read_panel_field(reading.field_source, &reads, other),
+                        FieldRead::Matched,
+                        "{at}: {other}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_masked_field_at_other_sizes_reads_open_and_never_a_name() {
+        use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
+        for (windowed, sizes) in [(false, FULL_SIZES), (true, WINDOWED_SIZES)] {
+            for (width, height) in sizes {
+                let at = format!("{width}×{height} windowed={windowed}");
+                let image = Rgba {
+                    width,
+                    height,
+                    pixels: Vec::new(),
+                };
+                let reading = read_panel(
+                    &scaled_panel(height, windowed, None),
+                    &LanguagePack::english(),
+                    &image,
+                );
+                assert!(reading.open && reading.label_found, "{at}");
+                let reads = fields(&reading);
+                assert_eq!(
+                    read_panel_field(reading.field_source, &reads, "mmcowsh-1"),
+                    FieldRead::Masked,
+                    "{at}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_panel_of_an_unsupported_size_reads_closed_and_asks_the_engine_nothing() {
+        for (width, height) in UNSUPPORTED_SIZES {
+            let image = Rgba {
+                width,
+                height,
+                pixels: Vec::new(),
+            };
+            let reading = read_panel(
+                &scaled_panel(height.min(1080), false, Some("mmcowsh-1")),
+                &LanguagePack::english(),
+                &image,
+            );
+            assert!(!reading.open && !reading.label_found, "{width}×{height}");
+            assert!(reading.field.is_empty(), "{width}×{height}");
+        }
+    }
 }
 
 #[cfg(test)]
