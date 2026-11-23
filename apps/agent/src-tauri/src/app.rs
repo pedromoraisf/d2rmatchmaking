@@ -10,7 +10,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
-use d2rmm_agent_core::ports::{ConsentStore, StoreError};
+use d2rmm_agent_adapters::telemetry::{DiagnosticsSwitch, FileDiagnosticsStore, TelemetryTier};
+use d2rmm_agent_core::ports::{ConsentStore, DiagnosticsStore, StoreError};
 use d2rmm_agent_core::runtime::Handle;
 use d2rmm_agent_core::view::{AgentView, HotkeyFailure, HotkeyPress};
 use d2rmm_agent_domain::hotkey::{HotkeyChoice, HotkeyKey};
@@ -197,6 +198,38 @@ pub fn handle_set_consent(store: &dyn ConsentStore, consent: bool) -> Result<boo
     Ok(consent)
 }
 
+/// The diagnostics store of this app: its own file in the configuration directory (OBT-15).
+pub fn diagnostics_store_in(directory: Option<PathBuf>) -> FileDiagnosticsStore {
+    FileDiagnosticsStore::in_directory(directory)
+}
+
+/// The start-up decision (OBT-15, OBT-16): the switch starts off, so nothing is sent before the saved choice is known, and
+/// this turns it to the saved choice: on when saved on or when none was saved, off when saved off or unreadable.
+pub fn apply_saved_diagnostics(store: &dyn DiagnosticsStore, switch: &DiagnosticsSwitch) {
+    switch.set(store.load());
+}
+
+/// What the window shows of the diagnostics (OBT-14): whether the switch is on and this build's tier, so the notice names
+/// what the build carries.
+pub fn handle_get_diagnostics(
+    switch: &DiagnosticsSwitch,
+    tier: TelemetryTier,
+) -> serde_json::Value {
+    serde_json::json!({ "enabled": switch.is_on(), "tier": tier.name() })
+}
+
+/// The player's switch (OBT-15, OBT-16): saved first, then applied to the live flag, so the exporter follows at once and a
+/// refusal to save changes nothing.
+pub fn handle_set_diagnostics(
+    store: &dyn DiagnosticsStore,
+    switch: &DiagnosticsSwitch,
+    enabled: bool,
+) -> Result<bool, StoreError> {
+    store.save(enabled)?;
+    switch.set(enabled);
+    Ok(enabled)
+}
+
 /// The player's choice of the accept hotkey (AST-01): the new choice, stored on this PC, or the refusal code the window maps
 /// to a message (`no-modifier`, `needs-ctrl-or-alt`, `reserved`, `confirming-key`, `unsupported-key`, or `not-saved`).
 /// Nothing changes on a refusal.
@@ -243,7 +276,7 @@ mod shell {
     use d2rmm_agent_adapters::remote_config::WireReader;
     use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
     use d2rmm_agent_adapters::telemetry::{
-        self, ExportConfig, Mode, TelemetryTier, ratio_of, tier_of,
+        self, DiagnosticsSwitch, ExportConfig, Mode, TelemetryTier, ratio_of, tier_of,
     };
     use d2rmm_agent_core::groups::Groups;
     use d2rmm_agent_core::ports::{StateSink, TokenStore};
@@ -256,8 +289,10 @@ mod shell {
 
     use super::{
         FileConsentStore, FileHotkeyStore, HotkeyRegistrar, Slot, app_context, apply_hotkey_change,
-        code_name, consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent,
-        is_app_url, press_of, reconcile_and_report, report_dispatch_failed, wanted_hotkey,
+        apply_saved_diagnostics, code_name, consent_store_in, diagnostics_store_in,
+        handle_get_consent, handle_get_diagnostics, handle_get_new_code, handle_set_consent,
+        handle_set_diagnostics, is_app_url, press_of, reconcile_and_report, report_dispatch_failed,
+        wanted_hotkey,
     };
     use crate::adapters::token_store::KeyringTokenStore;
     use crate::config;
@@ -383,6 +418,24 @@ mod shell {
             .map_err(|_| "consent-not-saved".to_string())
     }
 
+    /// The diagnostics switch and this build's tier, for the window's notice (OBT-14).
+    #[tauri::command]
+    fn get_diagnostics(switch: State<'_, DiagnosticsSwitch>) -> serde_json::Value {
+        handle_get_diagnostics(&switch, tier_of(crate::channel::build_channel()))
+    }
+
+    /// Stores the player's choice and applies it to the exporter at once (OBT-15, OBT-16). A refusal is one fixed word.
+    #[tauri::command]
+    fn set_diagnostics(
+        app: AppHandle,
+        switch: State<'_, DiagnosticsSwitch>,
+        enabled: bool,
+    ) -> Result<bool, String> {
+        let store = diagnostics_store_in(app.path().app_config_dir().ok());
+        handle_set_diagnostics(&store, &switch, enabled)
+            .map_err(|_| "diagnostics-not-saved".to_string())
+    }
+
     /// The hotkey of this app: the file in its configuration directory, apart from the consent file.
     fn hotkey_store(app: &AppHandle) -> FileHotkeyStore {
         FileHotkeyStore::in_directory(app.path().app_config_dir().ok())
@@ -491,7 +544,11 @@ mod shell {
     /// The export configuration of this build (ADR 037, which lifts AD-098): every release build exports, and the tier comes
     /// from the compile-time channel (`preview` and `staging` are full; `production`, none and unknown are production). A
     /// debug profile exports nothing.
-    fn export_config(api_base: &ApiBase, version: &str) -> Option<ExportConfig> {
+    fn export_config(
+        api_base: &ApiBase,
+        version: &str,
+        switch: DiagnosticsSwitch,
+    ) -> Option<ExportConfig> {
         if cfg!(debug_assertions) {
             return None;
         }
@@ -508,6 +565,7 @@ mod shell {
             agent_version: version.to_string(),
             environment: channel.unwrap_or("production").to_string(),
             tier,
+            switch,
         })
     }
 
@@ -536,7 +594,11 @@ mod shell {
         d2rmm_agent_core::detail::set_full_tier(
             tier_of(crate::channel::build_channel()) == TelemetryTier::Full,
         );
-        let export = export_config(&api_base, &version);
+        // Off until the window's setup has read the player's saved choice (the configuration directory is known only then), so a
+        // player who turned diagnostics off never sends a span from the start-up either (OBT-16). The setup turns it on when
+        // the saved choice is on, which is the default (OBT-15).
+        let diagnostics = DiagnosticsSwitch::new(false);
+        let export = export_config(&api_base, &version, diagnostics.clone());
         let telemetry =
             telemetry::init(mode, export).expect("the telemetry subscriber is installed once");
 
@@ -557,7 +619,9 @@ mod shell {
                 get_new_code,
                 get_consent,
                 set_consent,
-                set_hotkey
+                set_hotkey,
+                get_diagnostics,
+                set_diagnostics
             ])
             .setup(move |app| {
                 let app_handle = app.handle().clone();
@@ -570,6 +634,11 @@ mod shell {
                     #[cfg(feature = "fixture-read")]
                     fixture,
                 });
+                apply_saved_diagnostics(
+                    &diagnostics_store_in(app.path().app_config_dir().ok()),
+                    &diagnostics,
+                );
+                app.manage(diagnostics.clone());
                 start_hotkey(&app_handle);
                 let sink: Arc<dyn StateSink + Send + Sync> = window_sink.clone();
 
@@ -627,10 +696,16 @@ mod tests {
     use d2rmm_agent_core::view::{HotkeyFailure, HotkeyPress};
     use d2rmm_agent_domain::hotkey::HotkeyChoice;
 
+    use d2rmm_agent_adapters::telemetry::{DiagnosticsSwitch, TelemetryTier};
+    use d2rmm_agent_core::fakes::InMemoryDiagnosticsStore;
+    use d2rmm_agent_core::ports::DiagnosticsStore;
+
     use super::{
-        CodeRequester, FileHotkeyStore, Slot, app_context, apply_hotkey_change, code_name,
-        consent_store_in, handle_get_consent, handle_get_new_code, handle_set_consent, is_app_url,
-        press_of, reconcile_and_report, reconcile_slot, report_dispatch_failed, wanted_hotkey,
+        CodeRequester, FileHotkeyStore, Slot, app_context, apply_hotkey_change,
+        apply_saved_diagnostics, code_name, consent_store_in, diagnostics_store_in,
+        handle_get_consent, handle_get_diagnostics, handle_get_new_code, handle_set_consent,
+        handle_set_diagnostics, is_app_url, press_of, reconcile_and_report, reconcile_slot,
+        report_dispatch_failed, wanted_hotkey,
     };
     use crate::config;
 
@@ -752,6 +827,65 @@ mod tests {
         assert!(!handle_get_consent(&store), "a withdrawal is read back");
 
         let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn diagnostics_are_on_by_default_and_the_choice_is_stored_and_applied() {
+        let directory =
+            std::env::temp_dir().join(format!("d2rmm-app-diagnostics-{}", uuid::Uuid::new_v4()));
+        let store = diagnostics_store_in(Some(directory.clone()));
+        let switch = DiagnosticsSwitch::new(false);
+        apply_saved_diagnostics(&store, &switch);
+
+        assert!(switch.is_on(), "no file reads as on (OBT-15)");
+        assert_eq!(
+            handle_get_diagnostics(&switch, TelemetryTier::Production),
+            serde_json::json!({ "enabled": true, "tier": "production" })
+        );
+        assert_eq!(handle_set_diagnostics(&store, &switch, false), Ok(false));
+        assert!(!switch.is_on(), "applied at once, no restart (OBT-16)");
+        assert!(!diagnostics_store_in(Some(directory.clone())).load());
+        assert_eq!(
+            handle_get_diagnostics(&switch, TelemetryTier::Full),
+            serde_json::json!({ "enabled": false, "tier": "full" })
+        );
+        assert_eq!(handle_set_diagnostics(&store, &switch, true), Ok(true));
+        assert!(switch.is_on());
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn the_start_up_turns_the_switch_to_the_saved_choice() {
+        let cases = [
+            (InMemoryDiagnosticsStore::saved(true), true),
+            (InMemoryDiagnosticsStore::saved(false), false),
+            (InMemoryDiagnosticsStore::missing(), true),
+            (InMemoryDiagnosticsStore::unreadable(), false),
+        ];
+        for (store, expected) in cases {
+            let switch = DiagnosticsSwitch::new(false);
+            apply_saved_diagnostics(&store, &switch);
+            assert_eq!(switch.is_on(), expected);
+        }
+    }
+
+    #[test]
+    fn a_diagnostics_choice_refused_by_the_fake_store_changes_nothing() {
+        let store = InMemoryDiagnosticsStore::unreadable();
+        let switch = DiagnosticsSwitch::on();
+
+        assert!(handle_set_diagnostics(&store, &switch, false).is_err());
+        assert!(switch.is_on());
+    }
+
+    #[test]
+    fn a_diagnostics_choice_that_cannot_be_saved_changes_nothing() {
+        let store = diagnostics_store_in(None);
+        let switch = DiagnosticsSwitch::on();
+
+        assert!(handle_set_diagnostics(&store, &switch, false).is_err());
+        assert!(switch.is_on());
     }
 
     #[test]

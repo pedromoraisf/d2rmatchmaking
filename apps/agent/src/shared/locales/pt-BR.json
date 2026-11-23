@@ -38,6 +38,17 @@
     "withdrawn": "A captura está desligada. O agente não lê nada.",
     "notSaved": "Não foi possível salvar sua escolha. Tente novamente."
   },
+  "telemetry": {
+    "heading": "Diagnósticos",
+    "switch": "Enviar diagnósticos",
+    "noticeProduction": "Os diagnósticos ajudam os mantenedores a acompanhar um problema. Eles levam ids, o nome gerado do jogo, a tela que o agente reconheceu, como foi a leitura e tempos. Nunca levam nomes nem texto lido do jogo, e nunca uma imagem.",
+    "noticeFull": "Esta versão de teste envia diagnósticos detalhados para depuração: também os nomes dos personagens e o texto que o agente leu da janela do jogo. Esse detalhe existe apenas em versões de staging e de preview. Imagens nunca são enviadas.",
+    "effect": "A mudança vale na hora. Os batimentos e tudo o que o matchmaking precisa são enviados de qualquer jeito.",
+    "on": "Os diagnósticos estão ligados.",
+    "off": "Os diagnósticos estão desligados. O agente não envia nenhum.",
+    "notSaved": "Não foi possível salvar sua escolha. Tente de novo.",
+    "unreadable": "Não foi possível ler sua configuração de diagnósticos. A chave aparece ligada; desligue-a se não quiser enviá-los."
+  },
   "readyCheck": {
     "hotkey": "Há uma confirmação de partida: pressione {{key}} para aceitar.",
     "unavailable": "Não foi possível registrar o atalho de aceitar ({{key}}): outro programa pode estar usando. Escolha outra combinação na seção Atalhos desta janela. (motivo: {{reason}})"

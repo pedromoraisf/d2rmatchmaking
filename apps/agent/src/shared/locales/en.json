@@ -38,6 +38,17 @@
     "withdrawn": "Capture is off. The agent reads nothing.",
     "notSaved": "Could not save your choice. Try again."
   },
+  "telemetry": {
+    "heading": "Diagnostics",
+    "switch": "Send diagnostics",
+    "noticeProduction": "Diagnostics help the maintainers follow a problem. They carry ids, the generated game name, the screen the agent recognised, how the read went and timings. They never carry names or text read from the game, and never an image.",
+    "noticeFull": "This test build sends detailed diagnostics for debugging: also the character names and the text the agent read from the game window. This detail exists in staging and preview builds only. Images are never sent.",
+    "effect": "The change applies at once. Heartbeats and everything matchmaking needs are sent either way.",
+    "on": "Diagnostics are on.",
+    "off": "Diagnostics are off. The agent sends none.",
+    "notSaved": "Could not save your choice. Try again.",
+    "unreadable": "Could not read your diagnostics setting. The switch is shown as on; turn it off if you do not want to send them."
+  },
   "readyCheck": {
     "hotkey": "A ready check is open: press {{key}} to accept it.",
     "unavailable": "The accept hotkey ({{key}}) could not be registered: another program may be using it. Choose another combination in the Hotkeys section of this window. (reason: {{reason}})"

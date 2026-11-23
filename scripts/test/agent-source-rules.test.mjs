@@ -409,6 +409,25 @@ const chatPostTelemetryViolations = (base) =>
         .map(() => `${rel} puts the name or the observation in a span, an event or a counter`),
     );
 
+// The diagnostics switch (observability-tiers OBT-17): only the span processor and the export loop read it. The settings store and
+// the composition roots build it; the gateway, the heartbeat, the observations and the rest of the adapters and core never name it.
+const DIAGNOSTICS_SWITCH_ALLOW_LIST = [
+  'adapters/src/telemetry/switch.rs',
+  'adapters/src/telemetry/export.rs',
+  'adapters/src/telemetry/mod.rs',
+  'adapters/examples/headless.rs',
+  'src/app.rs',
+];
+const DIAGNOSTICS_SWITCH = /\b(?:DiagnosticsSwitch|FileDiagnosticsStore|diagnostics_store_in)\b/;
+const diagnosticsSwitchViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => !DIAGNOSTICS_SWITCH_ALLOW_LIST.includes(rel))
+    .filter(({ text }) => DIAGNOSTICS_SWITCH.test(codeOnly(text)))
+    .map(
+      ({ rel }) =>
+        `${rel} names the diagnostics switch and is not the span processor, the export loop or a composition root`,
+    );
+
 // Capture scope (ADR 010, capture-cascade CAP-04): the capture adapters see the game window and nothing else. No monitor, no
 // desktop or screen device context, no duplication of the output. The allowed `IGraphicsCaptureItemInterop` and
 // `Graphics::Capture` imports reach these through method calls, so the rule matches calls and uses, not import paths.
@@ -742,6 +761,16 @@ test('the outgoing data rule covers the span exporter client too', () => {
   assert.match(violations, /relay_client\.rs sends a raw body, a multipart part or an image/);
 });
 
+test('the diagnostics switch is read only by the span processor and the export loop (OBT-17)', () => {
+  assert.deepEqual(diagnosticsSwitchViolations(root), []);
+});
+
+test('the diagnostics switch rule rejects a reference from the HTTP adapters or core', () => {
+  const violations = diagnosticsSwitchViolations(fixtureBase('diagnostics-switch-leak')).join('\n');
+  assert.match(violations, /adapters\/src\/http\/heartbeat\.rs names the diagnostics switch/);
+  assert.match(violations, /core\/src\/gate\.rs names the diagnostics switch/);
+});
+
 test('the instrument rule rejects arguments without skip_all', () => {
   assert.match(
     instrumentViolations(fixtureBase('instrument-without-skip')).join('\n'),
@@ -815,15 +844,18 @@ test('tauri.conf.json keeps the hardened shell', () => {
   );
 });
 
-test('the window gets exactly listen, unlisten, get_new_code, get_consent, set_consent and set_hotkey', () => {
+test('the window gets exactly listen, unlisten, get_new_code, get_consent, set_consent, set_hotkey, get_diagnostics and set_diagnostics', () => {
   const capability = readJson(`${agentTauri}/capabilities/main.json`);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(
     [...capability.permissions].sort(),
     [
       'allow-get-consent',
+      // The player's "send diagnostics" switch (OBT-14, OBT-15): read and save only; it carries no span and no secret.
+      'allow-get-diagnostics',
       'allow-get-new-code',
       'allow-set-consent',
+      'allow-set-diagnostics',
       // The window saves the player's accept-hotkey choice (AST-01); the command sends nothing to the game.
       'allow-set-hotkey',
       'core:event:allow-listen',

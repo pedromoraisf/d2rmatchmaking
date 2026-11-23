@@ -7,6 +7,7 @@ pub mod export;
 pub mod queue;
 pub mod relay_client;
 pub mod sanitize;
+pub mod switch;
 pub mod tier;
 
 use std::collections::HashMap;
@@ -30,6 +31,7 @@ use export::{DropOldestProcessor, EXPORT_INTERVAL, SpanQueue, export_loop};
 use queue::{BoundedQueue, SPAN_QUEUE_CAPACITY};
 use relay_client::{HeaderSource, RelayHttpClient};
 use sanitize::SanitizingExporter;
+pub use switch::{DiagnosticsSwitch, FileDiagnosticsStore};
 pub use tier::{TelemetryTier, ratio_of, tier_of};
 
 const INSTRUMENTATION_SCOPE: &str = "d2rmm-agent";
@@ -61,6 +63,9 @@ pub struct ExportConfig {
     pub environment: String,
     /// The detail tier: the `d2r.telemetry.tier` resource attribute and what the sanitizer lets through.
     pub tier: TelemetryTier,
+    /// The player's "send diagnostics" switch (OBT-16): while it is off no span is queued or exported. The window flips the
+    /// same flag at run time.
+    pub switch: DiagnosticsSwitch,
 }
 
 /// Owns the tracer provider. `shutdown` flushes what is still queued; the composition root calls it on exit.
@@ -103,8 +108,11 @@ pub fn init(mode: Mode, export: Option<ExportConfig>) -> Result<TelemetryGuard, 
                 config.tier,
             ))
             .with_sampler(agent_sampler(config.ratio))
-            .with_span_processor(DropOldestProcessor::new(Arc::clone(&queue)));
-        export_task = Some((queue, exporter));
+            .with_span_processor(DropOldestProcessor::new(
+                Arc::clone(&queue),
+                config.switch.clone(),
+            ));
+        export_task = Some((queue, exporter, config.switch.clone()));
     }
     let provider = builder.build();
     let tracer = provider.tracer(INSTRUMENTATION_SCOPE);
@@ -114,9 +122,15 @@ pub fn init(mode: Mode, export: Option<ExportConfig>) -> Result<TelemetryGuard, 
         .with(level_filter(mode))
         .with(tracing_opentelemetry::layer().with_tracer(tracer))
         .try_init()?;
-    if let Some((queue, exporter)) = export_task {
+    if let Some((queue, exporter, switch)) = export_task {
         let report = |message: &str| tracing::warn!("{message}");
-        export_runtime().spawn(export_loop(queue, exporter, EXPORT_INTERVAL, report));
+        export_runtime().spawn(export_loop(
+            queue,
+            exporter,
+            switch,
+            EXPORT_INTERVAL,
+            report,
+        ));
     }
     Ok(TelemetryGuard { provider })
 }

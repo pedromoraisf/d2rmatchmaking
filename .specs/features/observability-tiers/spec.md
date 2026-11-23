@@ -84,6 +84,22 @@ What exists today:
   journey in Grafana by `d2r.room.id`, `d2r.account.id` and `d2r.ticket.id` (TraceQL run once against
   `grafanacloud-traces`), and that the egress numbers must be re-measured (ADR 037 consequence).
 
+### The player's switch (maintainer decision 2026-11-22; security review of PR #148)
+
+- **OBT-14** — The agent window SHALL show a notice of what the diagnostics carry in this build's tier, in English and
+  pt-BR, next to a "Send diagnostics" switch: in the production tier, ids, game data and timings and no names or read
+  text; in the full tier, also the names and the text read, and that the full tier exists on staging and preview builds
+  only. WHEN the window cannot read the setting THEN it SHALL still show the switch, as on, with an error line.
+- **OBT-15** — The "Send diagnostics" switch SHALL be on by default and SHALL persist across restarts in the agent's own
+  settings on this PC, never on the server. WHEN the file is missing THEN the switch SHALL read as on; WHEN the file exists but is unreadable, malformed
+  or not a boolean flag THEN it SHALL read as off. A save SHALL write a temporary file beside it and rename it, so a failed
+  write leaves the previous choice.
+- **OBT-16** — WHILE the switch is off the agent SHALL export no span: every ended span is dropped before it is queued
+  and the export loop discards what was queued, so the relay client is never called and no request leaves the PC for the
+  relay. The change SHALL take effect at once, without a restart.
+- **OBT-17** — The switch SHALL NOT affect heartbeats, observations, presence, pairing, the remote configuration or any
+  other request the matchmaking needs; it governs the diagnostics export only.
+
 ## Sources
 
 - ADR 037 (accepted 2026-11-21), brief Revision 2 (approved 2026-11-21): OBT-01 to OBT-13, OBT-18.
@@ -91,26 +107,31 @@ What exists today:
 - NFR-04 (privacy) as amended for telemetry by ADR 037: OBT-06, OBT-08, OBT-09, OBT-10.
 - ADR 032 (config from the environment, read in `main/`), ADR 033 (build once, promote): OBT-01.
 - ADR 036 / SNM-04 (names read on screen), AD-107, OBS-28, OBS-29: OBT-09, OBT-11.
-- NFR-12 (i18n): OBT-12.
+- NFR-12 (i18n): OBT-12, OBT-14.
+- NFR-04, NFR-05 (privacy, consent) and ADR 037: OBT-14 to OBT-17 (security review of PR #148: a notice and an opt-out).
 
 ## Requirement Traceability
 
-| Requirement ID | Story        | Proof                                                                            |
-| -------------- | ------------ | -------------------------------------------------------------------------------- |
-| OBT-01         | Tier         | unit tests per app (API config, agent channel, site boot) + acceptance `@OBT-01` |
-| OBT-02         | Resource     | unit tests on each resource builder                                              |
-| OBT-03         | API ids      | API unit tests on the span attributes + traced acceptance `@OBT-03`              |
-| OBT-04         | API full     | API unit tests in the full tier + traced acceptance `@OBT-04`                    |
-| OBT-05         | Agent export | Rust unit tests on the export config and the sanitizer                           |
-| OBT-06         | Agent full   | Rust unit tests on the sanitizer in the full tier                                |
-| OBT-07         | Site export  | site unit tests on the telemetry start and the span attributes                   |
-| OBT-08         | Redaction    | one pure redaction function per app with unit tests in both tiers                |
-| OBT-09         | Name leak    | `name-leak-scan` in both tiers (API integration tests)                           |
-| OBT-10         | Source rule  | harness test with a fixture that sets a staging-only key outside the tier module |
-| OBT-11         | Credentials  | the existing redaction tests, run in both tiers                                  |
-| OBT-12         | Notice       | component test (en, pt-BR) + acceptance `@OBT-12`                                |
-| OBT-13         | Docs         | `telemetry.md` in review; the TraceQL query run once on `grafanacloud-traces`    |
-| OBT-18         | Fail closed  | API unit test on `loadConfig` (unset, empty, `local`, `staging`, unknown)        |
+| Requirement ID | Story                 | Proof                                                                                                                                                                                                                            |
+| -------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OBT-01         | Tier                  | unit tests per app (API config, agent channel, site boot) + acceptance `@OBT-01`                                                                                                                                                 |
+| OBT-02         | Resource              | unit tests on each resource builder                                                                                                                                                                                              |
+| OBT-03         | API ids               | API unit tests on the span attributes + traced acceptance `@OBT-03`                                                                                                                                                              |
+| OBT-04         | API full              | API unit tests in the full tier + traced acceptance `@OBT-04`                                                                                                                                                                    |
+| OBT-05         | Agent export          | Rust unit tests on the export config and the sanitizer                                                                                                                                                                           |
+| OBT-06         | Agent full            | Rust unit tests on the sanitizer in the full tier                                                                                                                                                                                |
+| OBT-07         | Site export           | site unit tests on the telemetry start and the span attributes                                                                                                                                                                   |
+| OBT-08         | Redaction             | one pure redaction function per app with unit tests in both tiers                                                                                                                                                                |
+| OBT-09         | Name leak             | `name-leak-scan` in both tiers (API integration tests)                                                                                                                                                                           |
+| OBT-10         | Source rule           | harness test with a fixture that sets a staging-only key outside the tier module                                                                                                                                                 |
+| OBT-11         | Credentials           | the existing redaction tests, run in both tiers                                                                                                                                                                                  |
+| OBT-12         | Notice                | component test (en, pt-BR) + acceptance `@OBT-12`                                                                                                                                                                                |
+| OBT-13         | Docs                  | `telemetry.md` in review; the TraceQL query run once on `grafanacloud-traces`                                                                                                                                                    |
+| OBT-14         | Notice                | agent window component test (en, pt-BR); not in acceptance (the agent window is not in the stack)                                                                                                                                |
+| OBT-15         | Default, persist      | Rust unit tests on the settings store (default on, read back, existing unreadable → off, failed write keeps the choice)                                                                                                          |
+| OBT-16         | Zero export           | Rust unit tests: switch off → the exporter is never called, spans never queued; live toggle                                                                                                                                      |
+| OBT-17         | Matchmaking untouched | `diagnosticsSwitchViolations` in `scripts/test/agent-source-rules.test.mjs` ("the diagnostics switch is read only by the span processor and the export loop (OBT-17)") with the `diagnostics-switch-leak` fixture it must reject |
+| OBT-18         | Fail closed           | API unit test on `loadConfig` (unset, empty, `local`, `staging`, unknown)                                                                                                                                                        |
 
 ## Decisions (conservative defaults)
 

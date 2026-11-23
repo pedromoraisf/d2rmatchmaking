@@ -208,6 +208,14 @@ pub trait ConsentStore {
     fn save(&self, consent: bool) -> Result<(), StoreError>;
 }
 
+/// Where the player's "send diagnostics" choice is kept, the way `ConsentStore` keeps the consent (OBT-15). The store holds no
+/// secret.
+pub trait DiagnosticsStore {
+    /// The stored choice: on when none was made (the default), off when it cannot be read (OBT-15).
+    fn load(&self) -> bool;
+    fn save(&self, on: bool) -> Result<(), StoreError>;
+}
+
 /// Reads the screen a frame shows and, on the character selection screen, every complete card on it (CHR-04, CHR-06).
 /// A card with any field it could not read is left out. The reader holds no state between frames.
 pub trait FrameReader {
