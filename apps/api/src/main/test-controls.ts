@@ -116,6 +116,24 @@ const TABLES = [
   'platform.outbox',
 ] as const;
 
+type ResetStep = 'stop' | 'quiesce' | 'truncate' | 'sequence' | 'stores' | 'sweep';
+
+const ResetFailureResponse = z.object({
+  error: z.literal('reset-failed'),
+  step: z.string(),
+  pgCode: z.string().optional(),
+});
+
+/** The 503 body of a failed reset: the step and the Postgres error code only, never a message or data. */
+export function resetFailure(error: unknown, step: string): z.infer<typeof ResetFailureResponse> {
+  const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
+  return {
+    error: 'reset-failed',
+    step,
+    ...(typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code) ? { pgCode: code } : {}),
+  };
+}
+
 /** Constant-time comparison of the presented secret with the configured one. */
 function secretMatches(presented: unknown, expected: string): boolean {
   if (typeof presented !== 'string') {
@@ -144,18 +162,23 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
     '/__test/reset',
     {
       preHandler: [requireSecret],
-      schema: { response: { 204: z.null(), 403: ErrorResponse } },
+      schema: { response: { 204: z.null(), 403: ErrorResponse, 503: ResetFailureResponse } },
     },
     async (request, reply) => {
       if (!onAcceptanceDatabase(deps)) {
         return reply.code(403).send({ error: 'forbidden' });
       }
+      let step: ResetStep = 'stop';
       try {
         stopLeftoverWork(deps);
         // A drain still running from the last scenario holds locks the truncate needs (see OutboxRelay.quiesce).
+        step = 'quiesce';
         await deps.relay.quiesce();
+        step = 'truncate';
         await sql`truncate table ${sql.raw(TABLES.join(', '))} restart identity cascade`.execute(deps.db);
+        step = 'sequence';
         await sql`alter sequence lobby.game_name_seq restart with 1`.execute(deps.db);
+        step = 'stores';
         deps.stores.presence.clear();
         deps.stores.rateLimits.clear();
         deps.stores.tokenCache.clear();
@@ -163,12 +186,13 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
         deps.stores.joins.clear();
         deps.stores.readyChecks.clear();
         deps.stores.agentConfig.reset();
+        step = 'sweep';
         await deps.relay.sweep();
       } catch (error) {
         // Test controls only: names the database error (40P01 deadlock, 55P03 lock timeout…) a bare 503 hides.
         const code = (error as { code?: unknown }).code;
         request.log.error({ errorCode: code, message: (error as Error).message }, 'acceptance reset failed');
-        throw error;
+        return reply.code(503).send(resetFailure(error, step));
       }
       return reply.code(204).send(null);
     },
