@@ -40,7 +40,7 @@ function expandIPv6(address: string): number[] | null {
     text = `${bare.slice(0, lastColon + 1)}`;
   }
   const gap = text.indexOf('::');
-  if (gap !== -1 && text.includes('::', gap + 2)) {
+  if (text.includes('::', gap + 2)) {
     return null;
   }
   const groupsOf = (part: string): string[] => part.split(':').filter((g) => g !== '');
