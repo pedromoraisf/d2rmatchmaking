@@ -49,16 +49,17 @@ test('the report names the suites that ran: all on the schedule, the input other
 });
 
 // NGT-01: parallel jobs, matrix per crate with shards, matrix per API layer.
-test('agent mutation is a matrix per crate, with four shards for domain and two for adapters, and does not stop at one failure', () => {
+test('agent mutation is a matrix per crate, with five round-robin shards for domain and two for adapters, and does not stop at one failure', () => {
   assert.equal(agent.strategy['fail-fast'], false);
   assert.deepEqual(
     agent.strategy.matrix.include.map((entry) => [entry.crate, entry.shard]),
     [
       ['core', ''],
-      ['domain', '--shard 0/4'],
-      ['domain', '--shard 1/4'],
-      ['domain', '--shard 2/4'],
-      ['domain', '--shard 3/4'],
+      ['domain', '--shard 0/5 --sharding round-robin'],
+      ['domain', '--shard 1/5 --sharding round-robin'],
+      ['domain', '--shard 2/5 --sharding round-robin'],
+      ['domain', '--shard 3/5 --sharding round-robin'],
+      ['domain', '--shard 4/5 --sharding round-robin'],
       ['adapters', '--shard 0/2'],
       ['adapters', '--shard 1/2'],
     ],
