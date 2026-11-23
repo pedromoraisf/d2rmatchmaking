@@ -187,22 +187,15 @@ fn attribute_allowed_among(attribute: &KeyValue, tier: TelemetryTier, allowed: &
     }
     match (key, &attribute.value) {
         (CONFIDENCE_KEY, Value::F64(confidence)) => return (0.0..=1.0).contains(confidence),
-        (CONFIDENCE_KEY, _) => return false,
         (CORRECTIONS_KEY, Value::String(text)) => return is_correction_list(text.as_str()),
-        (CORRECTIONS_KEY, _) => return false,
         (DURATION_KEY, Value::I64(ms)) => return (0..=DURATION_MAX_MS).contains(ms),
-        (DURATION_KEY, _) => return false,
         (GAME_NAME_KEY, Value::String(text)) => return is_generated_game_name(text.as_str()),
-        (GAME_NAME_KEY, _) => return false,
         (ROOM_ID_KEY | AGENT_ID_KEY, Value::String(text)) => return is_uuid(text.as_str()),
-        (ROOM_ID_KEY | AGENT_ID_KEY, _) => return false,
         (RUN_ID_KEY, Value::String(text)) => return is_run_id(text.as_str()),
-        (RUN_ID_KEY, _) => return false,
         (STATUS_KEY | HTTP_STATUS_KEY, value) => return is_http_status(value),
         (HTTP_METHOD_KEY, Value::String(text)) => return HTTP_METHODS.contains(&text.as_str()),
-        (HTTP_METHOD_KEY, _) => return false,
         (AGENT_VERSION_KEY, Value::String(text)) => return is_agent_version(text.as_str()),
-        (AGENT_VERSION_KEY, _) => return false,
+        // Any other value type, and any key without a typed arm, is decided below.
         _ => {}
     }
     if key == CONFIG_VERSION_KEY {
