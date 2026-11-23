@@ -94,7 +94,7 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       values only, in the exporter's sanitiser. Existing span tests gain assertions, never lose one. A source-rule test in
       `scripts/test/` refuses a read text or a region in a span attribute of the vision code. Gate:
       `CARGO nextest run -p d2rmm-agent-core --lib && pnpm test:harness`
-- [ ] T9 — **[R14]** Popups with no card read (item f, SCR-05). From the PR's `ocr-variations` summary, list the refusal
+- [x] T9 — (done 2026-11-22 in #180: the 509 refused card variations of PR #154 grouped by cause in `t9-analysis.md` and pinned by `t9_class_*` tests; no class shows a rule that refuses a readable card, so no reading-module line changed and the counts stay 5727 / 45) **[R14]** Popups with no card read (item f, SCR-05). From the PR's `ocr-variations` summary, list the refusal
       reasons of the 176 popup variations (reason classes only; the summary prints no read text), pin the reads that
       work, then change the popup logic only where a reason class shows a rule that refuses a readable popup. One change
       per commit, each pushed and proved: `ocr-real` green, `popup` correct count up, `wrong` not up. Gate: as T3
