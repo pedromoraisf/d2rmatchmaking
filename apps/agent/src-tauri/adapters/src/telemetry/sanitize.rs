@@ -187,22 +187,15 @@ fn attribute_allowed_among(attribute: &KeyValue, tier: TelemetryTier, allowed: &
     }
     match (key, &attribute.value) {
         (CONFIDENCE_KEY, Value::F64(confidence)) => return (0.0..=1.0).contains(confidence),
-        (CONFIDENCE_KEY, _) => return false,
         (CORRECTIONS_KEY, Value::String(text)) => return is_correction_list(text.as_str()),
-        (CORRECTIONS_KEY, _) => return false,
         (DURATION_KEY, Value::I64(ms)) => return (0..=DURATION_MAX_MS).contains(ms),
-        (DURATION_KEY, _) => return false,
         (GAME_NAME_KEY, Value::String(text)) => return is_generated_game_name(text.as_str()),
-        (GAME_NAME_KEY, _) => return false,
         (ROOM_ID_KEY | AGENT_ID_KEY, Value::String(text)) => return is_uuid(text.as_str()),
-        (ROOM_ID_KEY | AGENT_ID_KEY, _) => return false,
         (RUN_ID_KEY, Value::String(text)) => return is_run_id(text.as_str()),
-        (RUN_ID_KEY, _) => return false,
         (STATUS_KEY | HTTP_STATUS_KEY, value) => return is_http_status(value),
         (HTTP_METHOD_KEY, Value::String(text)) => return HTTP_METHODS.contains(&text.as_str()),
-        (HTTP_METHOD_KEY, _) => return false,
         (AGENT_VERSION_KEY, Value::String(text)) => return is_agent_version(text.as_str()),
-        (AGENT_VERSION_KEY, _) => return false,
+        // Any other value type, and any key without a typed arm, is decided below.
         _ => {}
     }
     if key == CONFIG_VERSION_KEY {
@@ -849,6 +842,38 @@ mod tests {
                     ],
                 );
                 assert!(dropped.is_empty(), "{tier:?} {key}: {dropped:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_value_of_the_wrong_type_is_dropped_for_every_allowed_key_in_both_tiers() {
+        // The type each allowed key holds: a decimal, a whole number or a text. A value of any other type is no value of
+        // the key, whatever its content (a number that is a valid duration under a text key, a decimal in range under a
+        // whole-number key, a text under the confidence).
+        let right_type = |key: &str| match key {
+            "d2r.ocr.confidence" => "f64",
+            "status" | "http.response.status_code" | "config.version" | "d2r.step.duration_ms" => {
+                "i64"
+            }
+            _ => "string",
+        };
+        let candidates: [(&str, Value); 4] = [
+            ("string", text("x")),
+            ("i64", Value::I64(250)),
+            ("f64", Value::F64(0.5)),
+            ("bool", Value::Bool(true)),
+        ];
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            for key in ALLOWED_ATTRIBUTE_KEYS {
+                let wrong: Vec<KeyValue> = candidates
+                    .iter()
+                    .filter(|(kind, _)| *kind != right_type(key))
+                    .map(|(_, value)| KeyValue::new(key, value.clone()))
+                    .collect();
+                assert_eq!(wrong.len(), 3, "{key}");
+                let kept = in_tier(tier, wrong);
+                assert!(kept.is_empty(), "{tier:?} {key}: {kept:?}");
             }
         }
     }
