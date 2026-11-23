@@ -313,7 +313,11 @@ mod tests {
             cascade.record(Outcome::Blank);
         }
         assert_eq!(cascade.current(), Some(ScreenCrop));
-        while cascade.probe().is_none() {
+        // A probe is due within `PROBE_EVERY` looks; a fixed count keeps a cascade that never probes from spinning.
+        for _ in 0..PROBE_EVERY {
+            if cascade.probe().is_some() {
+                break;
+            }
             cascade.record(Outcome::Frame);
         }
         let first = cascade.probe().expect("a probe is due");
@@ -321,7 +325,10 @@ mod tests {
         assert!(!cascade.record_probe(first, Outcome::Blank));
         assert_eq!(cascade.current(), Some(ScreenCrop));
         // The next probe takes the next earlier method.
-        while cascade.probe().is_none() {
+        for _ in 0..PROBE_EVERY {
+            if cascade.probe().is_some() {
+                break;
+            }
             cascade.record(Outcome::Frame);
         }
         let second = cascade.probe().expect("a probe is due");
