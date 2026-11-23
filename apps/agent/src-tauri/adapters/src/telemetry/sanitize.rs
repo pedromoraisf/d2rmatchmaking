@@ -54,7 +54,7 @@ pub const FULL_TIER_KEYS: [&str; 4] = [
 ];
 /// The values a vision attribute may carry (screen-recognition T8, SCR-09): fixed words, never a coordinate, a read text or a
 /// pixel. Any other value of these keys is dropped with its key.
-pub const VISION_VALUES: [(&str, &[&str]); 7] = [
+pub const VISION_VALUES: [(&str, &[&str]); 9] = [
     (
         "vision.screen",
         &["in_game", "automap", "character_select", "unknown"],
@@ -77,6 +77,9 @@ pub const VISION_VALUES: [(&str, &[&str]); 7] = [
     ),
     // The other-game post's span (`agent.other_game.post`): whether the post went through, never a body or an error text.
     ("post.outcome", &["posted", "failed"]),
+    // The game facts the journey names (OBT-05): the API's closed sets, never a free text.
+    ("d2r.difficulty", &["normal", "nightmare", "hell"]),
+    ("d2r.queue.mode", &["pvp", "leveling"]),
 ];
 
 /// The configuration version a span may carry (RCF-11): a whole number from 0 (the built-in defaults) to the largest the agent
@@ -94,6 +97,58 @@ const DURATION_MAX_MS: i64 = 3_600_000;
 const CORRECTION_CLASS_MAX_CHARS: usize = 8;
 /// The longest generated game name (`mm{activity}{difficulty}-{n}`, ADR 017).
 const GAME_NAME_MAX_CHARS: usize = 32;
+
+const ROOM_ID_KEY: &str = "d2r.room.id";
+const AGENT_ID_KEY: &str = "d2r.agent.id";
+const RUN_ID_KEY: &str = "d2r.run.id";
+const STATUS_KEY: &str = "status";
+const HTTP_STATUS_KEY: &str = "http.response.status_code";
+const HTTP_METHOD_KEY: &str = "http.request.method";
+const AGENT_VERSION_KEY: &str = "d2r.agent.version";
+/// The HTTP methods the agent's client may send (OTel `http.request.method`, the known set).
+const HTTP_METHODS: [&str; 7] = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+/// The longest agent version text (`1.2.3-rc.1+build`).
+const AGENT_VERSION_MAX_CHARS: usize = 32;
+/// The longest run number text: a `u64` has at most 20 digits.
+const RUN_NUMBER_MAX_DIGITS: usize = 20;
+
+/// Whether `text` is a UUID in its canonical form (8-4-4-4-12 hexadecimal digits), the id the API issues (`randomUUID`).
+fn is_uuid(text: &str) -> bool {
+    text.len() == 36
+        && text.char_indices().all(|(index, c)| match index {
+            8 | 13 | 18 | 23 => c == '-',
+            _ => c.is_ascii_hexdigit(),
+        })
+}
+
+/// Whether `text` is a run id: `<room uuid>/<run number>` (`runIdOf` in the API, `run_id` in the core).
+fn is_run_id(text: &str) -> bool {
+    text.split_once('/').is_some_and(|(room, run)| {
+        is_uuid(room)
+            && !run.is_empty()
+            && run.len() <= RUN_NUMBER_MAX_DIGITS
+            && run.bytes().all(|b| b.is_ascii_digit())
+    })
+}
+
+/// Whether `text` is a semantic version, with an optional pre-release and build: digits, letters, dots, hyphens, plus.
+fn is_agent_version(text: &str) -> bool {
+    let core_end = text.find(['-', '+']).unwrap_or(text.len());
+    let parts: Vec<&str> = text[..core_end].split('.').collect();
+    text.chars().count() <= AGENT_VERSION_MAX_CHARS
+        && parts.len() == 3
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+        && text[core_end..]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'))
+}
+
+/// Whether `value` is an HTTP status code: an integer from 100 to 599.
+fn is_http_status(value: &Value) -> bool {
+    matches!(value, Value::I64(code) if (100..=599).contains(code))
+}
 
 /// Whether `text` is a generated game name: `mm`, then lowercase letters, digits and hyphens, so a player's name under this
 /// key (capitals, spaces, other marks) is dropped.
@@ -134,6 +189,15 @@ fn attribute_allowed(attribute: &KeyValue, tier: TelemetryTier) -> bool {
         (DURATION_KEY, _) => return false,
         (GAME_NAME_KEY, Value::String(text)) => return is_generated_game_name(text.as_str()),
         (GAME_NAME_KEY, _) => return false,
+        (ROOM_ID_KEY | AGENT_ID_KEY, Value::String(text)) => return is_uuid(text.as_str()),
+        (ROOM_ID_KEY | AGENT_ID_KEY, _) => return false,
+        (RUN_ID_KEY, Value::String(text)) => return is_run_id(text.as_str()),
+        (RUN_ID_KEY, _) => return false,
+        (STATUS_KEY | HTTP_STATUS_KEY, value) => return is_http_status(value),
+        (HTTP_METHOD_KEY, Value::String(text)) => return HTTP_METHODS.contains(&text.as_str()),
+        (HTTP_METHOD_KEY, _) => return false,
+        (AGENT_VERSION_KEY, Value::String(text)) => return is_agent_version(text.as_str()),
+        (AGENT_VERSION_KEY, _) => return false,
         _ => {}
     }
     if key == CONFIG_VERSION_KEY {
@@ -351,7 +415,7 @@ mod tests {
                 KeyValue::new("vision.search", "1650,882"),
                 KeyValue::new("vision.area_class", 7_i64),
                 KeyValue::new("vision.text", "mmbaalm-99"),
-                KeyValue::new("status", "ok"),
+                KeyValue::new("status", 200_i64),
             ],
             Status::Unset,
         );
@@ -494,11 +558,11 @@ mod tests {
                 KeyValue::new("d2r.screen.text", "Game Name 1234"),
                 KeyValue::new("http.url", "https://api.example.test/v1/x?token=secret"),
                 KeyValue::new("url.full", "https://api.example.test/v1/x"),
-                KeyValue::new("d2r.room.id", "room-42"),
+                KeyValue::new("d2r.room.id", "0b9d6f4e-3c1a-4e55-9a57-6f1f2d3c4b5a"),
                 KeyValue::new("d2r.agent.version", "1.2.3"),
                 KeyValue::new("http.request.method", "POST"),
                 KeyValue::new("http.response.status_code", 202_i64),
-                KeyValue::new("status", "posted"),
+                KeyValue::new("status", 202_i64),
             ],
             Status::Error {
                 description: Cow::Borrowed(
@@ -552,10 +616,12 @@ mod tests {
             "a non-agent span is dropped"
         );
 
-        let long = "x".repeat(200);
+        // A string key whose shape allows more than the cut: a long list of correction classes.
+        let long = vec!["rn>m"; 50].join(",");
+        assert!(long.chars().count() > MAX_STRING_CHARS);
         let kept = sanitize_span(span(
             "agent.heartbeat",
-            vec![KeyValue::new("d2r.room.id", long)],
+            vec![KeyValue::new("d2r.ocr.corrections", long)],
             Status::Unset,
         ))
         .expect("an agent span is kept");
@@ -661,9 +727,9 @@ mod tests {
             let kept = in_tier(
                 tier,
                 vec![
-                    KeyValue::new("d2r.agent.id", "agent-1"),
-                    KeyValue::new("d2r.room.id", "room-1"),
-                    KeyValue::new("d2r.run.id", "room-1/2"),
+                    KeyValue::new("d2r.agent.id", "3f0c8a52-91d4-4b7e-8c36-0a1b2c3d4e5f"),
+                    KeyValue::new("d2r.room.id", "0b9d6f4e-3c1a-4e55-9a57-6f1f2d3c4b5a"),
+                    KeyValue::new("d2r.run.id", "0b9d6f4e-3c1a-4e55-9a57-6f1f2d3c4b5a/2"),
                     KeyValue::new("d2r.game.name", "mmpvphell-12"),
                     KeyValue::new("d2r.difficulty", "hell"),
                     KeyValue::new("d2r.ocr.confidence", 0.87_f64),
@@ -810,5 +876,159 @@ mod tests {
             let sent = std::mem::take(&mut *recorded.0.lock().expect("the recording"));
             assert_eq!(keys(&sent[0]).len(), expected, "{tier:?}");
         }
+    }
+
+    const ROOM: &str = "0b9d6f4e-3c1a-4e55-9a57-6f1f2d3c4b5a";
+
+    /// Both tiers keep `valid` and drop `invalid` (each as one attribute) under `key`.
+    fn assert_shape(key: &'static str, valid: Vec<Value>, invalid: Vec<Value>) {
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            for value in &valid {
+                let kept = super::sanitize_span(
+                    span(
+                        "agent.x",
+                        vec![KeyValue::new(key, value.clone())],
+                        Status::Unset,
+                    ),
+                    tier,
+                )
+                .expect("an agent span is kept");
+                assert_eq!(keys(&kept), [key], "{key} {value:?} {tier:?}");
+            }
+            for value in &invalid {
+                let dropped = super::sanitize_span(
+                    span(
+                        "agent.x",
+                        vec![KeyValue::new(key, value.clone())],
+                        Status::Unset,
+                    ),
+                    tier,
+                )
+                .expect("an agent span is kept");
+                assert!(keys(&dropped).is_empty(), "{key} {value:?} {tier:?}");
+            }
+        }
+    }
+
+    fn text(value: &str) -> Value {
+        Value::String(value.to_string().into())
+    }
+
+    fn free_text() -> Value {
+        text(&"Alice the Sorceress at C:\\Users\\alice ".repeat(3))
+    }
+
+    #[test]
+    fn an_id_key_keeps_a_uuid_and_drops_anything_else() {
+        for key in ["d2r.room.id", "d2r.agent.id"] {
+            assert_shape(
+                key,
+                vec![text(ROOM), text(&ROOM.to_uppercase())],
+                vec![
+                    text("room-1"),
+                    text(""),
+                    text(&format!("{ROOM}x")),
+                    text(&ROOM.replace('-', "")),
+                    text(&ROOM.replace('a', "g")),
+                    free_text(),
+                    Value::I64(7),
+                ],
+            );
+        }
+    }
+
+    #[test]
+    fn a_run_id_is_a_room_uuid_and_a_run_number() {
+        assert_shape(
+            "d2r.run.id",
+            vec![
+                text(&format!("{ROOM}/1")),
+                text(&format!("{ROOM}/18446744073709551615")),
+            ],
+            vec![
+                text(ROOM),
+                text(&format!("{ROOM}/")),
+                text(&format!("{ROOM}/x")),
+                text(&format!("{ROOM}/1/2")),
+                text(&format!("{ROOM}/{}", "9".repeat(21))),
+                text("room-1/2"),
+                free_text(),
+                Value::I64(1),
+            ],
+        );
+    }
+
+    #[test]
+    fn a_status_is_an_http_status_code_in_both_keys() {
+        for key in ["status", "http.response.status_code"] {
+            assert_shape(
+                key,
+                vec![Value::I64(100), Value::I64(200), Value::I64(599)],
+                vec![
+                    Value::I64(99),
+                    Value::I64(600),
+                    Value::I64(-1),
+                    Value::F64(200.0),
+                    text("200"),
+                    text("pending"),
+                    free_text(),
+                ],
+            );
+        }
+    }
+
+    #[test]
+    fn an_http_method_is_one_of_the_known_verbs() {
+        assert_shape(
+            "http.request.method",
+            ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+                .map(text)
+                .to_vec(),
+            vec![
+                text("get"),
+                text("GET /x?token=1"),
+                text(""),
+                text("_OTHER"),
+                free_text(),
+                Value::I64(1),
+            ],
+        );
+    }
+
+    #[test]
+    fn an_agent_version_is_a_semantic_version() {
+        assert_shape(
+            "d2r.agent.version",
+            vec![
+                text("0.0.0"),
+                text("1.12.3"),
+                text("1.2.3-rc.1"),
+                text("1.2.3+build.5"),
+            ],
+            vec![
+                text(""),
+                text("1.2"),
+                text("1.2.x"),
+                text("v1.2.3"),
+                text("1.2.3 beta"),
+                text(&format!("1.2.3-{}", "a".repeat(40))),
+                free_text(),
+                Value::I64(1),
+            ],
+        );
+    }
+
+    #[test]
+    fn the_game_facts_are_the_closed_sets_of_the_api() {
+        assert_shape(
+            "d2r.difficulty",
+            ["normal", "nightmare", "hell"].map(text).to_vec(),
+            vec![text("Hell"), text("easy"), free_text(), Value::I64(3)],
+        );
+        assert_shape(
+            "d2r.queue.mode",
+            ["pvp", "leveling"].map(text).to_vec(),
+            vec![text("PvP"), text("ranked"), free_text(), Value::I64(1)],
+        );
     }
 }
