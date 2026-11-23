@@ -412,6 +412,16 @@ describe('the spans of the use cases (LBR-13)', () => {
     expect((await room(world)).stage).toBe('awaiting_host');
   });
 
+  it('a delivery for a room that is no longer formed carries no room on its span', async () => {
+    const world = await opened();
+    await world.useCases.onAssignmentDelivered({ accountId: 'account-1' });
+    exporter.reset();
+
+    await world.useCases.onAssignmentDelivered({ accountId: 'account-1' });
+
+    expect(spanNamed('lobby.on-assignment-delivered').attributes['d2r.room.id']).toBeUndefined();
+  });
+
   it('the delivery of an account with no room does nothing and does not fail', async () => {
     const world = setup();
 

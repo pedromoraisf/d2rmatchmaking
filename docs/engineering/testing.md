@@ -29,6 +29,17 @@ Rules:
    Every mutant rebuilds the crates it touches, so an optimised workspace build cost more per mutant than the tests it
    saved (nightly 45115512456: core 20 → 42 min, adapters 21 → over 60 min); measured per mutant, this shape was the
    cheapest of five candidates on the domain, core and adapters slices.
+   The API's Stryker scope (ADR 038): `mutate` takes `src/modules/*/domain/**` and `src/shared-kernel/**` (domain) and
+   `src/modules/*/application/**` (application), and leaves out test files and every `src/**/testing/**` folder, where the
+   in-memory fakes live. One list of excluded patterns (`EXCLUDED_GLOBS` in `apps/api/scripts/mutation-plan.ts`) feeds the
+   Stryker config and the `--changed` planner. A `testing/` folder holds test support only: a product file never imports
+   from one. A mutant that no test can tell apart from the original is retired in the source with
+   `// Stryker disable next-line <Mutator>: equivalent — <reason>`, one mutator per line; refactor the redundancy away
+   first, and never disable a mutant a test could kill. `scripts/api/mutation-disables.mjs` (harness test
+   `scripts/test/api-mutation-disables.test.mjs`, part of `pnpm test:harness` and so of `pnpm check`) fails on a disable
+   with no reason, no mutator, `all`, several mutators or an unknown one, a reason that does not start with
+   `equivalent — `, the block form, a comment with no code under it, and a stale disable whose line holds no construct
+   the named mutator produces. The phase review counts the disables.
 8. The load run (NFR-14, AD-110) is on demand, runs at the end of a phase, and runs in the nightly on a GitHub runner
    (ADR 035, Proposed). It is never part of `pnpm check` or a pull-request workflow; `scripts/test/load-scripts.test.mjs`
    refuses it in any workflow except `nightly.yml`. Three commands: `pnpm test:load` (the full ramp),

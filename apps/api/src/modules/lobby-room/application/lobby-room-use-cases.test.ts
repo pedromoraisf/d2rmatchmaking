@@ -6,7 +6,7 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import { context, trace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { D2R_ROOM_ID } from '@d2rmm/telemetry';
 import { ACTIVE_SPAN_DETAIL, type SpanDetail } from '../../../shared-kernel/index.ts';
 import {
@@ -204,6 +204,17 @@ describe('lobby-room use cases', () => {
     expect(result).toEqual({ ok: false, error: 'forbidden' });
     expect(observations.stored).toEqual([]);
     expect(outbox.appended).toHaveLength(2);
+  });
+
+  it('refuses an observation from an unknown agent with forbidden without reading the room', async () => {
+    const { useCases, rooms } = setup();
+    await useCases.onMatchFormed(match());
+    const findById = vi.spyOn(rooms, 'findById');
+
+    const result = await useCases.recordObservation({ agentId: 'agent-404', roomId: 'room-1', body: body() });
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+    expect(findById).not.toHaveBeenCalled();
   });
 
   it('accepts an UNKNOWN observation type and stores nothing', async () => {

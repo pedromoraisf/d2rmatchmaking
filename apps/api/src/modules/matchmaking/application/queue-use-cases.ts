@@ -103,6 +103,9 @@ export function createQueueUseCases(deps: QueueUseCaseDeps) {
     /** The account's open ready check as its members see it, or null (RDY-11). Read only: it takes no lock. */
     openReadyCheckOf: (input: { readonly accountId: string }) => readyChecks.openFor(input.accountId),
 
+    /** How many open ready checks still wait for their deadline (read only; zero when every check has ended). */
+    pendingReadyCheckDeadlines: (): number => readyChecks.pendingDeadlines(),
+
     /** A member's answer to a ready check: accept or decline (RDY-02, RDY-04, RDY-06). */
     answerReadyCheck: (input: {
       readonly accountId: string;

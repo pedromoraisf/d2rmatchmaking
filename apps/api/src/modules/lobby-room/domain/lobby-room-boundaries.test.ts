@@ -80,6 +80,13 @@ describe('LobbyRoom.expiresAt (LBR-05)', () => {
     expect(change?.room.expiresAt).toEqual(new Date(LATER.getTime() + AWAITING_HOST_EXPIRY_MS));
   });
 
+  it('is null outside formed and awaiting_host even when a stored awaiting instant is present', () => {
+    for (const stage of ['created', 'active', 'closed', 'expired'] as const) {
+      const restored = LobbyRoom.restore(props({ stage, awaitingSince: LATER }));
+      expect(restored.ok && restored.value.expiresAt).toBeNull();
+    }
+  });
+
   it('is null once the game is created and in a room that is over', () => {
     for (const stage of ['created', 'active', 'closed', 'expired'] as const) {
       const restored = LobbyRoom.restore(props({ stage }));

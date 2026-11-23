@@ -307,6 +307,16 @@ describe('openNextRun (LBR-06)', () => {
     expect(assignment?.expectedGameName).toBe('mmbaalh-2');
   });
 
+  it("a stranger's refused request takes no name from the sequence", async () => {
+    const world = await active();
+
+    await world.useCases.openNextRun({ accountId: 'account-9', roomId: 'room-1' });
+    await world.useCases.openNextRun({ accountId: 'account-1', roomId: 'room-1' });
+
+    const room = await world.useCases.getCurrentRoom({ accountId: 'account-1' });
+    expect(room?.expectedGameName).toBe('mmbaalh-2');
+  });
+
   it('refuses a member who is not the host (403), a stranger (404) and a room that is not active (409)', async () => {
     const world = await active();
 

@@ -1,6 +1,6 @@
 # Phase F2 — review
 
-> **DRAFT.** Updated 2026-11-23 on `phase/F2` @ `6f758ec8` (after #199) by the orchestrator. Every figure carries the run or
+> **DRAFT.** Updated 2026-11-23 on `phase/F2` @ `a8539ac2` (after #200) by the orchestrator. Every figure carries the run or
 > SHA it was measured on. `Maintainer` marks a step only the maintainer can do. The approval line is the maintainer's and
 > stays empty.
 
@@ -11,7 +11,7 @@ Code complete; not ready for approval until the maintainer's steps are done. Of 
 - **6 are met**: OCR protection, assisted typing (removed, Revision 4), privacy and token, remote configuration in code,
   agent lifecycle, upkeep.
 - **Load is met** for Revision 4: 400 players, 0 errors, bytes at the ratchet.
-- **The nightly is green on `phase/F2`** (run 45136543045). The criterion asks for 3 green nights on `main`, which can
+- **The nightly is green on `phase/F2`** (runs 45136543045 and 45205616909). The criterion asks for 3 green nights on `main`, which can
   only start after the phase PR merges.
 - **5 wait on the maintainer's game PC**: read rate (0 of 20 real rooms), character and screen reading, chat,
   robustness NFR-03 and performance NFR-02.
@@ -28,7 +28,7 @@ criteria text is the brief's, with Revisions 1–4 applied.
 
 | Criterion                                                              | Status                                              | Proof                                                                                                                                                                                                                                                                                                                                                 |
 | ---------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nightly green and readable                                             | **Green on `phase/F2`; 3 nights on `main` to come** | Run 45136543045 @ `0d208e50`: every job success (acceptance 358 passed, load, api and agent mutation, quality `OK — 1 improvement`, report). Agent mutation 0 missed, 0 timeouts. The fixes were #165, #183, #184, #187, #192, #193 and #194. Three green nights on `main` start after the phase PR merges                                            |
+| Nightly green and readable                                             | **Green on `phase/F2`; 3 nights on `main` to come** | Runs 45136543045 @ `0d208e50` and 45205616909 @ `a8539ac2`: every job success (acceptance 358 passed, load, api and agent mutation, quality `OK — 1 improvement`, report). Agent mutation 0 missed, 0 timeouts. The fixes were #165, #183, #184, #187, #192, #193 and #194. Three green nights on `main` start after the phase PR merges              |
 | OCR reading logic protected (rule 14)                                  | **Met**                                             | Rule in `AGENTS.md` and `.claude/agents/feature-worker.md` (#89); `reading-modules.json`; agent-core and agent-domain 0 missed in run 45136543045; exclusions carry `Evidence:` lines (#172). `ocr-variations` on every reading-module PR: floor 5727 correct / ceiling 45 wrong                                                                      |
 | Read rate (Revision 3): zero wrong, ≥95 % of ≥20 real rooms confirmed  | **Maintainer: field**                               | Field log **0 of 20** real rooms (`game-name-reading` 3 open boxes). Runbook `docs/field/F2-field-test.pt-BR.md`. Installer: run 45093039829, artifact `agent-preview-cc838428…` (includes #156)                                                                                                                                                      |
 | Character and screen reading (scenarios, unit tests; 95 % moved to F3) | **Code ready; Maintainer: field**                   | `screen-recognition` 16/19 (3 waiting on field: field matrix, CPU, print fixes). #142, #149, #150, #154; T9 closed with no reading-module change (#180)                                                                                                                                                                                               |
@@ -68,12 +68,12 @@ are the script's (it skips boxes marked **Waiting**).
 | observability-tiers  | 12/13 | #143, #148, #156, #159, #166                              | T12 (staging traces)                      |
 | staging-bots         | 12/12 | #123                                                      | runs once staging deploys                 |
 
-Merged into `phase/F2`: **102** PRs (`gh api 'repos/pedromoraisf/d2rmatchmaking/pulls?state=closed&base=phase/F2' --paginate`,
-`merged_at` set). Open into `phase/F2` besides this draft: the ADR 038 implementation (in progress).
+Merged into `phase/F2`: **103** PRs (`gh api 'repos/pedromoraisf/d2rmatchmaking/pulls?state=closed&base=phase/F2' --paginate`,
+`merged_at` set). Open into `phase/F2` besides this draft: #201 (the ADR 038 baseline proposal, docs only).
 
 ## Decisions to confirm
 
-`decisions.md → To confirm` has 69 rows. The ones that change a stated requirement, a repository setting or a sensor:
+`decisions.md → To confirm` has 70 rows. The ones that change a stated requirement, a repository setting or a sensor:
 
 - **NFR-06 names 3 agent routes; the code has 9.** The PRD wording is the maintainer's to change.
 - **Phase pushes deploy staging with repository-level secrets** (#157). A ruleset for `phase/**` or a deployment-branch
@@ -85,9 +85,12 @@ Merged into `phase/F2`: **102** PRs (`gh api 'repos/pedromoraisf/d2rmatchmaking/
   agent-domain nightly runs in 5 round-robin shards (#187). The mutants build profile optimises dependencies only (#193,
   after #190's workspace-wide `opt-level = 2` doubled core and adapters).
 - **The sanitizer's redundant wrong-type arms were deleted, not excluded** (#194).
-- **API mutation (ADR 038, accepted 2026-11-23)**: test-support fakes leave the Stryker scope; equivalent mutants carry
-  `// Stryker disable next-line <Mutator>: equivalent — <reason>`. The api-application floor and `break` are re-measured
-  on the first nightly after the change and can only stay or rise.
+- **API mutation (ADR 038, accepted 2026-11-23, #200)**: test-support fakes left the Stryker scope; killable survivors were
+  killed (the lock map and the ready-check deadline map were not equivalent: both now have a `pending()` probe and a
+  test); 4 equivalent mutants carry `// Stryker disable next-line <Mutator>: equivalent — <reason>`, checked by
+  `scripts/api/mutation-disables.mjs`. Nightly 45205616909: api-domain 100, api-application 100. **Baseline proposal
+  waiting on the maintainer**: api-application value 78.67 → 100 now; floors and `break` to 95 after two more 100 nights.
+  Follow-up: the nightly summary of disables that match no mutant (ADR 038 item 1, last part).
 - **The acceptance reset 503** names its failing step and Postgres code since #185; it has not recurred since.
 - **Other client sizes proven only on drawn fixtures**; ultrawide and 4:3 move to F3.
 
@@ -108,8 +111,8 @@ Merged into `phase/F2`: **102** PRs (`gh api 'repos/pedromoraisf/d2rmatchmaking/
 
 | Metric                                          | Baseline (`.quality-baseline.json`)       | Now                                                                                      | Source                     |
 | ----------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------- |
-| mutation api domain (%)                         | 100 → ratchet                             | **99.63**                                                                                | nightly 45136543045        |
-| mutation api application (%)                    | 78.67 → ratchet                           | **91.72** (74 survivors; ADR 038 re-measure pending)                                     | nightly 45136543045        |
+| mutation api domain (%)                         | 100 → ratchet                             | **100.00**                                                                               | nightly 45205616909        |
+| mutation api application (%)                    | 78.67 → ratchet                           | **100.00** (ADR 038, #200; was 91.72)                                                    | nightly 45205616909        |
 | mutation agent core (%)                         | 100                                       | **100** (183 caught, 0 missed, 20 min)                                                   | nightly 45136543045        |
 | mutation agent domain                           | not a ratchet metric                      | **0 missed, 0 timeouts** (5 shards, 194–211 caught each, 22–34 min)                      | nightly 45136543045        |
 | mutation agent adapters                         | not a ratchet metric                      | **0 missed** (85 + 95 caught, 16 and 19 min)                                             | nightly 45136543045        |

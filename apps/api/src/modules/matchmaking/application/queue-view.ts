@@ -68,5 +68,6 @@ export function setAttributesOf(ticket: QueueTicket): Record<string, string> {
 export function attributeKey(attributes: QueueAttributes): string {
   // The '|' is redundant while each attribute's vocabulary is fixed and prefix-free (mode, difficulty, ladder, era);
   // it is what keeps the keys unambiguous if one of them changes.
+  // Stryker disable next-line StringLiteral: equivalent — see the comment above: the separator only matters if a vocabulary stops being prefix-free
   return [attributes.mode, attributes.difficulty, attributes.ladder, attributes.era].join('|');
 }
