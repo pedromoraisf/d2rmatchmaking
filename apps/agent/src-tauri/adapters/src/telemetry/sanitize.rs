@@ -170,14 +170,19 @@ fn is_correction_list(text: &str) -> bool {
         })
 }
 
-/// Whether an attribute may leave the machine in `tier`: its key is allowed (a full-tier key only in the full tier) and,
-/// for a key with a fixed shape, its value has that shape.
+/// Whether an attribute may leave the machine in `tier`: its key is allowed (a full-tier key only in the full tier) and
+/// its value has the key's fixed shape. A key without a shape is dropped.
 fn attribute_allowed(attribute: &KeyValue, tier: TelemetryTier) -> bool {
+    attribute_allowed_among(attribute, tier, &ALLOWED_ATTRIBUTE_KEYS)
+}
+
+/// [`attribute_allowed`] over an explicit list of allowed keys, so a test can name a key that has no shape.
+fn attribute_allowed_among(attribute: &KeyValue, tier: TelemetryTier, allowed: &[&str]) -> bool {
     let key = attribute.key.as_str();
     if FULL_TIER_KEYS.contains(&key) {
         return tier == TelemetryTier::Full;
     }
-    if !ALLOWED_ATTRIBUTE_KEYS.contains(&key) {
+    if !allowed.contains(&key) {
         return false;
     }
     match (key, &attribute.value) {
@@ -203,8 +208,9 @@ fn attribute_allowed(attribute: &KeyValue, tier: TelemetryTier) -> bool {
     if key == CONFIG_VERSION_KEY {
         return matches!(&attribute.value, Value::I64(version) if (0..=CONFIG_VERSION_MAX).contains(version));
     }
+    // Deny by default: an allowed key without a shape above is dropped, so a key added to the list alone leaks nothing.
     match VISION_VALUES.iter().find(|(name, _)| *name == key) {
-        None => true,
+        None => false,
         Some((_, words)) => {
             matches!(&attribute.value, Value::String(text) if words.contains(&text.as_str()))
         }
@@ -240,6 +246,44 @@ pub fn sanitize_span(span: SpanData, tier: TelemetryTier) -> Option<SpanData> {
         status: without_status_text(span.status),
         ..span
     })
+}
+
+/// The keys whose shape is a whole number.
+const INTEGER_KEYS: [&str; 4] = [
+    STATUS_KEY,
+    HTTP_STATUS_KEY,
+    CONFIG_VERSION_KEY,
+    DURATION_KEY,
+];
+
+/// The tracing bridge records an unsigned integer (`u16`, `u32`, `u64`) as its decimal text, not as an `i64`. Before the
+/// sanitizer, for a key whose shape is a whole number, a text of plain digits that fits an `i64` becomes that number, so an
+/// unsigned status is kept as the integer it is. The sanitizer itself stays strict: any other text, a sign, a space or a
+/// number past `i64` included, stays text and is dropped.
+fn unsigned_integers_as_numbers(span: SpanData) -> SpanData {
+    SpanData {
+        attributes: span
+            .attributes
+            .into_iter()
+            .map(whole_number_of_an_integer_key)
+            .collect(),
+        ..span
+    }
+}
+
+fn whole_number_of_an_integer_key(attribute: KeyValue) -> KeyValue {
+    if !INTEGER_KEYS.contains(&attribute.key.as_str()) {
+        return attribute;
+    }
+    let Value::String(text) = &attribute.value else {
+        return attribute;
+    };
+    let digits = text.as_str();
+    let plain = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
+    match digits.parse::<i64>() {
+        Ok(number) if plain => KeyValue::new(attribute.key, number),
+        _ => attribute,
+    }
 }
 
 /// Keeps the five resource attributes the exporter sends and no other.
@@ -291,6 +335,7 @@ impl<E: SpanExporter> SpanExporter for SanitizingExporter<E> {
         let tier = self.tier;
         let clean: Vec<SpanData> = batch
             .into_iter()
+            .map(unsigned_integers_as_numbers)
             .filter_map(|span| sanitize_span(span, tier))
             .collect();
         self.inner.export(clean)
@@ -1053,5 +1098,189 @@ mod tests {
             ["pvp", "leveling"].map(text).to_vec(),
             vec![text("PvP"), text("ranked"), free_text(), Value::I64(1)],
         );
+    }
+
+    #[test]
+    fn an_allowed_key_without_a_shape_is_dropped_and_every_allowed_key_has_one() {
+        // One valid sample per allowed key: a key added to the list without a shape (and a sample here) fails this test.
+        let samples: Vec<(&str, Value)> = vec![
+            ("vision.screen", text("in_game")),
+            ("vision.search", text("track")),
+            ("vision.area_class", text("box")),
+            ("capture.method", text("print-window")),
+            ("capture.outcome", text("frame")),
+            ("config.outcome", text("applied")),
+            ("config.version", Value::I64(3)),
+            ("post.outcome", text("posted")),
+            ("status", Value::I64(200)),
+            ("d2r.room.id", text(ROOM)),
+            ("d2r.agent.version", text("1.2.3")),
+            ("d2r.difficulty", text("hell")),
+            ("d2r.queue.mode", text("pvp")),
+            ("http.request.method", text("GET")),
+            ("http.response.status_code", Value::I64(404)),
+            ("d2r.agent.id", text(ROOM)),
+            ("d2r.run.id", text(&format!("{ROOM}/12"))),
+            ("d2r.game.name", text("mmpvphell-1")),
+            ("d2r.ocr.confidence", Value::F64(0.5)),
+            ("d2r.ocr.corrections", text("rn>m")),
+            ("d2r.step.duration_ms", Value::I64(40)),
+        ];
+        let pii = text("john.doe@example.com C:\\Users\\john");
+        for key in ALLOWED_ATTRIBUTE_KEYS {
+            let (_, valid) = samples
+                .iter()
+                .find(|(name, _)| *name == key)
+                .unwrap_or_else(|| panic!("{key} has no sample: give it a shape and a sample"));
+            assert_shape(key, vec![valid.clone()], vec![pii.clone()]);
+        }
+        assert_eq!(samples.len(), ALLOWED_ATTRIBUTE_KEYS.len());
+
+        // A key on the allowed list that no shape knows is dropped, whatever its value.
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            for value in [
+                pii.clone(),
+                text("in_game"),
+                Value::I64(200),
+                Value::Bool(true),
+            ] {
+                let attribute = KeyValue::new("future.key", value.clone());
+                assert!(
+                    !super::attribute_allowed_among(&attribute, tier, &["future.key"]),
+                    "{value:?} {tier:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_array_value_under_a_shaped_key_is_dropped_in_both_tiers() {
+        // A list of values that are each valid alone (and a list of free text) is still no value of the key's shape.
+        let valid_strings = |items: &[&str]| {
+            Value::Array(Array::String(
+                items.iter().map(|i| i.to_string().into()).collect(),
+            ))
+        };
+        for key in ALLOWED_ATTRIBUTE_KEYS {
+            assert_shape(
+                key,
+                vec![],
+                vec![
+                    valid_strings(&["in_game", "pvp", "GET", ROOM]),
+                    valid_strings(&["john.doe@example.com C:\\Users\\john"]),
+                    Value::Array(Array::I64(vec![200, 404])),
+                    Value::Array(Array::F64(vec![0.5])),
+                    Value::Array(Array::Bool(vec![true])),
+                ],
+            );
+        }
+    }
+
+    /// Records one `agent.x` span through the tracing bridge, as the agent's code does, and returns what the sanitizing
+    /// exporter sent on: the span goes from a `tracing` macro to the OpenTelemetry layer to the sanitizer.
+    fn through_the_bridge(tier: TelemetryTier, record: impl FnOnce()) -> Vec<SpanData> {
+        use opentelemetry::trace::TracerProvider as _;
+        use tracing_subscriber::layer::SubscriberExt as _;
+
+        let recorded = Recording::default();
+        let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
+            .with_simple_exporter(SanitizingExporter::new(recorded.clone(), tier))
+            .build();
+        let subscriber = tracing_subscriber::registry()
+            .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("sanitize-test")));
+        tracing::subscriber::with_default(subscriber, record);
+        provider.shutdown().expect("the provider shuts down");
+        let mut sent = recorded.0.lock().expect("the recording");
+        std::mem::take(&mut *sent)
+    }
+
+    #[test]
+    fn a_status_recorded_as_an_unsigned_or_signed_integer_is_kept_through_the_bridge() {
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            let unsigned = through_the_bridge(tier, || {
+                drop(tracing::info_span!("agent.x", status = 200_u64));
+            });
+            assert_eq!(unsigned.len(), 1, "{tier:?}");
+            assert_eq!(keys(&unsigned[0]), ["status"], "u64 {tier:?}");
+            let small = through_the_bridge(tier, || {
+                drop(tracing::info_span!(
+                    "agent.x",
+                    status = 404_u16,
+                    http.response.status_code = 503_u32
+                ));
+            });
+            assert_eq!(
+                keys(&small[0]),
+                ["status", "http.response.status_code"],
+                "u16 and u32 {tier:?}"
+            );
+            let signed = through_the_bridge(tier, || {
+                drop(tracing::info_span!("agent.x", status = 200_i64));
+            });
+            assert_eq!(keys(&signed[0]), ["status"], "i64 {tier:?}");
+            // An unsigned value out of the range of a status is dropped, as a signed one is.
+            let out_of_range = through_the_bridge(tier, || {
+                drop(tracing::info_span!(
+                    "agent.x",
+                    status = 99_u64,
+                    config.version = u64::MAX
+                ));
+            });
+            assert!(keys(&out_of_range[0]).is_empty(), "out of range {tier:?}");
+        }
+    }
+
+    /// What the sanitizing exporter sent on for one `agent.x` span with this one attribute, in the production tier.
+    async fn exported(attribute: KeyValue) -> Vec<KeyValue> {
+        let recorded = Recording::default();
+        let exporter = SanitizingExporter::new(recorded.clone(), TelemetryTier::Production);
+        exporter
+            .export(vec![span("agent.x", vec![attribute], Status::Unset)])
+            .await
+            .expect("the recording exporter takes the batch");
+        let mut sent = std::mem::take(&mut *recorded.0.lock().expect("the recording"));
+        assert_eq!(sent.len(), 1);
+        sent.remove(0).attributes
+    }
+
+    #[tokio::test]
+    async fn the_digit_string_conversion_keeps_only_plain_ascii_digits_that_fit() {
+        for key in ["status", "http.response.status_code"] {
+            // Plain ASCII digits become the number they spell, leading zeros included (range-checked afterwards).
+            for (text, number) in [("200", 200_i64), ("0000200", 200)] {
+                let kept = exported(KeyValue::new(key, text)).await;
+                assert_eq!(kept.len(), 1, "{key} {text:?}");
+                assert_eq!(kept[0].value, Value::I64(number), "{key} {text:?}");
+            }
+            let not_converted = ["+200", "-1", " 200", "200 ", "２００", "٢٠٠", ""]
+                .map(String::from)
+                .into_iter()
+                .chain(["9".repeat(30)]);
+            for text in not_converted {
+                let kept = exported(KeyValue::new(key, text.clone())).await;
+                assert!(kept.is_empty(), "{key} {text:?} must be dropped");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn only_integer_keys_convert_a_digit_string() {
+        let room = "0b9d6f4e-3c1a-4e55-9a57-6f1f2d3c4b5a";
+        for key in ["d2r.run.id", "d2r.room.id", "d2r.agent.version"] {
+            for text in ["200", "0000200", "1234567"] {
+                let kept = exported(KeyValue::new(key, text)).await;
+                assert!(kept.is_empty(), "{key} {text:?} must be dropped");
+            }
+        }
+        // The same keys still keep text of their own shape, as text.
+        for (key, text) in [
+            ("d2r.run.id", format!("{room}/2")),
+            ("d2r.room.id", room.to_string()),
+            ("d2r.agent.version", "1.2.3".to_string()),
+        ] {
+            let kept = exported(KeyValue::new(key, text.clone())).await;
+            assert_eq!(kept.len(), 1, "{key}");
+            assert_eq!(kept[0].value, Value::from(text), "{key}");
+        }
     }
 }

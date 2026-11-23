@@ -70,11 +70,15 @@ pixels, crops), and the agent's exporter drops every event, link, status text, U
 | Sampling                                                                                                                 |    10%     |  100%   |
 
 The agent's sanitizer also checks the **shape** of every allowed key, in both tiers, and drops (never truncates) a value that
-does not fit: `d2r.room.id` and `d2r.agent.id` are UUIDs; `d2r.run.id` is `<room UUID>/<run number>`; `status` and
-`http.response.status_code` are integers from 100 to 599; `http.request.method` is one of `GET POST PUT PATCH DELETE HEAD
-OPTIONS`; `d2r.agent.version` is a semantic version; `d2r.difficulty` is `normal`, `nightmare` or `hell`; `d2r.queue.mode` is
-`pvp` or `leveling`; the vision, capture, config and post keys are closed word sets. A span records a number as an `i64`:
-the tracing bridge has no `u64` and would record it as text.
+does not fit: `d2r.room.id` and `d2r.agent.id` are UUIDs; `d2r.run.id` is `<room UUID>/<run number>`, the run number at most
+20 digits (a `u64`); `status` and `http.response.status_code` are integers from 100 to 599; `http.request.method` is one of
+`GET POST PUT PATCH DELETE HEAD OPTIONS`; `d2r.agent.version` is a semantic version of at most 32 characters;
+`d2r.difficulty` is `normal`, `nightmare` or `hell`; `d2r.queue.mode` is `pvp` or `leveling`; the vision, capture, config and
+post keys are closed word sets. The rule is deny by default: a key on the allowed list that has no shape is dropped, so a key
+added to the list alone lets nothing through; it needs a shape and a test. The tracing bridge records an unsigned integer
+(`u16`, `u32`, `u64`) as text; before the sanitizer, the exporter turns a text of plain digits under an integer key (`status`,
+`http.response.status_code`, `config.version`, `d2r.step.duration_ms`) back into the number when it fits an `i64`, so a `u64`
+status is kept and one past `i64` is dropped.
 
 **The player's switch (OBT-14 to OBT-17).** The agent window shows a notice of what its diagnostics carry in the build's
 tier (en, pt-BR) and a "Send diagnostics" switch, on by default. The choice is kept in `diagnostics.json` in the agent's
