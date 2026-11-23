@@ -464,7 +464,8 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
       for (const api of apis) {
         const answer = await controls(`${api}/__test/reset`);
         if (answer.status !== 204) {
-          throw new Error(`reset of ${api} answered ${answer.status}`);
+          const detail = answer.status === 503 ? ` ${await answer.text().catch(() => '')}` : '';
+          throw new Error(`reset of ${api} answered ${answer.status}${detail}`);
         }
       }
     },
