@@ -1206,4 +1206,37 @@ mod tests {
             assert!(keys(&out_of_range[0]).is_empty(), "out of range {tier:?}");
         }
     }
+
+    /// What the sanitizing exporter sent on for one `agent.x` span with this one attribute, in the production tier.
+    async fn exported(attribute: KeyValue) -> Vec<KeyValue> {
+        let recorded = Recording::default();
+        let exporter = SanitizingExporter::new(recorded.clone(), TelemetryTier::Production);
+        exporter
+            .export(vec![span("agent.x", vec![attribute], Status::Unset)])
+            .await
+            .expect("the recording exporter takes the batch");
+        let mut sent = std::mem::take(&mut *recorded.0.lock().expect("the recording"));
+        assert_eq!(sent.len(), 1);
+        sent.remove(0).attributes
+    }
+
+    #[tokio::test]
+    async fn the_digit_string_conversion_keeps_only_plain_ascii_digits_that_fit() {
+        for key in ["status", "http.response.status_code"] {
+            // Plain ASCII digits become the number they spell, leading zeros included (range-checked afterwards).
+            for (text, number) in [("200", 200_i64), ("0000200", 200)] {
+                let kept = exported(KeyValue::new(key, text)).await;
+                assert_eq!(kept.len(), 1, "{key} {text:?}");
+                assert_eq!(kept[0].value, Value::I64(number), "{key} {text:?}");
+            }
+            let not_converted = ["+200", "-1", " 200", "200 ", "２００", "٢٠٠", ""]
+                .map(String::from)
+                .into_iter()
+                .chain(["9".repeat(30)]);
+            for text in not_converted {
+                let kept = exported(KeyValue::new(key, text.clone())).await;
+                assert!(kept.is_empty(), "{key} {text:?} must be dropped");
+            }
+        }
+    }
 }
