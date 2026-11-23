@@ -54,12 +54,18 @@ tokio = { version = "1", features = ["io-util", "macros", "net", "rt"] }
 name = "ocr-check"
 path = "examples/ocr-check.rs"
 
-# The profile `cargo mutants` builds with (`.cargo/mutants.toml`). The domain's exhaustive tests (`…_up_to_9999`) take
-# seconds in a debug build and every mutant reruns them; an optimised build runs them in a fraction of the time. Debug
-# assertions and overflow checks stay on, so a test sees the same panics as under `cargo test`.
+# The profile `cargo mutants` builds with (`.cargo/mutants.toml`). Every mutant rebuilds the crate under test and its
+# dependents, so the workspace crates build unoptimised and incrementally (an optimised rebuild per mutant cost more than the
+# tests it saved), while the dependencies, which a mutant never changes, are built optimised once. No debug info, which also
+# keeps a panic's backtrace cheap. Debug assertions and overflow checks stay on, so a test sees the same panics as under
+# `cargo test`. Measured per mutant on the slices of the nightly (docs/engineering/testing.md).
 [profile.mutants]
 inherits = "test"
-opt-level = 2
+opt-level = 0
 debug = false
+incremental = true
 debug-assertions = true
 overflow-checks = true
+
+[profile.mutants.package."*"]
+opt-level = 2

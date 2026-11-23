@@ -178,17 +178,26 @@ test('the shared sampler vector lives in the adapters crate', () => {
   assert.equal(existsSync('packages/telemetry/test-vectors'), false);
 });
 
-// The mutants build with an optimised test profile (ADR 026): the domain's exhaustive tests take seconds each in a debug
-// build and every mutant reruns them. The profile keeps the debug assertions and overflow checks on, so a test sees the
-// same panics, and `.cargo/mutants.toml` selects it.
-test('cargo-mutants builds with the optimised mutants profile', () => {
+// The mutants build with a test profile tuned on the nightly's slices (ADR 026): the workspace crates stay unoptimised and
+// incremental, because every mutant rebuilds them, and the dependencies are optimised once. The profile keeps the debug
+// assertions and overflow checks on, so a test sees the same panics, and `.cargo/mutants.toml` selects it.
+test('cargo-mutants builds with the tuned mutants profile', () => {
   const toml = readFileSync('apps/agent/src-tauri/.cargo/mutants.toml', 'utf8');
   const cargo = readFileSync('apps/agent/src-tauri/Cargo.toml', 'utf8');
   const section = cargo.match(/^\[profile\.mutants\]\n((?:(?!\[).*\n?)*)/m)?.[1] ?? '';
 
   assert.match(toml, /^profile\s*=\s*"mutants"\s*$/m, 'mutants.toml selects the mutants profile');
   assert.match(section, /^inherits\s*=\s*"test"\s*$/m, 'the profile inherits the test profile');
-  assert.match(section, /^opt-level\s*=\s*[123]\s*$/m, 'the profile is optimised');
+  assert.match(section, /^opt-level\s*=\s*0\s*$/m, 'the workspace crates build unoptimised');
+  assert.match(section, /^incremental\s*=\s*true\s*$/m, 'the workspace crates build incrementally');
+  assert.match(section, /^debug\s*=\s*false\s*$/m, 'no debug info');
+  const deps = cargo.match(/^\[profile\.mutants\.package\."\*"\]\n((?:(?!\[).*\n?)*)/m)?.[1] ?? '';
+  assert.match(deps, /^opt-level\s*=\s*[123]\s*$/m, 'the dependencies are optimised');
+  assert.deepEqual(
+    profileViolations(deps),
+    [],
+    'the dependencies override sets no panic, lto or disabled checks',
+  );
   assert.match(section, /^debug-assertions\s*=\s*true\s*$/m, 'debug assertions stay on');
   assert.match(section, /^overflow-checks\s*=\s*true\s*$/m, 'overflow checks stay on');
 
