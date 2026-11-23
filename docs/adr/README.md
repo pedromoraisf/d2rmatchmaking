@@ -40,4 +40,4 @@ Format: Context · Decision · Alternatives · Consequences. Only the maintainer
 | [035](035-nightly-runs-load.md)                         | The nightly runs the load test on a GitHub runner                                               | Accepted                                 |
 | [036](036-chat-names-matched-on-the-api.md)             | A chat name may leave the PC to be matched on the API, and is dropped there                     | Accepted                                 |
 | [037](037-telemetry-detail-tiers.md)                    | Telemetry in two tiers: everything on staging, everything but people's identities in production | Accepted                                 |
-| [038](038-api-mutation-scope-and-equivalent-mutants.md) | API mutation scope and equivalent mutants                                                       | Proposed                                 |
+| [038](038-api-mutation-scope-and-equivalent-mutants.md) | API mutation scope and equivalent mutants                                                       | Accepted                                 |
