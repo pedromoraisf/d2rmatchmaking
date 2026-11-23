@@ -69,6 +69,13 @@ pixels, crops), and the agent's exporter drops every event, link, status text, U
 | `d2r.ocr.text`, `d2r.character.name`, `d2r.account.battletag`                                                            |     no     | allowed |
 | Sampling                                                                                                                 |    10%     |  100%   |
 
+The agent's sanitizer also checks the **shape** of every allowed key, in both tiers, and drops (never truncates) a value that
+does not fit: `d2r.room.id` and `d2r.agent.id` are UUIDs; `d2r.run.id` is `<room UUID>/<run number>`; `status` and
+`http.response.status_code` are integers from 100 to 599; `http.request.method` is one of `GET POST PUT PATCH DELETE HEAD
+OPTIONS`; `d2r.agent.version` is a semantic version; `d2r.difficulty` is `normal`, `nightmare` or `hell`; `d2r.queue.mode` is
+`pvp` or `leveling`; the vision, capture, config and post keys are closed word sets. A span records a number as an `i64`:
+the tracing bridge has no `u64` and would record it as text.
+
 **The player's switch (OBT-14 to OBT-17).** The agent window shows a notice of what its diagnostics carry in the build's
 tier (en, pt-BR) and a "Send diagnostics" switch, on by default. The choice is kept in `diagnostics.json` in the agent's
 configuration directory on the player's PC, never on the server, and applies at once, without a restart. While it is off
