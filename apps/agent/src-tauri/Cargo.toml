@@ -53,3 +53,13 @@ tokio = { version = "1", features = ["io-util", "macros", "net", "rt"] }
 [[example]]
 name = "ocr-check"
 path = "examples/ocr-check.rs"
+
+# The profile `cargo mutants` builds with (`.cargo/mutants.toml`). The domain's exhaustive tests (`…_up_to_9999`) take
+# seconds in a debug build and every mutant reruns them; an optimised build runs them in a fraction of the time. Debug
+# assertions and overflow checks stay on, so a test sees the same panics as under `cargo test`.
+[profile.mutants]
+inherits = "test"
+opt-level = 2
+debug = false
+debug-assertions = true
+overflow-checks = true

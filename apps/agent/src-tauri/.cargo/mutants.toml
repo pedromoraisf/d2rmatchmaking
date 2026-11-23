@@ -1,3 +1,7 @@
+# cargo-mutants builds with the `mutants` profile of the workspace Cargo.toml: an optimised test build, so the exhaustive
+# domain tests do not cost seconds per mutant. Debug assertions and overflow checks stay on there.
+profile = "mutants"
+
 # cargo-mutants scope of the agent (ADR 014, AGS-21, ADR 026; design.md § Mutation scope, AD-080). The nightly `agent-mutation`
 # job and the Verifier run these modules against their unit tests only (`-- --lib`). Every module of the domain is in scope,
 # and so are the rule modules of the application and of the adapters. `adapters/src/http/api_client.rs` is out of scope by the
