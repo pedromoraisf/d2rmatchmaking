@@ -1239,4 +1239,25 @@ mod tests {
             }
         }
     }
+
+    #[tokio::test]
+    async fn only_integer_keys_convert_a_digit_string() {
+        let room = "0b9d6f4e-3c1a-4e55-9a57-6f1f2d3c4b5a";
+        for key in ["d2r.run.id", "d2r.room.id", "d2r.agent.version"] {
+            for text in ["200", "0000200", "1234567"] {
+                let kept = exported(KeyValue::new(key, text)).await;
+                assert!(kept.is_empty(), "{key} {text:?} must be dropped");
+            }
+        }
+        // The same keys still keep text of their own shape, as text.
+        for (key, text) in [
+            ("d2r.run.id", format!("{room}/2")),
+            ("d2r.room.id", room.to_string()),
+            ("d2r.agent.version", "1.2.3".to_string()),
+        ] {
+            let kept = exported(KeyValue::new(key, text.clone())).await;
+            assert_eq!(kept.len(), 1, "{key}");
+            assert_eq!(kept[0].value, Value::from(text), "{key}");
+        }
+    }
 }
