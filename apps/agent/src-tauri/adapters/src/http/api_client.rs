@@ -296,7 +296,8 @@ impl ApiClient {
     /// Sends the request and records its status on the current span.
     async fn send(&self, request: RequestBuilder) -> Result<Response, ApiError> {
         let response = request.send().await.map_err(|_| ApiError::Network)?;
-        Span::current().record("status", response.status().as_u16());
+        // An `i64`: the tracing bridge has no `u64` and would record the code as text, which the sanitizer drops.
+        Span::current().record("status", i64::from(response.status().as_u16()));
         Ok(response)
     }
 }
