@@ -138,6 +138,14 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
 - **A bot-authored release PR needs "Approve and run" on its workflows before it can merge.** Why: PRs opened by the
   release bot do not start their checks on their own (agent 0.3.0, #70).
 
+- **Measure a mutation build-profile change on the runner for every mutated crate, not on one local slice.** Why:
+  #190 measured only an agent-domain slice in the cloud container (5.4 s → 3.3 s per mutant) and raised `opt-level` for
+  the whole workspace; on the runner every per-mutant rebuild got slower, agent-core went 20 → 42 min and both
+  agent-adapters shards were cancelled at the 60-min timeout (nightly 45115512456). #193 optimises dependencies only.
+- **A wrong-type `return false` arm before a deny-by-default tail is a surviving mutant, not extra safety.** Pin the
+  rule once per key with a test and keep one deny path. Why: #189 made the sanitizer deny by default and left eight
+  arms that no test could tell apart from the tail (#194).
+
 ## Agent reading
 
 - **Prove OCR on the real font with every glyph the server can generate, not on one fixed name.** Why: presence failed
