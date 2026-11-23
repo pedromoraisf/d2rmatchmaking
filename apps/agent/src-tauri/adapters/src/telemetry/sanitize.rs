@@ -720,6 +720,29 @@ mod tests {
     }
 
     #[test]
+    fn a_game_name_or_corrections_key_with_a_value_of_another_type_is_dropped_in_both_tiers() {
+        // Without the type arm of each key the value would fall through to the "no fixed shape" rule and be kept, so a read
+        // name could leave as a number, a flag, a decimal or a list under a key that must hold a short text (OBT-05).
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            for key in ["d2r.game.name", "d2r.ocr.corrections"] {
+                let dropped = in_tier(
+                    tier,
+                    vec![
+                        KeyValue::new(key, 7_i64),
+                        KeyValue::new(key, 0.5_f64),
+                        KeyValue::new(key, true),
+                        KeyValue::new(
+                            key,
+                            Value::Array(Array::String(vec!["mmpvphell-12".to_string().into()])),
+                        ),
+                    ],
+                );
+                assert!(dropped.is_empty(), "{tier:?} {key}: {dropped:?}");
+            }
+        }
+    }
+
+    #[test]
     fn the_bounds_of_the_fixed_shapes_are_kept() {
         let kept = in_tier(
             TelemetryTier::Production,
