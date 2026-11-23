@@ -5,7 +5,7 @@
 //! the process (AGS-20). A frame in an unsupported client size shows nothing (CHR-19).
 
 use std::cell::Cell;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use d2rmm_agent_domain::anchors::{self, line_pad};
@@ -41,7 +41,15 @@ pub struct ScreenReader {
     /// Whether the fallback language read the last frame it could: it is then tried first, so a pt-BR client does not pay
     /// an English read of every frame.
     prefers_fallback: AtomicBool,
+    /// The `Unknown` frames in a row the second pack was asked about (see `SECOND_PACK_EVERY`); a known screen resets it.
+    unknown_run: AtomicUsize,
 }
+
+/// A frame the first pack reads as `Unknown` asks the second pack on every Nth frame in a row (the first of each run, so a
+/// client's first frame, or the first frame after a known screen, is read by both). The reading of `Unknown` carries no
+/// count of partial anchors, so "no anchor at all" cannot be told from a pt-BR screen the English words miss: the guard is
+/// bounded instead, and a pt-BR client is recognised within `SECOND_PACK_EVERY - 1` seconds.
+const SECOND_PACK_EVERY: usize = 5;
 
 /// How a frame's HUD, automap or list marker was looked for (SCR-09): the tracked box held it, the wide area was searched,
 /// or the search rested for the frame. The last tracker asked sets it.
@@ -93,6 +101,7 @@ impl ScreenReader {
         Self {
             fallback,
             prefers_fallback: AtomicBool::new(false),
+            unknown_run: AtomicUsize::new(0),
             reader,
             language,
             hud: Mutex::new(Tracker::new(ScreenRegion::HudBand)),
@@ -289,12 +298,21 @@ impl FrameReader for ScreenReader {
         };
         let reading = first.read_own(frame, config);
         if reading.screen != Screen::Unknown {
+            self.unknown_run.store(0, Ordering::Relaxed);
+            return reading;
+        }
+        if !self
+            .unknown_run
+            .fetch_add(1, Ordering::Relaxed)
+            .is_multiple_of(SECOND_PACK_EVERY)
+        {
             return reading;
         }
         let other = second.read_own(frame, config);
         if other.screen == Screen::Unknown {
             return reading;
         }
+        self.unknown_run.store(0, Ordering::Relaxed);
         self.prefers_fallback
             .store(!fallback_first, Ordering::Relaxed);
         other
@@ -408,7 +426,7 @@ mod tests {
     use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
     use serde_json::Value;
 
-    use super::{AnchorCounts, ScreenReader, is_lit, is_selected};
+    use super::{AnchorCounts, SECOND_PACK_EVERY, ScreenReader, is_lit, is_selected};
     use crate::messages::FrameReading;
     use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
 
@@ -1589,42 +1607,74 @@ mod tests {
     }
 
     #[test]
-    fn a_frame_unknown_in_both_languages_asks_both_packs_every_frame_and_never_settles() {
-        // A main menu, a loading screen (no text) or a desktop window reads `Unknown` in both packs, so each frame pays the
-        // English pass and the pt-BR pass: the language that "read the last frame" first never exists. Each pack's wide
-        // searches rest on their own cadence, so the cost alternates between two values and does not fall.
+    fn a_frame_unknown_in_both_languages_asks_the_second_pack_on_every_fifth_frame_only() {
+        // A main menu, a loading screen (no text) or a desktop window reads `Unknown` in both packs. T17: the second pack
+        // is asked on the first frame of the run and then every `SECOND_PACK_EVERY`th, so most frames pay the English pass
+        // alone (before T17 every frame paid both: 84 and 60 alternating, 72 on average). Each pack's wide searches rest
+        // on their own cadence, so the cost repeats with a period of ten frames.
         for json in [MENU, "{}", DESKTOP] {
             let both = shipped_calls(json, 600);
             let english = engine_calls(json, Arc::new(LanguagePack::english()), 600);
-            let portuguese = engine_calls(json, Arc::new(brazilian()), 600);
-            let sum: Vec<usize> = english
-                .iter()
-                .zip(&portuguese)
-                .map(|(e, p)| e + p)
-                .collect();
-            assert_eq!(both, sum, "two passes on every frame, in a fixed order");
-            assert_eq!(both[..4], [84, 60, 84, 60]);
+            assert_eq!(
+                both[..10],
+                [84, 30, 42, 30, 42, 60, 42, 30, 42, 30],
+                "both packs on the first frame, the English pass alone on the next four"
+            );
+            assert_eq!(both[590..], both[..10], "it repeats and does not drift");
             assert_eq!(
                 both.iter().sum::<usize>(),
-                600 * 72,
-                "72 engine calls a frame on average"
+                600 * 432 / 10,
+                "43 engine calls a frame on average, 72 before"
             );
-            assert_eq!(both[596..], [84, 60, 84, 60], "it does not settle");
-            // One English-only pass costs half of it: the second pack doubles the cost of an unknown frame.
-            assert_eq!(
-                english.iter().sum::<usize>() * 2,
-                both.iter().sum::<usize>()
-            );
+            for (frame, calls) in both.iter().enumerate() {
+                if !frame.is_multiple_of(SECOND_PACK_EVERY) {
+                    assert_eq!(
+                        *calls, english[frame],
+                        "frame {frame}: the English pass alone"
+                    );
+                }
+            }
+            assert!(both.iter().sum::<usize>() < english.iter().sum::<usize>() * 2);
         }
     }
 
     #[test]
-    fn an_unknown_frame_costs_more_than_any_known_screen_of_an_english_client() {
+    fn an_unknown_frame_costs_less_than_a_selection_screen_and_more_than_a_hud_of_an_english_client()
+     {
         let unknown = shipped_calls(MENU, 600).iter().sum::<usize>() / 600;
         let hud = shipped_calls(IN_GAME, 6)[5];
         let select = shipped_calls(SELECT_NORMAL, 6)[5];
-        assert_eq!((unknown, hud, select), (72, 12, 60));
-        assert!(unknown > select && select > hud);
+        assert_eq!((unknown, hud, select), (43, 12, 60));
+        assert!(select > unknown && unknown > hud);
+    }
+
+    #[test]
+    fn a_pt_br_client_is_recognised_on_its_first_frame_and_within_the_bound_after_an_unknown_run() {
+        for json in [PT_SELECT, PT_IN_GAME, PT_AUTOMAP] {
+            // The first frame: both packs are read, as before T17.
+            let first = shipped_calls(json, 1);
+            let english_pass = engine_calls(json, Arc::new(LanguagePack::english()), 1)[0];
+            assert!(first[0] > english_pass, "the pt-BR pass was asked");
+        }
+        // Menu frames first, then the pt-BR HUD appears: the reader that read nothing yet asks pt-BR on the next
+        // second-pack frame, at most `SECOND_PACK_EVERY - 1` frames after the screen changed.
+        for skipped in 0..SECOND_PACK_EVERY {
+            let shown = Counting::showing(MENU);
+            let reader = ScreenReader::new(
+                Arc::clone(&shown) as Arc<dyn TextReader + Send + Sync>,
+                shipped_like(),
+            );
+            let image = shown.frame();
+            for _ in 0..=skipped {
+                assert_eq!(reader.read(&image).screen, Screen::Unknown);
+            }
+            shown.show(PT_IN_GAME);
+            let mut looks = 0;
+            while reader.read(&image).screen != Screen::InGame {
+                looks += 1;
+                assert!(looks < SECOND_PACK_EVERY, "recognised within the bound");
+            }
+        }
     }
 }
 
