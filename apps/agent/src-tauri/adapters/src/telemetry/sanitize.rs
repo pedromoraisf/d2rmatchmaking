@@ -248,6 +248,44 @@ pub fn sanitize_span(span: SpanData, tier: TelemetryTier) -> Option<SpanData> {
     })
 }
 
+/// The keys whose shape is a whole number.
+const INTEGER_KEYS: [&str; 4] = [
+    STATUS_KEY,
+    HTTP_STATUS_KEY,
+    CONFIG_VERSION_KEY,
+    DURATION_KEY,
+];
+
+/// The tracing bridge records an unsigned integer (`u16`, `u32`, `u64`) as its decimal text, not as an `i64`. Before the
+/// sanitizer, for a key whose shape is a whole number, a text of plain digits that fits an `i64` becomes that number, so an
+/// unsigned status is kept as the integer it is. The sanitizer itself stays strict: any other text, a sign, a space or a
+/// number past `i64` included, stays text and is dropped.
+fn unsigned_integers_as_numbers(span: SpanData) -> SpanData {
+    SpanData {
+        attributes: span
+            .attributes
+            .into_iter()
+            .map(whole_number_of_an_integer_key)
+            .collect(),
+        ..span
+    }
+}
+
+fn whole_number_of_an_integer_key(attribute: KeyValue) -> KeyValue {
+    if !INTEGER_KEYS.contains(&attribute.key.as_str()) {
+        return attribute;
+    }
+    let Value::String(text) = &attribute.value else {
+        return attribute;
+    };
+    let digits = text.as_str();
+    let plain = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
+    match digits.parse::<i64>() {
+        Ok(number) if plain => KeyValue::new(attribute.key, number),
+        _ => attribute,
+    }
+}
+
 /// Keeps the five resource attributes the exporter sends and no other.
 pub fn sanitize_resource_key(key: &str) -> bool {
     ALLOWED_RESOURCE_KEYS.contains(&key)
@@ -297,6 +335,7 @@ impl<E: SpanExporter> SpanExporter for SanitizingExporter<E> {
         let tier = self.tier;
         let clean: Vec<SpanData> = batch
             .into_iter()
+            .map(unsigned_integers_as_numbers)
             .filter_map(|span| sanitize_span(span, tier))
             .collect();
         self.inner.export(clean)
@@ -1111,6 +1150,60 @@ mod tests {
                     Value::Array(Array::Bool(vec![true])),
                 ],
             );
+        }
+    }
+
+    /// Records one `agent.x` span through the tracing bridge, as the agent's code does, and returns what the sanitizing
+    /// exporter sent on: the span goes from a `tracing` macro to the OpenTelemetry layer to the sanitizer.
+    fn through_the_bridge(tier: TelemetryTier, record: impl FnOnce()) -> Vec<SpanData> {
+        use opentelemetry::trace::TracerProvider as _;
+        use tracing_subscriber::layer::SubscriberExt as _;
+
+        let recorded = Recording::default();
+        let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
+            .with_simple_exporter(SanitizingExporter::new(recorded.clone(), tier))
+            .build();
+        let subscriber = tracing_subscriber::registry()
+            .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("sanitize-test")));
+        tracing::subscriber::with_default(subscriber, record);
+        provider.shutdown().expect("the provider shuts down");
+        let mut sent = recorded.0.lock().expect("the recording");
+        std::mem::take(&mut *sent)
+    }
+
+    #[test]
+    fn a_status_recorded_as_an_unsigned_or_signed_integer_is_kept_through_the_bridge() {
+        for tier in [TelemetryTier::Production, TelemetryTier::Full] {
+            let unsigned = through_the_bridge(tier, || {
+                drop(tracing::info_span!("agent.x", status = 200_u64));
+            });
+            assert_eq!(unsigned.len(), 1, "{tier:?}");
+            assert_eq!(keys(&unsigned[0]), ["status"], "u64 {tier:?}");
+            let small = through_the_bridge(tier, || {
+                drop(tracing::info_span!(
+                    "agent.x",
+                    status = 404_u16,
+                    http.response.status_code = 503_u32
+                ));
+            });
+            assert_eq!(
+                keys(&small[0]),
+                ["status", "http.response.status_code"],
+                "u16 and u32 {tier:?}"
+            );
+            let signed = through_the_bridge(tier, || {
+                drop(tracing::info_span!("agent.x", status = 200_i64));
+            });
+            assert_eq!(keys(&signed[0]), ["status"], "i64 {tier:?}");
+            // An unsigned value out of the range of a status is dropped, as a signed one is.
+            let out_of_range = through_the_bridge(tier, || {
+                drop(tracing::info_span!(
+                    "agent.x",
+                    status = 99_u64,
+                    config.version = u64::MAX
+                ));
+            });
+            assert!(keys(&out_of_range[0]).is_empty(), "out of range {tier:?}");
         }
     }
 }
