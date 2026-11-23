@@ -199,3 +199,36 @@ test('cargo-mutants builds with the optimised mutants profile', () => {
     /^overflow-checks\s*=\s*true/m,
   );
 });
+
+// The profile must not change what the tests observe: a `panic = "abort"` kills the test harness's unwinding, `lto`
+// slows every mutant's build, and turning the debug assertions or overflow checks off hides panics a test pins.
+const profileSection = (cargo) => cargo.match(/^\[profile\.mutants\]\n((?:(?!\[).*\n?)*)/m)?.[1] ?? '';
+const profileViolations = (section) => {
+  const found = [];
+  const panic = section.match(/^panic\s*=\s*(.+?)\s*(?:#.*)?$/m)?.[1];
+  if (panic !== undefined && panic !== '"unwind"') found.push('panic');
+  if (/^lto\s*=/m.test(section)) found.push('lto');
+  for (const key of ['debug-assertions', 'overflow-checks'])
+    if (new RegExp(`^${key}[ \\t]*=[ \\t]*(?!true[ \\t]*(?:#.*)?$)\\S`, 'm').test(section)) found.push(key);
+  return found;
+};
+
+test('the mutants profile sets no panic, lto or disabled checks', () => {
+  const cargo = readFileSync('apps/agent/src-tauri/Cargo.toml', 'utf8');
+  const section = profileSection(cargo);
+  assert.notEqual(section, '', 'the mutants profile exists');
+  assert.deepEqual(profileViolations(section), []);
+
+  // Fixtures that break each rule must be named by the same check.
+  assert.deepEqual(profileViolations(`${section}panic = "abort"\n`), ['panic']);
+  assert.deepEqual(profileViolations(`${section}panic = "unwind"\n`), []);
+  assert.deepEqual(profileViolations(`${section}lto = "thin"\n`), ['lto']);
+  assert.deepEqual(profileViolations(`${section}lto = false\n`), ['lto']);
+  assert.deepEqual(
+    profileViolations(section.replace('debug-assertions = true', 'debug-assertions = false')),
+    ['debug-assertions'],
+  );
+  assert.deepEqual(profileViolations(section.replace('overflow-checks = true', 'overflow-checks = false')), [
+    'overflow-checks',
+  ]);
+});
