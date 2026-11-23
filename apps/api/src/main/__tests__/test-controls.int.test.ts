@@ -86,6 +86,7 @@ async function startApp(
       stores: built.stores,
       hub: built.hub,
       relay: built.relay,
+      background: built.background,
       siteClosedTimers: built.siteClosedTimers,
       bus: built.bus,
     });

@@ -38,6 +38,17 @@
     "withdrawn": "Capture is off. The agent reads nothing.",
     "notSaved": "Could not save your choice. Try again."
   },
+  "telemetry": {
+    "heading": "Diagnostics",
+    "switch": "Send diagnostics",
+    "noticeProduction": "Diagnostics help the maintainers follow a problem. They carry ids, the generated game name, the screen the agent recognised, how the read went and timings. They never carry names or text read from the game, and never an image.",
+    "noticeFull": "This test build sends detailed diagnostics for debugging: also the character names and the text the agent read from the game window. This detail exists in staging and preview builds only. Images are never sent.",
+    "effect": "The change applies at once. Heartbeats and everything matchmaking needs are sent either way.",
+    "on": "Diagnostics are on.",
+    "off": "Diagnostics are off. The agent sends none.",
+    "notSaved": "Could not save your choice. Try again.",
+    "unreadable": "Could not read your diagnostics setting. The switch is shown as on; turn it off if you do not want to send them."
+  },
   "readyCheck": {
     "hotkey": "A ready check is open: press {{key}} to accept it.",
     "unavailable": "The accept hotkey ({{key}}) could not be registered: another program may be using it. Choose another combination in the Hotkeys section of this window. (reason: {{reason}})"
@@ -46,8 +57,7 @@
     "hotkeyPress": {
       "none": "Last hotkey press: none since the agent started",
       "accept": "Last hotkey press: the accept key",
-      "fill": "Last hotkey press: the fill key",
-      "unmatched": "Last hotkey press: a key that matches neither hotkey"
+      "unmatched": "Last hotkey press: a key that matches no hotkey of the agent"
     },
     "heading": "Diagnostics",
     "config": "Configuration: version {{version}}",
@@ -110,23 +120,9 @@
       "nothing": "The capture shows nothing: no capture method gave a usable frame"
     }
   },
-  "fill": {
-    "hint": "To fill the game name, press {{key}} with the Game Creator open and its name field empty. The agent never presses Enter: confirm it yourself.",
-    "typed": "Game name typed. Press Enter in the game to confirm; the agent never does.",
-    "stopped-focus": "Typing stopped: the game lost focus.",
-    "stopped-room": "Typing stopped: the room changed or ended.",
-    "stopped-press": "Typing stopped: you pressed the key again.",
-    "refused-room": "Nothing typed: the agent holds no room.",
-    "refused-name": "Nothing typed: the room's name is not one the agent types.",
-    "refused-focus": "Nothing typed: the game does not have focus.",
-    "refused-screen": "Nothing typed: a game is running. Fill the name from the lobby.",
-    "refused-keys": "Nothing typed: let go of the hotkey's keys and press it again.",
-    "unavailable": "The fill hotkey ({{key}}) could not be registered: another program may be using it. Choose another combination in the Hotkeys section of this window. (reason: {{reason}})"
-  },
   "hotkeys": {
     "heading": "Hotkeys",
     "accept": "Accept a ready check",
-    "fill": "Fill the game name",
     "save": "Save",
     "saved": "Hotkey saved.",
     "refused": {
@@ -135,7 +131,6 @@
       "reserved": "That combination is already used by Windows or every program (such as Ctrl+C, Alt+F4 or the Windows key). Pick another.",
       "confirming-key": "Enter, Tab, Space, Escape and Backspace cannot be hotkeys.",
       "unsupported-key": "Use a letter, a digit or F1 to F12 (for example Ctrl+Shift+F).",
-      "same-as-other": "The two hotkeys must differ.",
       "not-saved": "Could not save the hotkey. Try again."
     }
   }

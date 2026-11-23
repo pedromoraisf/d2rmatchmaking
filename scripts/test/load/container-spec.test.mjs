@@ -553,3 +553,21 @@ test('k6Args: a host user runs k6 as that user, so a Linux daemon can read the 0
     k6Args({ runId: RUN, image: 'd2rmm-load-k6:test', inDir: IN_DIR, outDir: OUT_DIR, user: 'root' }),
   );
 });
+
+test('the sink mounts a capture directory, writable, only when one is given', () => {
+  const plain = builders().sink;
+  assert.equal(plain.includes('--capture-dir'), false);
+  assert.equal(
+    plain.some((arg) => arg.endsWith(':/capture:rw')),
+    false,
+  );
+  const captured = sinkArgs({
+    runId: RUN,
+    image: 'node:26',
+    loadDir: LOAD_DIR,
+    tokenFile: TOKEN_FILE,
+    captureDir: `${WORK}/capture`,
+  });
+  assert.ok(captured.includes(`${WORK}/capture:/capture:rw`));
+  assert.equal(valueAfter(captured, '--capture-dir'), '/capture');
+});

@@ -3,9 +3,16 @@
 // the wire while the window is open: the request line, the headers and the body. The body is read and dropped, and nothing
 // is logged. The control endpoints are the meter's (`control.mjs`): a bearer token and a loopback `Host` are required.
 //
-// As a container entry: `node sink.mjs --listen <addr> --control <addr> --token-file <path>`.
+// As a container entry: `node sink.mjs --listen <addr> --control <addr> --token-file <path> [--capture-dir <path>]`.
+//
+// `--capture-dir` is off by default. When it is set (a local profiling run, `LOAD_TELEMETRY_CAPTURE_DIR`), the sink also
+// writes each OTLP request body, as it came on the wire, to `<dir>/<sequence>-<signal>.bin`, so the telemetry breakdown
+// (`scripts/load/telemetry-breakdown.mjs`) can read what the API exported. Payloads hold telemetry values: the directory
+// stays on the machine of the run and is never committed. The meter's counts are not touched by it.
 
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
 import { createWindowCounter } from '../lib/window-counter.mjs';
@@ -14,23 +21,27 @@ import { closeServer, flagsOf, listenOn, parseAddress, readToken, startControl }
 const OTLP_PATHS = new Set(['/v1/traces', '/v1/metrics', '/v1/logs']);
 /** The wire bytes of a request are counted under the signal of its path; any other path is in the total only. */
 const SIGNAL_OF_PATH = { '/v1/traces': 'traces', '/v1/metrics': 'metrics', '/v1/logs': 'logs' };
-const ENTRY_FLAGS = ['--listen', '--control', '--token-file'];
+const ENTRY_FLAGS = ['--listen', '--control', '--token-file', '--capture-dir'];
 
 /**
  * Starts the sink. Returns the OTLP and control ports and a `close` that ends every connection.
- * @param {{ listen: string, control: string, token: string, now?: () => number }} settings
+ * @param {{ listen: string, control: string, token: string, captureDir?: string, now?: () => number }} settings
  * @returns {Promise<{ otlpPort: number, controlPort: number, close: () => Promise<void> }>}
  */
-export async function startSink({ listen, control, token, now = () => performance.now() }) {
+export async function startSink({ listen, control, token, captureDir, now = () => performance.now() }) {
   const counter = createWindowCounter(now);
   const sockets = new Set();
   /** The signal of the last request read on each socket. */
   const signalOf = new WeakMap();
   let open = 0;
   let peak = 0;
+  let sequence = 0;
+  if (captureDir !== undefined) mkdirSync(captureDir, { recursive: true });
 
   const otlp = createServer((request, response) => {
-    request.resume();
+    const chunks = [];
+    if (captureDir !== undefined) request.on('data', (chunk) => chunks.push(chunk));
+    else request.resume();
     const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
     // The server parses the headers before our data listener runs, so the chunk that carries a request line is
     // counted under that request's signal; the bytes that follow on the socket stay with it until the next request.
@@ -41,6 +52,11 @@ export async function startSink({ listen, control, token, now = () => performanc
       return;
     }
     request.on('end', () => {
+      if (captureDir !== undefined) {
+        sequence += 1;
+        const name = `${String(sequence).padStart(8, '0')}-${SIGNAL_OF_PATH[path]}.bin`;
+        writeFileSync(join(captureDir, name), Buffer.concat(chunks));
+      }
       // The API exports protobuf: its answer is the empty response message (zero bytes), with the protobuf content type.
       if (String(request.headers['content-type'] ?? '').startsWith('application/x-protobuf')) {
         response.writeHead(200, { 'content-type': 'application/x-protobuf', 'content-length': 0 });
@@ -99,6 +115,7 @@ export async function settingsFromArguments(argv) {
     listen: flags.listen,
     control: flags.control,
     token: await readToken(flags.tokenFile),
+    ...(flags.captureDir === undefined ? {} : { captureDir: flags.captureDir }),
   };
 }
 

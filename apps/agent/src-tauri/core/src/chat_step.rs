@@ -54,7 +54,9 @@ pub async fn look_named<G>(
     let language = {
         let config = device.config.borrow();
         if config.phrases.is_configured() {
-            Arc::new(ports.language.with_phrases(&config.phrases))
+            device.chat_language(&ports.language, &config.phrases, || {
+                ports.language.with_phrases(&config.phrases)
+            })
         } else {
             Arc::clone(&ports.language)
         }
@@ -280,6 +282,110 @@ mod tests {
         assert_eq!(look_at(&rig).await, [ChatEvent::Joined, ChatEvent::Left]);
     }
 
+    /// remote-config T1 (pin before the pack is cached): a change of the configuration applies on the next look, and the
+    /// shipped phrases come back when the configuration names none.
+    #[tokio::test(start_paused = true)]
+    async fn a_changed_configuration_applies_on_the_next_look() {
+        use d2rmm_agent_domain::remote_config::Words;
+        let rig = rig();
+        hold_a_room(&rig);
+        rig.chat
+            .say(&["Bob joined our world", "Eve entered the realm"]);
+        assert_eq!(look_at(&rig).await, [ChatEvent::Joined], "built-in words");
+
+        rig.device.config.send_modify(|config| {
+            config.version = 1;
+            config.phrases.en = Words {
+                joined_game: Some("entered the realm".to_string()),
+                ..Words::default()
+            };
+        });
+        rig.chat.say(&[
+            "Bob joined our world",
+            "Eve entered the realm",
+            "Cal entered the realm",
+        ]);
+        assert_eq!(
+            look_at(&rig).await,
+            [ChatEvent::Joined],
+            "the configured phrase"
+        );
+
+        rig.device.config.send_modify(|config| {
+            config.version = 2;
+            config.phrases.en = Words {
+                joined_game: Some("arrived".to_string()),
+                ..Words::default()
+            };
+        });
+        rig.chat.say(&["Dan arrived"]);
+        assert_eq!(look_at(&rig).await, [ChatEvent::Joined], "the next version");
+
+        rig.device.config.send_modify(|config| {
+            config.version = 3;
+            config.phrases.en = Words::default();
+        });
+        rig.chat.say(&["Dan arrived", "Fay joined our world"]);
+        assert_eq!(
+            look_at(&rig).await,
+            [ChatEvent::Joined],
+            "back to the shipped words"
+        );
+    }
+
+    /// How many times the cache would build the pack of the configuration now held: a probe asks for it with the phrases of
+    /// the device's configuration, so `0` means the looks before it already built (and cached) that pack.
+    fn builds_for_held_phrases(rig: &Rig) -> usize {
+        let phrases = rig.device.config.borrow().phrases.clone();
+        let builds = AtomicUsize::new(0);
+        rig.device.chat_language(&rig.ports.language, &phrases, || {
+            builds.fetch_add(1, Ordering::SeqCst);
+            rig.ports.language.with_phrases(&phrases)
+        });
+        builds.load(Ordering::SeqCst)
+    }
+
+    /// remote-config perf: `look_named` takes the configured pack from the device's cache, so many looks over the same
+    /// phrases build it once, and a change of the phrases builds it once more.
+    #[tokio::test(start_paused = true)]
+    async fn looks_over_the_same_phrases_build_the_pack_once() {
+        use d2rmm_agent_domain::remote_config::Words;
+        let rig = rig();
+        hold_a_room(&rig);
+        rig.device.config.send_modify(|config| {
+            config.phrases.en = Words {
+                joined_game: Some("entered the realm".to_string()),
+                ..Words::default()
+            };
+        });
+        rig.chat.say(&["Bob entered the realm"]);
+        for _ in 0..5 {
+            look_named(&rig.device, &rig.ports, Arc::new(frame(1920, 1033))).await;
+        }
+        assert_eq!(
+            builds_for_held_phrases(&rig),
+            0,
+            "five looks built the pack once and left it cached"
+        );
+
+        rig.device.config.send_modify(|config| {
+            config.phrases.en.joined_game = Some("arrived".to_string());
+        });
+        assert_eq!(
+            builds_for_held_phrases(&rig),
+            1,
+            "changed phrases are not served from the old pack"
+        );
+        for _ in 0..5 {
+            look_named(&rig.device, &rig.ports, Arc::new(frame(1920, 1033))).await;
+        }
+        assert_eq!(
+            builds_for_held_phrases(&rig),
+            0,
+            "the looks after the change reuse the new pack"
+        );
+    }
+
     #[tokio::test(start_paused = true)]
     async fn nothing_is_read_without_a_room_and_the_last_frame_is_forgotten() {
         let rig = rig();
@@ -293,6 +399,23 @@ mod tests {
         assert!(look_at(&rig).await.is_empty());
         hold_a_room(&rig);
         assert_eq!(look_at(&rig).await.len(), 1, "a new room starts afresh");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_fallback_pack_reads_the_chat_with_no_second_ocr_pass() {
+        // One `read_lines` of the chat area a look, whichever language the lines are in: the Brazilian phrases are matched
+        // against the same lines.
+        for said in [
+            "Bob joined our world",
+            "Bob entrou em nosso mundo",
+            "nothing here",
+        ] {
+            let rig = rig();
+            hold_a_room(&rig);
+            rig.chat.say(&[said]);
+            look_at(&rig).await;
+            assert_eq!(rig.chat.reads.load(Ordering::SeqCst), 1, "{said}");
+        }
     }
 
     #[tokio::test(start_paused = true)]

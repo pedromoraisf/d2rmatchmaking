@@ -392,6 +392,7 @@ mod tests {
         script.say(GraphicsCapture, Say::Good);
         let capturer = capturer(&script);
         let spans = Arc::new(Spans::default());
+        crate::test_interest::always();
         let guard = tracing::subscriber::set_default(Arc::clone(&spans));
         tracing::callsite::rebuild_interest_cache();
 

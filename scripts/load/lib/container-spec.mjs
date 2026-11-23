@@ -28,6 +28,7 @@ export const POSTGRES_PORT = 5432;
 export const DATABASE_NAME = 'postgres';
 export const SINK_OTLP_PORT = 4318;
 export const SINK_CONTROL_PORT = 9101;
+const CAPTURE_IN_CONTAINER = '/capture';
 export const METER_PORT = 8080;
 export const METER_CONTROL_PORT = 9100;
 
@@ -439,10 +440,12 @@ export function postgresArgs({ runId, image, envFile }) {
 /**
  * `docker run` of the sink. It owns the API's network namespace (the API joins it), so the OTLP port and the control port
  * live here. Only the control port is published, on loopback.
- * @param {{ runId: string, image: string, loadDir: string, tokenFile: string }} input
+ * With `captureDir` (a local profiling run only; absent in every committed run) the sink also gets that host directory,
+ * writable, at `/capture`, and writes each OTLP body there.
+ * @param {{ runId: string, image: string, loadDir: string, tokenFile: string, captureDir?: string }} input
  * @returns {string[]}
  */
-export function sinkArgs({ runId, image, loadDir, tokenFile }) {
+export function sinkArgs({ runId, image, loadDir, tokenFile, captureDir }) {
   return assertSafe([
     'run',
     '-d',
@@ -455,6 +458,7 @@ export function sinkArgs({ runId, image, loadDir, tokenFile }) {
     mountOf(loadDir, LOAD_IN_CONTAINER, 'ro'),
     '-v',
     mountOf(tokenFile, TOKEN_IN_CONTAINER, 'ro'),
+    ...(captureDir === undefined ? [] : ['-v', mountOf(captureDir, CAPTURE_IN_CONTAINER, 'rw')]),
     image,
     'node',
     `${LOAD_IN_CONTAINER}/containers/sink.mjs`,
@@ -464,6 +468,7 @@ export function sinkArgs({ runId, image, loadDir, tokenFile }) {
     `0.0.0.0:${SINK_CONTROL_PORT}`,
     '--token-file',
     TOKEN_IN_CONTAINER,
+    ...(captureDir === undefined ? [] : ['--capture-dir', CAPTURE_IN_CONTAINER]),
   ]);
 }
 

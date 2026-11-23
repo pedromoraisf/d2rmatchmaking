@@ -86,6 +86,17 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
   traced process records about 47 roots before the first request, and a request that arrives after the budget is spent
   loses its server span. Migrate in an untraced process before the traced one starts. Why: the CI failure of
   `instrument.int.test.ts` (run 42965570821) showed the migration statements and no server span.
+- **A reset that truncates must first stop everything that writes by itself** (streams, site-closed timers, the relay),
+  not clear them after the truncate. A write alive during the truncate holds a row lock the truncate queues behind, and
+  its next statement queues behind the truncate: Postgres ends that as a deadlock (40P01) after its 1 s timeout, and the
+  API answers 503. Why: CI run 45038986776, one 1.0 s `reset ... answered 503` on SNM-03 that did not repeat locally
+  (376 passed); the artifact was not readable, so the cause is inferred from the 1.0 s and the order of the reset.
+- **Never key a cargo-mutants `exclude_re` on a line number.** Match the file, the mutation text and the function
+  (`anchors\.rs:\d+:\d+: replace … in find_cards_in_variants`). Why: lines moved in `anchors.rs` and `layout.rs` and
+  three excluded equivalent mutants came back as nightly survivors (nightly 45037822441, #167).
+- **A mutation job needs every file its tests read inside the tree cargo-mutants copies, or `--in-place`.** Why: the
+  adapters baseline failed in the nightly because `remote_config.rs` tests read the API's `agent-config.json`, and no
+  adapters mutant ran (#165).
 
 ## Observability and load
 
@@ -127,6 +138,14 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
 - **A bot-authored release PR needs "Approve and run" on its workflows before it can merge.** Why: PRs opened by the
   release bot do not start their checks on their own (agent 0.3.0, #70).
 
+- **Measure a mutation build-profile change on the runner for every mutated crate, not on one local slice.** Why:
+  #190 measured only an agent-domain slice in the cloud container (5.4 s → 3.3 s per mutant) and raised `opt-level` for
+  the whole workspace; on the runner every per-mutant rebuild got slower, agent-core went 20 → 42 min and both
+  agent-adapters shards were cancelled at the 60-min timeout (nightly 45115512456). #193 optimises dependencies only.
+- **A wrong-type `return false` arm before a deny-by-default tail is a surviving mutant, not extra safety.** Pin the
+  rule once per key with a test and keep one deny path. Why: #189 made the sanitizer deny by default and left eight
+  arms that no test could tell apart from the tail (#194).
+
 ## Agent reading
 
 - **Prove OCR on the real font with every glyph the server can generate, not on one fixed name.** Why: presence failed
@@ -140,6 +159,12 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
 - **A revert that makes more variants readable can raise `wrong` as well as `correct`.** Compare the reasons per
   print against the last green baseline run before choosing what to revert. Why: #104 spent two 70-minute runs on
   reverts that did not touch the failing class.
+- **A test that records `tracing` spans or events must have a process-wide global subscriber that enables everything
+  (`core/src/test_interest.rs`), not only `set_default` plus `rebuild_interest_cache`.** Why: `tracing` caches each
+  callsite's interest for the whole process, a callsite first registered by another test's thread can cache "never", and
+  the span tests then failed at random under `cargo test` (one process) while passing under nextest. The nightly's
+  cargo-mutants baseline runs `cargo test`, so `the_span_of_a_closed_panel_says_neither` failed it on 2026-11-21 and 22
+  (about 10% of party-only runs, 1% of whole-suite runs before the fix, 0 of 500 after).
 
 ## Harness
 

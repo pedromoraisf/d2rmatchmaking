@@ -3,7 +3,7 @@
 ## Jobs
 
 ```text
-detect ──┬─ agent-mutation (matrix: core · domain 1/2 · domain 2/2 · adapters 1/2 · adapters 2/2)
+detect ──┬─ agent-mutation (matrix: core · domain 1/5 … 5/5 · adapters 1/2 · adapters 2/2)
          ├─ api-mutation   (matrix: domain · application)
          ├─ acceptance
          ├─ load
@@ -14,8 +14,8 @@ report   (needs every job above; if: always())               — builds nightly-
 
 - Each job runs only when `inputs.suites` selects it. The schedule has no inputs and runs all of them, so the
   condition is `github.event_name == 'schedule' || inputs.suites == 'all' || inputs.suites == '<suite>'`.
-- **Agent mutation**: `cargo mutants --package <crate> [--shard k/n] --output reports/mutation/agent-<crate>[-k] -- --lib`.
-  `core` keeps `--in-place`. Each shard uploads `agent-mutation-<crate>[-k]`. Both crate shards use `rust-cache`.
+- **Agent mutation**: `cargo mutants --package <crate> [--shard k/n --sharding round-robin] --output reports/mutation/agent-<crate>[-k] -- --lib`.
+  `core` and `adapters` run `--in-place` (their tests read files outside the copied workspace). Each shard uploads `agent-mutation-<crate>[-k]`. Both crate shards use `rust-cache`.
 - **API mutation**: `pnpm --filter @d2rmm/api run test:mutation -- --layer <layer>`, or the existing plan script's
   per-layer entry; the worker checks `apps/api/scripts/mutation-plan.ts`. Each layer uploads
   `api-mutation-<layer>`.
@@ -55,7 +55,7 @@ and a Playwright JSON. Tests live in `scripts/test/nightly-*.test.mjs`.
   "commit": "…",
   "branch": "…",
   "suites": ["mutation", "load", "acceptance"],
-  "jobs": [{ "name": "agent-mutation (domain 1/2)", "result": "success", "minutes": 11.2 }],
+  "jobs": [{ "name": "agent-mutation (domain 1/5)", "result": "success", "minutes": 11.2 }],
   "mutation": [
     {
       "target": "agent-domain",
@@ -93,15 +93,15 @@ and a Playwright JSON. Tests live in `scripts/test/nightly-*.test.mjs`.
 
 ## Time budget (target 40 minutes)
 
-| Job                | Today                     | Expected                          |
-| ------------------ | ------------------------- | --------------------------------- |
-| adapters           | 31 min                    | about 17 min per shard            |
-| domain             | 22 min                    | about 12 min per shard            |
-| core               | 4 min                     | about 6 min, with the new modules |
-| API application    | 10 min                    | 10 min                            |
-| load               | 20 min, plus image builds | about 25 min with a warm cache    |
-| acceptance         | 6–7 min                   | 7 min                             |
-| quality and report | after the slowest job     | plus 3 min                        |
+| Job                | Today                     | Expected                                                                    |
+| ------------------ | ------------------------- | --------------------------------------------------------------------------- |
+| adapters           | 31 min                    | about 17 min per shard                                                      |
+| domain             | 22 min                    | about 30 min per shard (5 round-robin shards; 4 slice shards ran 31-54 min) |
+| core               | 4 min                     | about 6 min, with the new modules                                           |
+| API application    | 10 min                    | 10 min                                                                      |
+| load               | 20 min, plus image builds | about 25 min with a warm cache                                              |
+| acceptance         | 6–7 min                   | 7 min                                                                       |
+| quality and report | after the slowest job     | plus 3 min                                                                  |
 
 ## ADRs and docs
 

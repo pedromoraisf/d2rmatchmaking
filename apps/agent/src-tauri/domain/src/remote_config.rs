@@ -612,6 +612,40 @@ mod tests {
     }
 
     #[test]
+    fn one_phrase_alone_in_one_language_is_enough_to_be_configured() {
+        // Each of the five phrases, alone, in each language, makes the configuration `configured`; none makes it built-in.
+        assert!(!Phrases::default().is_configured());
+        let each: [fn(&mut WireWords, String); 5] = [
+            |w, t| w.party = Some(t),
+            |w, t| w.game_name = Some(t),
+            |w, t| w.password = Some(t),
+            |w, t| w.joined_game = Some(t),
+            |w, t| w.left_game = Some(t),
+        ];
+        for (index, set) in each.iter().enumerate() {
+            let mut english = wire(2.0);
+            set(&mut english.en, "Party".to_string());
+            assert!(applied(&english).phrases.is_configured(), "en #{index}");
+            assert!(applied(&english).phrases.en.is_configured(), "en #{index}");
+            assert!(
+                !applied(&english).phrases.pt_br.is_configured(),
+                "en #{index}"
+            );
+            let mut portuguese = wire(2.0);
+            set(&mut portuguese.pt_br, "Grupo".to_string());
+            assert!(applied(&portuguese).phrases.is_configured(), "pt #{index}");
+            assert!(
+                applied(&portuguese).phrases.pt_br.is_configured(),
+                "pt #{index}"
+            );
+            assert!(
+                !applied(&portuguese).phrases.en.is_configured(),
+                "pt #{index}"
+            );
+        }
+    }
+
+    #[test]
     fn the_chat_phrases_follow_the_phrase_rule_in_each_language() {
         let mut body = wire(2.0);
         body.en = WireWords {

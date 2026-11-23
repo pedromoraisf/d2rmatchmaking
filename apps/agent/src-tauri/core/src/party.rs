@@ -684,6 +684,31 @@ mod tests {
     }
 
     #[test]
+    fn the_tracked_box_applies_only_at_the_size_it_was_seen_in_and_is_forgotten_after_a_miss() {
+        use d2rmm_agent_domain::vision::Region;
+        let area = Region {
+            x: 10,
+            y: 20,
+            width: 30,
+            height: 40,
+        };
+        let mut progress = PartyProgress::default();
+        assert_eq!(
+            progress.tracked_area(1920, 1045),
+            None,
+            "none before a find"
+        );
+
+        progress.track_area(Some(area), 1920, 1045);
+        assert_eq!(progress.tracked_area(1920, 1045), Some(area));
+        assert_eq!(progress.tracked_area(1920, 1080), None, "another height");
+        assert_eq!(progress.tracked_area(1280, 1045), None, "another width");
+
+        progress.track_area(None, 1920, 1045);
+        assert_eq!(progress.tracked_area(1920, 1045), None, "a miss forgets it");
+    }
+
+    #[test]
     fn forgetting_the_assignment_clears_the_run() {
         let mut progress = PartyProgress::default();
         progress.follow(Some(&assignment(1, "mmbaalh-12")));
@@ -1198,6 +1223,7 @@ mod look_tests {
     /// recorded under `cargo test` (one process) as under nextest (one process per test).
     fn record_spans() -> (Arc<Spans>, tracing::subscriber::DefaultGuard) {
         let spans = Arc::new(Spans::default());
+        crate::test_interest::always();
         let guard = tracing::subscriber::set_default(Arc::clone(&spans));
         tracing::callsite::rebuild_interest_cache();
         (spans, guard)
@@ -1518,6 +1544,44 @@ mod anchored_tests {
         assert_eq!(fields(&reading), ["mmbaalm-99"]);
     }
 
+    /// `Lines` that counts the reads asked of it.
+    struct ReadsCounted(Lines, std::sync::atomic::AtomicUsize);
+
+    impl TextReader for ReadsCounted {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.1.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.0.read(image, region)
+        }
+
+        fn read_lines(&self, image: &Rgba, area: Region) -> Vec<TextLine> {
+            self.1.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.0.read_lines(image, area)
+        }
+    }
+
+    fn reads_of(lines: Lines, language: &LanguagePack, height: u32) -> usize {
+        let counted = ReadsCounted(lines, std::sync::atomic::AtomicUsize::new(0));
+        read_panel(&counted, language, &frame(height));
+        counted.1.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    #[test]
+    fn the_fallback_pack_reads_the_panel_with_no_second_ocr_pass() {
+        // The Brazilian words are matched against the lines already read: a pt-BR panel costs what an English one does, and
+        // a closed panel (which tries both packs on the same lines) costs what it does with the English pack alone.
+        let english = reads_of(
+            panel(136, 176, Some(("mmbaalm-99", 204))),
+            &LanguagePack::english(),
+            1045,
+        );
+        let portuguese = reads_of(portuguese_panel(), &english_with_portuguese(), 1045);
+        assert!(english > 0);
+        assert_eq!(portuguese, english);
+        let closed_with = reads_of(Lines(Vec::new()), &english_with_portuguese(), 1045);
+        let closed_without = reads_of(Lines(Vec::new()), &LanguagePack::english(), 1045);
+        assert_eq!(closed_with, closed_without);
+    }
+
     #[test]
     fn a_pt_br_panel_never_confirms_another_rooms_name_and_a_pt_br_word_is_no_panel_elsewhere() {
         use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
@@ -1636,6 +1700,26 @@ mod anchored_tests {
             }
             lines
         }
+    }
+
+    /// A title found in the tracked box without its label stays the reading when the fixed box then finds no title: the
+    /// first area that found the title is kept (party.rs `read_panel_with`).
+    #[test]
+    fn a_title_found_in_the_tracked_box_is_kept_when_the_fixed_box_finds_none() {
+        use super::read_panel_for;
+        let pack = english_with_portuguese();
+        let size = frame(1045);
+        // Rows 600..700 lie outside the fixed (100..270) and wide (0..413) boxes at this height.
+        let tracked = Region {
+            x: 230,
+            y: 600,
+            width: 250,
+            height: 100,
+        };
+        let reader = Lines(vec![line("PARTY", 366, 650, 60)]);
+        let reading = read_panel_for(&reader, &pack, &size, Some("mmbaalm-99"), Some(tracked));
+        assert!(reading.open, "the tracked box's title is kept");
+        assert!(!reading.label_found);
     }
 
     #[test]
@@ -1873,6 +1957,145 @@ mod anchored_tests {
             FieldRead::Other,
             "a blank layout box proves nothing"
         );
+    }
+
+    // NFR-03: the Party panel at client sizes other than 1920×1080 (tests only; they pin today's reading).
+
+    const FULL_SIZES: [(u32, u32); 8] = [
+        (1280, 720),
+        (1366, 768),
+        (1600, 900),
+        (1920, 1080),
+        (2560, 1440),
+        (3840, 2160),
+        (1920, 1200),
+        (2560, 1600),
+    ];
+    const WINDOWED_SIZES: [(u32, u32); 8] = [
+        (1280, 689),
+        (1366, 735),
+        (1600, 861),
+        (1920, 1033),
+        (2560, 1378),
+        (3840, 2067),
+        (1920, 1148),
+        (2560, 1531),
+    ];
+    const UNSUPPORTED_SIZES: [(u32, u32); 4] =
+        [(2560, 1080), (3440, 1440), (1280, 1024), (1024, 768)];
+
+    /// The maintainer's English panel (full screen 1920×1080: PARTY 153, label 192, name 220; maximized 1920×1033: 146, 183,
+    /// 210, line middles) as a client of this height draws it: every offset, size and line scales with the height, and the
+    /// panel keeps its distance from the left edge. The rule is the layout's (linear in the height); no real print of another
+    /// size exists to check it.
+    fn scaled_panel(height: u32, windowed: bool, name: Option<&str>) -> Lines {
+        let (print_height, title, label, field) = if windowed {
+            (1033.0, 146.0, 183.0, 210.0)
+        } else {
+            (1080.0, 153.0, 192.0, 220.0)
+        };
+        let scale = f64::from(height) / print_height;
+        let at = |text: &str, x: f64, middle: f64, width: f64| {
+            let (middle, half) = (
+                (middle * scale).round() as u32,
+                (8.0 * scale).round() as u32,
+            );
+            TextLine {
+                text: text.to_string(),
+                region: Region {
+                    x: (x * scale).round() as u32,
+                    y: middle - half,
+                    width: (width * scale).round() as u32,
+                    height: 2 * half,
+                },
+            }
+        };
+        let mut lines = vec![
+            at("PARTY", 366.0, title, 60.0),
+            at("GAME NAME", 280.0, label, 90.0),
+            at("PASSWORD", 285.0, label + 70.0, 80.0),
+        ];
+        if let Some(name) = name {
+            lines.push(at(name, 255.0, field, 140.0));
+        }
+        Lines(lines)
+    }
+
+    #[test]
+    fn the_panel_reads_open_with_the_exact_name_at_every_supported_size() {
+        use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
+        for (windowed, sizes) in [(false, FULL_SIZES), (true, WINDOWED_SIZES)] {
+            for (width, height) in sizes {
+                let at = format!("{width}×{height} windowed={windowed}");
+                let panel = scaled_panel(height, windowed, Some("mmcowsh-1"));
+                let image = Rgba {
+                    width,
+                    height,
+                    pixels: Vec::new(),
+                };
+                let reading = read_panel(&panel, &LanguagePack::english(), &image);
+                assert!(reading.open && reading.label_found, "{at}");
+                let reads = fields(&reading);
+                assert_eq!(reads, ["mmcowsh-1"], "{at}");
+                assert_eq!(
+                    read_panel_field(reading.field_source, &reads, "mmcowsh-1"),
+                    FieldRead::Matched,
+                    "{at}"
+                );
+                for other in ["mmcowsh-2", "mmcowsn-1", "mmpvph-1"] {
+                    assert_ne!(
+                        read_panel_field(reading.field_source, &reads, other),
+                        FieldRead::Matched,
+                        "{at}: {other}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_masked_field_at_other_sizes_reads_open_and_never_a_name() {
+        use d2rmm_agent_domain::game_name_match::{FieldRead, read_panel_field};
+        for (windowed, sizes) in [(false, FULL_SIZES), (true, WINDOWED_SIZES)] {
+            for (width, height) in sizes {
+                let at = format!("{width}×{height} windowed={windowed}");
+                let image = Rgba {
+                    width,
+                    height,
+                    pixels: Vec::new(),
+                };
+                let reading = read_panel(
+                    &scaled_panel(height, windowed, None),
+                    &LanguagePack::english(),
+                    &image,
+                );
+                assert!(reading.open && reading.label_found, "{at}");
+                let reads = fields(&reading);
+                assert_eq!(
+                    read_panel_field(reading.field_source, &reads, "mmcowsh-1"),
+                    FieldRead::Masked,
+                    "{at}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_panel_of_an_unsupported_size_reads_closed_and_asks_the_engine_nothing() {
+        for (width, height) in UNSUPPORTED_SIZES {
+            let image = Rgba {
+                width,
+                height,
+                pixels: Vec::new(),
+            };
+            let reading = read_panel(
+                &scaled_panel(height.min(1080), false, Some("mmcowsh-1")),
+                &LanguagePack::english(),
+                &image,
+            );
+            assert!(!reading.open && !reading.label_found, "{width}×{height}");
+            assert!(reading.field.is_empty(), "{width}×{height}");
+        }
     }
 }
 

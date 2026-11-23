@@ -94,7 +94,7 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       values only, in the exporter's sanitiser. Existing span tests gain assertions, never lose one. A source-rule test in
       `scripts/test/` refuses a read text or a region in a span attribute of the vision code. Gate:
       `CARGO nextest run -p d2rmm-agent-core --lib && pnpm test:harness`
-- [ ] T9 — **[R14]** Popups with no card read (item f, SCR-05). From the PR's `ocr-variations` summary, list the refusal
+- [x] T9 — (done 2026-11-22 in #180: the 509 refused card variations of PR #154 grouped by cause in `t9-analysis.md` and pinned by `t9_class_*` tests; no class shows a rule that refuses a readable card, so no reading-module line changed and the counts stay 5727 / 45) **[R14]** Popups with no card read (item f, SCR-05). From the PR's `ocr-variations` summary, list the refusal
       reasons of the 176 popup variations (reason classes only; the summary prints no read text), pin the reads that
       work, then change the popup logic only where a reason class shows a rule that refuses a readable popup. One change
       per commit, each pushed and proved: `ocr-real` green, `popup` correct count up, `wrong` not up. Gate: as T3
@@ -119,6 +119,9 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
       reads, about 3 per 10 of the 173, with the 1 wrong still possible unless every name and level field is unanimous (4 of 42,
       so a gain of a handful). That is not worth a new `ScreenRegion`, a frame copy and a second column read in a reading
       module, so nothing is changed and the box stays open. The class that remains is `title-unread` on a dimmed title line.
+      Part 3 attempt 3 (batch 9): the reason classes of PR #154's run grouped by cause, with the refusing rule of each, in
+      [`t9-analysis.md`](t9-analysis.md); pins for them in `character_screen.rs`. No class shows a rule that refuses a
+      readable card, so no reading-module line changes; the box stays open.
 - [x] T10 — **[R14]** Unrecognised selection screens (item f, SCR-05). Same loop as T9 for the 104 screens read as
       `Unknown`: classes of reason first, then the smallest change per class (the list marker searched by its word in a
       wider area, as the HUD is). A frame that is not the selection screen must still read `Unknown` (the drawn
@@ -134,10 +137,10 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
 
 ## Orchestrator (local, the maintainer answers the gate)
 
-- [ ] O1 — After T3 merges into the branch: add `domain/src/hud_track.rs` to `scripts/agent/reading-modules.json`
+- [x] O1 — (done: `hud_track.rs` is in `scripts/agent/reading-modules.json` on phase/F2, 2026-11-22) After T3 merges into the branch: add `domain/src/hud_track.rs` to `scripts/agent/reading-modules.json`
       (`examine_globs` already covers `domain/src/**`). The gate asks; the maintainer answers. Gate:
       `pnpm test:harness`
-- [ ] O2 — For T6: measure the Party panel's lines on the six 1920×1045 prints with an `xtask` geometry command run on
+- [x] O2 — (closed: T6 merged with its `ocr-real` proof, so this input is no longer needed, 2026-11-22) For T6: measure the Party panel's lines on the six 1920×1045 prints with an `xtask` geometry command run on
       the Mac against the local path of the prints (counts and pixel boxes, never a pixel written to the repository),
       and put the numbers in the PR for the worker. If the Mac cannot read the prints, the first `ocr-real` diagnostics
       give the same geometry.
@@ -154,3 +157,22 @@ These wait; nothing in batches 1 and 2 depends on them.
       maintainer's hand (`apps/agent/ocr-lab/README.md`). Gate: as T3
 - [ ] T14 — CPU over a 30-minute field session below 2% with the tracker on, from the agent's CPU telemetry, and no FPS
       drop the maintainer can notice (NFR-02, SCR-02). Needs the maintainer's PC.
+
+## Batch 7 (CPU of the pt-BR fallback)
+
+Measures what the pt-BR fallback pack costs in CPU (NFR-02, brief exit criterion "Performance") without changing a
+non-test line of a reading module (rule 14). Estimate: `cpu-fallback.md`.
+
+- [x] T15 — Pin the OCR passes per frame (test lines only): an English client in steady state (selection, HUD, automap), a
+      pt-BR client in steady state (the first frame pays both packs, then one), and frames `Unknown` in both languages (a
+      menu, an empty frame, a desktop window), over 600 frames: every frame pays both packs and the cost never settles.
+      The Party panel and the chat make no second OCR pass for the fallback. Gate:
+      `cargo nextest run -p d2rmm-agent-core --lib` in `apps/agent/src-tauri`
+- [x] T16 — Estimate the cost of the fallback (`cpu-fallback.md`): scenario × passes per frame × engine calls per pass ×
+      share of the 2% budget, with the source of each number and the assumed time per call labelled. Result: the
+      `Unknown`-in-both case pays two passes every frame (72 engine calls a frame on average, 36 of them the fallback) and
+      exceeds half the budget. Gate: `pnpm format:check && pnpm specs:check`
+- [x] T17 — **[R14]** Guard the second pack: skip the pt-BR (or English) pass when the first found no anchor at all, so an
+      `Unknown` frame pays one pass instead of two. Changes a non-test line of `core/src/screen_reader.rs`: **rule 14 —
+      needs ocr-real proof** (`ocr-real` and `ocr-variations` green, the ratchet not regressing, before and after counts
+      in the PR). Pin the current behaviour first (T15's tests), not implemented in this batch. Gate: as T3

@@ -70,6 +70,7 @@ export async function startLocal(
         hub: built.hub,
         siteClosedTimers: built.siteClosedTimers,
         relay: built.relay,
+        background: built.background,
         bus: built.bus,
       });
     }

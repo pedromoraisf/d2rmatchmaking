@@ -24,6 +24,11 @@ Rules:
    for ports, no server/DB/browser/container); integration, e2e and acceptance are few and never run per mutation.
    Rust: `cargo nextest run -p <crate> --lib`; TypeScript: `vitest run <colocated *.test.ts>`. `pnpm specs:check`
    (`scripts/mutation-scope-check.mjs`) and the gate refuse a `mutations.json` that breaks this.
+   The agent's `cargo mutants` builds with `[profile.mutants]` (`.cargo/mutants.toml`): workspace crates unoptimised and
+   incremental without debug info, dependencies optimised (`opt-level = 2`), debug assertions and overflow checks on.
+   Every mutant rebuilds the crates it touches, so an optimised workspace build cost more per mutant than the tests it
+   saved (nightly 45115512456: core 20 → 42 min, adapters 21 → over 60 min); measured per mutant, this shape was the
+   cheapest of five candidates on the domain, core and adapters slices.
 8. The load run (NFR-14, AD-110) is on demand, runs at the end of a phase, and runs in the nightly on a GitHub runner
    (ADR 035, Proposed). It is never part of `pnpm check` or a pull-request workflow; `scripts/test/load-scripts.test.mjs`
    refuses it in any workflow except `nightly.yml`. Three commands: `pnpm test:load` (the full ramp),

@@ -30,6 +30,8 @@ const ALLOWED_FIELDS = new Set([
   // The configuration fetch's span (remote-config RCF-11): how a fetch ended, as a fixed word, and the whole version number.
   'config.outcome',
   'config.version',
+  // The other-game post's span (`agent.other_game.post`): whether the post went through, as a fixed word.
+  'post.outcome',
 ]);
 // The only values a `vision.*` field may be recorded with: the fixed-word variables of `vision_words`.
 const WORD_VARIABLES = new Set(['screen_word', 'search_word', 'area_class']);

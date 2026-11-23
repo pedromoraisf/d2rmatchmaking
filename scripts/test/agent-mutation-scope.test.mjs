@@ -148,9 +148,96 @@ test('the agent mutation command mutates the core crate in place, as the nightly
   assert.match(theirs, /\s--in-place(\s|$)/u, 'the nightly passes --in-place for core');
 });
 
+// The adapters' tests read apps/api/src/modules/agents/config/agent-config.json, outside the copy cargo-mutants makes.
+test('the agent mutation command mutates the adapters crate in place, as the nightly does', () => {
+  const ours = packageOf(agentCommands, 'adapters');
+  const theirs = nightlyCommands.filter((line) => flagOf(line, '--package') === 'd2rmm-agent-adapters');
+  assert.match(ours, /\s--in-place(\s|$)/u, 'test:mutation:agent passes --in-place for adapters');
+  assert.ok(theirs.length > 0, 'the nightly mutates the adapters');
+  for (const line of theirs)
+    assert.match(line, /\s--in-place(\s|$)/u, 'the nightly passes --in-place for adapters');
+});
+
+// A mutated target/ must never reach the cache: only entries that mutate a copy may save it.
+test('the nightly never saves the cache of an --in-place mutation entry', () => {
+  const cache = mutationJob.steps.find((step) => String(step.uses ?? '').startsWith('Swatinem/rust-cache'));
+  assert.ok(cache, 'the job restores a Rust cache');
+  assert.equal(cache.with['save-if'], "${{ matrix.in_place == '' }}");
+  for (const entry of mutationJob.strategy.matrix.include)
+    assert.equal(
+      entry.in_place === '--in-place',
+      entry.crate !== 'domain',
+      `${entry.name}: in place exactly for core and adapters`,
+    );
+});
+
 // CRF-27 (ci-and-review-fixes): the shared sampler vector lives in the adapters crate, so cargo-mutants copies it with
 // the crate, and the telemetry package keeps no copy.
 test('the shared sampler vector lives in the adapters crate', () => {
   assert.equal(existsSync('apps/agent/src-tauri/adapters/test-vectors/sampler.json'), true);
   assert.equal(existsSync('packages/telemetry/test-vectors'), false);
+});
+
+// The mutants build with a test profile tuned on the nightly's slices (ADR 026): the workspace crates stay unoptimised and
+// incremental, because every mutant rebuilds them, and the dependencies are optimised once. The profile keeps the debug
+// assertions and overflow checks on, so a test sees the same panics, and `.cargo/mutants.toml` selects it.
+test('cargo-mutants builds with the tuned mutants profile', () => {
+  const toml = readFileSync('apps/agent/src-tauri/.cargo/mutants.toml', 'utf8');
+  const cargo = readFileSync('apps/agent/src-tauri/Cargo.toml', 'utf8');
+  const section = cargo.match(/^\[profile\.mutants\]\n((?:(?!\[).*\n?)*)/m)?.[1] ?? '';
+
+  assert.match(toml, /^profile\s*=\s*"mutants"\s*$/m, 'mutants.toml selects the mutants profile');
+  assert.match(section, /^inherits\s*=\s*"test"\s*$/m, 'the profile inherits the test profile');
+  assert.match(section, /^opt-level\s*=\s*0\s*$/m, 'the workspace crates build unoptimised');
+  assert.match(section, /^incremental\s*=\s*true\s*$/m, 'the workspace crates build incrementally');
+  assert.match(section, /^debug\s*=\s*false\s*$/m, 'no debug info');
+  const deps = cargo.match(/^\[profile\.mutants\.package\."\*"\]\n((?:(?!\[).*\n?)*)/m)?.[1] ?? '';
+  assert.match(deps, /^opt-level\s*=\s*[123]\s*$/m, 'the dependencies are optimised');
+  assert.deepEqual(
+    profileViolations(deps),
+    [],
+    'the dependencies override sets no panic, lto or disabled checks',
+  );
+  assert.match(section, /^debug-assertions\s*=\s*true\s*$/m, 'debug assertions stay on');
+  assert.match(section, /^overflow-checks\s*=\s*true\s*$/m, 'overflow checks stay on');
+
+  // A config without the line, or a profile that turns the overflow checks off, must fail the same checks.
+  assert.doesNotMatch(toml.replace(/^profile\s*=.*$/m, ''), /^profile\s*=\s*"mutants"/m);
+  assert.doesNotMatch(
+    section.replace('overflow-checks = true', 'overflow-checks = false'),
+    /^overflow-checks\s*=\s*true/m,
+  );
+});
+
+// The profile must not change what the tests observe: a `panic = "abort"` kills the test harness's unwinding, `lto`
+// slows every mutant's build, and turning the debug assertions or overflow checks off hides panics a test pins.
+const profileSection = (cargo) => cargo.match(/^\[profile\.mutants\]\n((?:(?!\[).*\n?)*)/m)?.[1] ?? '';
+const profileViolations = (section) => {
+  const found = [];
+  const panic = section.match(/^panic\s*=\s*(.+?)\s*(?:#.*)?$/m)?.[1];
+  if (panic !== undefined && panic !== '"unwind"') found.push('panic');
+  if (/^lto\s*=/m.test(section)) found.push('lto');
+  for (const key of ['debug-assertions', 'overflow-checks'])
+    if (new RegExp(`^${key}[ \\t]*=[ \\t]*(?!true[ \\t]*(?:#.*)?$)\\S`, 'm').test(section)) found.push(key);
+  return found;
+};
+
+test('the mutants profile sets no panic, lto or disabled checks', () => {
+  const cargo = readFileSync('apps/agent/src-tauri/Cargo.toml', 'utf8');
+  const section = profileSection(cargo);
+  assert.notEqual(section, '', 'the mutants profile exists');
+  assert.deepEqual(profileViolations(section), []);
+
+  // Fixtures that break each rule must be named by the same check.
+  assert.deepEqual(profileViolations(`${section}panic = "abort"\n`), ['panic']);
+  assert.deepEqual(profileViolations(`${section}panic = "unwind"\n`), []);
+  assert.deepEqual(profileViolations(`${section}lto = "thin"\n`), ['lto']);
+  assert.deepEqual(profileViolations(`${section}lto = false\n`), ['lto']);
+  assert.deepEqual(
+    profileViolations(section.replace('debug-assertions = true', 'debug-assertions = false')),
+    ['debug-assertions'],
+  );
+  assert.deepEqual(profileViolations(section.replace('overflow-checks = true', 'overflow-checks = false')), [
+    'overflow-checks',
+  ]);
 });

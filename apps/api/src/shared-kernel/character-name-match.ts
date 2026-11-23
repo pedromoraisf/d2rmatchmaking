@@ -14,8 +14,8 @@ export type NameMatch =
  */
 function glyphOf(character: string): string {
   const lower = character.toLowerCase();
-  if (lower === 'i' || lower === 'l' || lower === '1') return 'l';
-  if (lower === '0' || lower === 'o') return 'o';
+  if (lower === 'i' || lower === '1') return 'l';
+  if (lower === '0') return 'o';
   return lower;
 }
 
@@ -23,24 +23,22 @@ function glyphOf(character: string): string {
 const READ_FOR_O: ReadonlySet<string> = new Set(['g', 'e', 'b']);
 
 function sameGlyphs(read: string, known: string): boolean {
-  if (read.length !== known.length) return false;
-  for (let at = 0; at < read.length; at += 1) {
-    if (glyphOf(read.charAt(at)) !== glyphOf(known.charAt(at))) return false;
-  }
-  return true;
+  return (
+    read.length === known.length &&
+    read.split('').every((letter, at) => glyphOf(letter) === glyphOf(known.charAt(at)))
+  );
 }
 
 /** Directional: a known `o` may be read as `g`, `e` or `b`; a known `g`, `e` or `b` is never matched by a read `o`. */
 function sameGlyphsOrMisreadO(read: string, known: string): boolean {
-  if (read.length !== known.length) return false;
-  for (let at = 0; at < read.length; at += 1) {
-    const readGlyph = glyphOf(read.charAt(at));
-    const knownGlyph = glyphOf(known.charAt(at));
-    if (readGlyph === knownGlyph) continue;
-    if (knownGlyph === 'o' && READ_FOR_O.has(readGlyph)) continue;
-    return false;
-  }
-  return true;
+  return (
+    read.length === known.length &&
+    read.split('').every((letter, at) => {
+      const readGlyph = glyphOf(letter);
+      const knownGlyph = glyphOf(known.charAt(at));
+      return readGlyph === knownGlyph || (knownGlyph === 'o' && READ_FOR_O.has(readGlyph));
+    })
+  );
 }
 
 function resolve(indexes: readonly number[]): NameMatch {

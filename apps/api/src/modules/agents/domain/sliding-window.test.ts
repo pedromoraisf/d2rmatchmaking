@@ -163,3 +163,41 @@ describe('rateLimitKey refuses an address with two ::', () => {
     expect(rateLimitKey('1:2:3:4:5:6:7:8::9::')).toBe('1:2:3:4:5:6:7:8::9::');
   });
 });
+
+describe('rateLimitKey reads the compressed :: gap', () => {
+  it('keys an address with a second :: as given, whatever the length of the first group', () => {
+    for (const raw of ['1::2::3', '1:2::3::4', '::1::2', '1::2::']) {
+      expect(rateLimitKey(raw)).toBe(raw);
+    }
+  });
+
+  it('keys a :: after a one-character group by the groups around it', () => {
+    expect(rateLimitKey('1::2')).toBe('1:0:0:0::/64');
+  });
+
+  it('keys an address by the tail groups after a leading ::', () => {
+    expect(rateLimitKey('::1:2:3:4:5:6')).toBe('0:0:1:2::/64');
+  });
+
+  it('keys an address by the head and tail groups around a middle ::, without repeating the group before it', () => {
+    expect(rateLimitKey('1:2:3::4:5:6:7')).toBe('1:2:3:0::/64');
+    expect(rateLimitKey('1:2::3:4:5:6')).toBe('1:2:0:0::/64');
+  });
+
+  it('keys three colons as the all-zero prefix, the gap being the first two', () => {
+    expect(rateLimitKey(':::')).toBe('0:0:0:0::/64');
+  });
+
+  it('keys an address without :: from its eight groups', () => {
+    expect(rateLimitKey('1:2:3:4:5:6:7:8')).toBe('1:2:3:4::/64');
+  });
+
+  it('keys an IPv4-mapped address with a gap by its zero groups', () => {
+    expect(rateLimitKey('::ffff:1.2.3.4')).toBe('0:0:0:0::/64');
+    expect(rateLimitKey('1:2:3::1.2.3.4')).toBe('1:2:3:0::/64');
+  });
+
+  it('keys the empty string as given', () => {
+    expect(rateLimitKey('')).toBe('');
+  });
+});

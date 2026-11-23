@@ -44,11 +44,9 @@ const WINDOWS_FEATURE_ALLOW_LIST = [
   'Win32_System_WinRT', // RoInitialize, the capture thread's apartment
   'Win32_System_WinRT_Direct3D11', // CreateDirect3D11DeviceFromDXGIDevice, IDirect3DDxgiInterfaceAccess
   'Win32_System_WinRT_Graphics_Capture', // IGraphicsCaptureItemInterop::CreateForWindow, from the game window's handle
-  // Assisted typing (FR-28, AST-09): Unicode character keystrokes and the hotkey's own modifier keys, in `typing.rs` alone.
-  'Win32_UI_Input_KeyboardAndMouse',
 ];
 
-// The only five files that may allow unsafe_code, each with the windows:: paths it may name.
+// The only four files that may allow unsafe_code, each with the windows:: paths it may name.
 const UNSAFE_ADAPTERS = {
   // The Windows Graphics Capture of the game window (capture-cascade O1): the item is made from the game window's own
   // handle, one frame is copied through a staging texture, and the client rectangle is located in the window frame.
@@ -116,8 +114,6 @@ const UNSAFE_ADAPTERS = {
     'IsIconic',
     'IsWindowVisible',
     'PW_RENDERFULLCONTENT',
-    // Which window has the focus (assisted typing, AST-03): a read, never an input.
-    'GetForegroundWindow',
   ],
   'src/adapters/toolhelp.rs': [
     'CreateToolhelp32Snapshot',
@@ -127,25 +123,6 @@ const UNSAFE_ADAPTERS = {
     'PROCESSENTRY32W',
     'TH32CS_SNAPPROCESS',
     'HANDLE',
-  ],
-  // The one file that sends input to the game (FR-28, AST-06, ADR 010): Unicode character keystrokes, and a read of the
-  // state of the hotkey's own modifier keys. The path list below is all it may name; `typingAdapterViolations` adds the
-  // rules on what it may do with them.
-  'src/adapters/typing.rs': [
-    'INPUT',
-    'INPUT_0',
-    'INPUT_KEYBOARD',
-    'INPUT_TYPE',
-    'KEYBDINPUT',
-    'KEYBD_EVENT_FLAGS',
-    'KEYEVENTF_UNICODE',
-    'KEYEVENTF_KEYUP',
-    'SendInput',
-    'GetAsyncKeyState',
-    'VIRTUAL_KEY',
-    'VK_CONTROL',
-    'VK_SHIFT',
-    'VK_MENU',
   ],
   'src/adapters/windows_ocr.rs': [
     'Media::Ocr',
@@ -211,7 +188,7 @@ const windowsFeatureViolations = (base) => {
 const unsafeLocationViolations = (base) =>
   rustFiles(base)
     .filter(({ rel, text }) => /allow\(\s*unsafe_code\s*\)/.test(text) && !(rel in UNSAFE_ADAPTERS))
-    .map(({ rel }) => `${rel} allows unsafe_code outside the five adapters`);
+    .map(({ rel }) => `${rel} allows unsafe_code outside the four adapters`);
 
 const adapterPathViolations = (base) =>
   Object.entries(UNSAFE_ADAPTERS).flatMap(([rel, allowed]) => {
@@ -222,15 +199,10 @@ const adapterPathViolations = (base) =>
       .map((windowsPath) => `${rel} references windows::${windowsPath}, which is not on its allow-list`);
   });
 
-// Assisted typing (AST-06, AST-09; ADR 010). The names that send or read input live in one file, `typing.rs`, and that file
-// can do nothing but type Unicode characters and read three modifier keys. The agent never confirms an action in the game.
-const TYPING_ADAPTER = 'src/adapters/typing.rs';
+// ADR 010, AGENTS.md rule 5: the agent sends no input to any window and reads no key state. No file names a function that
+// sends or reads input, and none allows the clippy ban on them (FR-28's typing helper was withdrawn on 2026-11-22).
 const INPUT_NAMES =
   /\b(?:SendInput|GetAsyncKeyState|GetKeyState|GetKeyboardState|SetKeyboardState|SetCursorPos|keybd_event|mouse_event|KeyboardAndMouse|(?:SendMessage|PostMessage|SendNotifyMessage|SendMessageTimeout|PostThreadMessage)[AW]?)\b/;
-// What the typing adapter may not name, though it is the one file allowed to send input (AST-09): it calls SendInput and
-// GetAsyncKeyState, nothing else of the list above.
-const TYPING_BANNED_NAMES =
-  /\b(?:GetKeyState|GetKeyboardState|SetKeyboardState|SetCursorPos|keybd_event|mouse_event|(?:SendMessage|PostMessage|SendNotifyMessage|SendMessageTimeout|PostThreadMessage)[AW]?)\b/g;
 
 // Comments out, string-aware: a `//` or `/*` inside a string or char literal hides nothing, and a quote inside a comment
 // opens nothing. Newlines are kept so line anchors still work.
@@ -271,123 +243,16 @@ const withoutComments = (text) => {
   return out;
 };
 
-// The text of a Rust file with exactly its `#[cfg(test)] mod …` blocks removed (braces balanced, strings skipped), so code
-// after the test module is still read. `text` must already be without comments.
-const withoutTestModules = (text) => {
-  const opener = /^[ \t]*#\[cfg\(test\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*/m;
-  let rest = text;
-  let out = '';
-  for (let match = opener.exec(rest); match; match = opener.exec(rest)) {
-    out += rest.slice(0, match.index);
-    let i = match.index + match[0].length;
-    if (rest[i] === '{') {
-      let depth = 0;
-      for (; i < rest.length; i += 1) {
-        const char = rest[i];
-        if (char === '"') {
-          i += 1;
-          while (i < rest.length && rest[i] !== '"') i += rest[i] === '\\' ? 2 : 1;
-        } else if (/^'[{}]'/.test(rest.slice(i, i + 3))) {
-          i += 2;
-        } else if (char === '{') {
-          depth += 1;
-        } else if (char === '}') {
-          depth -= 1;
-          if (depth === 0) break;
-        }
-      }
-      i += 1;
-    } else {
-      i = rest.indexOf(';', i) + 1 || rest.length;
-    }
-    rest = rest.slice(i);
-  }
-  return out + rest;
-};
-
-const inputOutsideTypingViolations = (base) =>
+const inputViolations = (base) =>
   rustFiles(base)
-    .filter(({ rel }) => rel !== TYPING_ADAPTER)
     .filter(({ text }) => INPUT_NAMES.test(withoutComments(text)))
-    .map(({ rel }) => `${rel} names an input function, and only ${TYPING_ADAPTER} may`);
+    .map(({ rel }) => `${rel} names an input function, and no file may`);
 
-const ALLOWED_VIRTUAL_KEYS = ['VK_CONTROL', 'VK_SHIFT', 'VK_MENU'];
-
-const typingAdapterViolations = (base) => {
-  const text = crateFile(base, TYPING_ADAPTER);
-  if (text === undefined) return [];
-  const code = withoutTestModules(withoutComments(text));
-  const violations = [];
-  for (const key of new Set(code.match(/\bVK_[A-Z0-9_]+\b/g) ?? [])) {
-    if (!ALLOWED_VIRTUAL_KEYS.includes(key)) {
-      violations.push(
-        `${TYPING_ADAPTER} names ${key}: only Ctrl, Shift and Alt are read, and no key is sent`,
-      );
-    }
-  }
-  for (const match of code.matchAll(/\bwVk\s*:\s*([^,}\n]+)/g)) {
-    if (!/^VIRTUAL_KEY\(\s*0\s*\)$/.test(match[1].trim())) {
-      violations.push(
-        `${TYPING_ADAPTER} sets wVk to ${match[1].trim()}: a keystroke must be Unicode, with virtual key 0`,
-      );
-    }
-  }
-  for (const name of new Set(code.match(/\bKEYEVENTF_[A-Z_]+\b/g) ?? [])) {
-    if (!['KEYEVENTF_UNICODE', 'KEYEVENTF_KEYUP'].includes(name)) {
-      violations.push(
-        `${TYPING_ADAPTER} uses ${name}: only KEYEVENTF_UNICODE and KEYEVENTF_KEYUP may be set`,
-      );
-    }
-  }
-  for (const name of new Set(
-    code.match(
-      /\b(?:INPUT_MOUSE|INPUT_HARDWARE|MOUSEINPUT|HARDWAREINPUT|MOUSEEVENTF_[A-Z_]+|[A-Za-z]*Clipboard[A-Za-z]*)\b/g,
-    ) ?? [],
-  )) {
-    violations.push(`${TYPING_ADAPTER} uses ${name}: no mouse, hardware or clipboard input`);
-  }
-  for (const name of new Set(code.match(TYPING_BANNED_NAMES) ?? [])) {
-    violations.push(`${TYPING_ADAPTER} names ${name}: it may only call SendInput and GetAsyncKeyState`);
-  }
-  const constructions = code.match(/\bKEYBDINPUT\s*\{/g) ?? [];
-  if (constructions.length !== 1) {
-    violations.push(
-      `${TYPING_ADAPTER} builds KEYBDINPUT ${constructions.length} times: exactly one construction is allowed`,
-    );
-  }
-  // Each field is pinned to the one real expression, so no other spelling (assignment, shorthand, another struct) passes.
-  for (const [field, pinned] of [
-    ['wVk', /\bwVk\s*:\s*VIRTUAL_KEY\(\s*0\s*\)\s*,/g],
-    ['wScan', /\bwScan\s*:\s*stroke\.unit\s*,/g],
-    ['dwFlags', /\bdwFlags\s*:\s*KEYBD_EVENT_FLAGS\(\s*flags\.0\s*\)\s*,/g],
-  ]) {
-    const named = (code.match(new RegExp(`\\b${field}\\b`, 'g')) ?? []).length;
-    const exact = (code.match(pinned) ?? []).length;
-    if (named !== 1 || exact !== 1) {
-      violations.push(
-        `${TYPING_ADAPTER} names ${field} ${named} times, ${exact} as the pinned expression: it appears once, in the keystroke, as the pinned expression`,
-      );
-    }
-  }
-  for (const match of code.matchAll(/\bKEYBD_EVENT_FLAGS\s*\(([^)]*)\)/g)) {
-    if (match[1].trim() !== 'flags.0') {
-      violations.push(
-        `${TYPING_ADAPTER} builds KEYBD_EVENT_FLAGS from ${match[1].trim()}: only flags.0 is allowed`,
-      );
-    }
-  }
-  if (code.includes('SendInput') && !/\bKEYEVENTF_UNICODE\b/.test(code)) {
-    violations.push(`${TYPING_ADAPTER} sends input without KEYEVENTF_UNICODE`);
-  }
-  return violations;
-};
-
-// The scoped `allow` for the input functions that clippy.toml bans sits in the typing adapter alone (AST-09).
+// No file allows the clippy ban on the input functions (clippy.toml disallows them everywhere).
 const clippyAllowViolations = (base) =>
   rustFiles(base)
-    .filter(({ rel }) => rel !== TYPING_ADAPTER)
     .filter(({ text }) => /allow\(\s*clippy::disallowed_methods\s*\)/.test(text))
-    .map(({ rel }) => `${rel} allows clippy::disallowed_methods, and only ${TYPING_ADAPTER} may`);
+    .map(({ rel }) => `${rel} allows clippy::disallowed_methods, and no file may`);
 
 const instrumentViolations = (base) =>
   rustFiles(base).flatMap(({ rel, text }) =>
@@ -544,6 +409,25 @@ const chatPostTelemetryViolations = (base) =>
         .map(() => `${rel} puts the name or the observation in a span, an event or a counter`),
     );
 
+// The diagnostics switch (observability-tiers OBT-17): only the span processor and the export loop read it. The settings store and
+// the composition roots build it; the gateway, the heartbeat, the observations and the rest of the adapters and core never name it.
+const DIAGNOSTICS_SWITCH_ALLOW_LIST = [
+  'adapters/src/telemetry/switch.rs',
+  'adapters/src/telemetry/export.rs',
+  'adapters/src/telemetry/mod.rs',
+  'adapters/examples/headless.rs',
+  'src/app.rs',
+];
+const DIAGNOSTICS_SWITCH = /\b(?:DiagnosticsSwitch|FileDiagnosticsStore|diagnostics_store_in)\b/;
+const diagnosticsSwitchViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => !DIAGNOSTICS_SWITCH_ALLOW_LIST.includes(rel))
+    .filter(({ text }) => DIAGNOSTICS_SWITCH.test(codeOnly(text)))
+    .map(
+      ({ rel }) =>
+        `${rel} names the diagnostics switch and is not the span processor, the export loop or a composition root`,
+    );
+
 // Capture scope (ADR 010, capture-cascade CAP-04): the capture adapters see the game window and nothing else. No monitor, no
 // desktop or screen device context, no duplication of the output. The allowed `IGraphicsCaptureItemInterop` and
 // `Graphics::Capture` imports reach these through method calls, so the rule matches calls and uses, not import paths.
@@ -609,7 +493,7 @@ test('windows features stay on the allow-list', () => {
   assert.deepEqual(windowsFeatureViolations(root), []);
 });
 
-test('unsafe is allowed only in the five adapters', () => {
+test('unsafe is allowed only in the four adapters', () => {
   assert.deepEqual(unsafeLocationViolations(root), []);
 });
 
@@ -653,77 +537,30 @@ test('release-agent.yml builds no example and enables no all-features', () => {
   }
 });
 
-test('only the typing adapter names an input function or allows the clippy ban on them', () => {
-  assert.deepEqual(inputOutsideTypingViolations(root), []);
+test('no file names an input function or allows the clippy ban on them', () => {
+  assert.deepEqual(inputViolations(root), []);
   assert.deepEqual(clippyAllowViolations(root), []);
 });
 
-test('the typing adapter types Unicode characters and reads three modifier keys, and nothing else', () => {
-  assert.deepEqual(typingAdapterViolations(root), []);
-});
-
-test('the input rule rejects an input function outside the typing adapter and a clippy allow outside it', () => {
+test('the input rule rejects an input function in any file and a clippy allow in any file', () => {
   assert.match(
-    inputOutsideTypingViolations(fixtureBase('input-outside-typing')).join('\n'),
-    /src\/adapters\/window_capture\.rs names an input function, and only src\/adapters\/typing\.rs may/,
+    inputViolations(fixtureBase('input-names')).join('\n'),
+    /src\/adapters\/window_capture\.rs names an input function, and no file may/,
   );
   assert.match(
-    clippyAllowViolations(fixtureBase('input-outside-typing')).join('\n'),
-    /src\/adapters\/window_capture\.rs allows clippy::disallowed_methods/,
+    clippyAllowViolations(fixtureBase('input-names')).join('\n'),
+    /src\/adapters\/window_capture\.rs allows clippy::disallowed_methods, and no file may/,
   );
 });
 
-test('the typing adapter rule rejects a confirming or navigating key', () => {
-  const violations = typingAdapterViolations(fixtureBase('typing-confirm-key')).join('\n');
-  for (const key of ['VK_RETURN', 'VK_TAB', 'VK_SPACE', 'VK_ESCAPE', 'VK_BACK']) {
-    assert.match(violations, new RegExp(`names ${key}`), key);
-  }
-});
-
-test('the typing adapter rule reads code after the test module and skips only the module itself', () => {
-  const violations = typingAdapterViolations(fixtureBase('typing-after-test-module')).join('\n');
-  assert.match(violations, /names VK_RETURN/);
-  assert.doesNotMatch(violations, /VK_F1/);
-});
-
-test('the typing adapter rule rejects a virtual key in a keystroke and a scan-code or extended-key flag', () => {
-  const violations = typingAdapterViolations(fixtureBase('typing-virtual-key')).join('\n');
-  assert.match(violations, /sets wVk to VIRTUAL_KEY\(13\)/);
-  assert.match(violations, /sets wVk to VIRTUAL_KEY\(vk\)/);
-  assert.match(violations, /uses KEYEVENTF_SCANCODE/);
-  assert.match(violations, /uses KEYEVENTF_EXTENDEDKEY/);
-});
-
-test('the typing adapter rule pins each KEYBDINPUT field to the one keystroke expression', () => {
-  const assigned = typingAdapterViolations(fixtureBase('typing-field-assign')).join('\n');
-  assert.match(assigned, /builds KEYBDINPUT 2 times/);
-  assert.match(assigned, /names wVk 3 times, 2 as the pinned expression/);
-  assert.match(assigned, /names wScan 3 times, 2 as the pinned expression/);
-  const shorthand = typingAdapterViolations(fixtureBase('typing-field-shorthand')).join('\n');
-  for (const field of ['wVk', 'wScan', 'dwFlags']) {
-    assert.match(shorthand, new RegExp(`names ${field} 2 times, 0 as the pinned expression`), field);
-  }
-});
-
-test('the typing adapter rule accepts KEYBD_EVENT_FLAGS only over flags.0', () => {
-  const violations = typingAdapterViolations(fixtureBase('typing-flags-expression')).join('\n');
-  assert.match(violations, /builds KEYBD_EVENT_FLAGS from 0x0008/);
-  assert.match(violations, /builds KEYBD_EVENT_FLAGS from flags\.0 \| 0x0001/);
-  assert.match(violations, /builds KEYBD_EVENT_FLAGS from 0x0004/);
-});
-
-test('a double slash inside a string literal hides no code from the typing rules', () => {
-  const violations = typingAdapterViolations(fixtureBase('typing-string-slashes')).join('\n');
-  assert.match(violations, /names VK_RETURN/);
-  assert.match(violations, /names VK_TAB/);
-  assert.doesNotMatch(violations, /VK_ESCAPE/);
+test('a double slash inside a string literal hides no code from the input rule', () => {
   assert.equal(
     withoutComments('let a = "x // y"; // z\nlet b = 1; /* c */').trim(),
     'let a = "x // y"; \nlet b = 1;',
   );
 });
 
-test('every other way to send input or move the cursor is an input name, and the typing adapter names none', () => {
+test('every other way to send input or move the cursor is an input name', () => {
   const names = [
     'SendMessageA',
     'SendMessageW',
@@ -739,32 +576,18 @@ test('every other way to send input or move the cursor is an input name, and the
     'SetKeyboardState',
     'keybd_event',
     'mouse_event',
+    'GetKeyState',
+    'GetKeyboardState',
+    'GetAsyncKeyState',
+    'SendInput',
   ];
   for (const name of names) {
     assert.ok(INPUT_NAMES.test(`let _ = ${name};`), `${name} is an input name`);
   }
   assert.match(
-    inputOutsideTypingViolations(fixtureBase('input-outside-typing-variants')).join('\n'),
+    inputViolations(fixtureBase('input-names-variants')).join('\n'),
     /window_capture\.rs names an input function/,
   );
-  const violations = typingAdapterViolations(fixtureBase('typing-other-input')).join('\n');
-  for (const name of [...names, 'GetKeyState', 'GetKeyboardState']) {
-    assert.match(violations, new RegExp(`names ${name}:`), name);
-  }
-});
-
-test('the typing adapter rule rejects mouse, hardware and clipboard input and a send without Unicode', () => {
-  const violations = typingAdapterViolations(fixtureBase('typing-mouse-clipboard')).join('\n');
-  for (const name of [
-    'INPUT_MOUSE',
-    'MOUSEINPUT',
-    'MOUSEEVENTF_LEFTDOWN',
-    'INPUT_HARDWARE',
-    'SetClipboardData',
-  ]) {
-    assert.match(violations, new RegExp(`uses ${name}`), name);
-  }
-  assert.match(violations, /sends input without KEYEVENTF_UNICODE/);
 });
 
 test('the windows feature rule rejects a feature off the list', () => {
@@ -777,7 +600,7 @@ test('the windows feature rule rejects a feature off the list', () => {
 test('the unsafe location rule rejects an allow outside the adapters', () => {
   assert.match(
     unsafeLocationViolations(fixtureBase('unsafe-outside-adapters')).join('\n'),
-    /src\/adapters\/http\.rs allows unsafe_code outside the five adapters/,
+    /src\/adapters\/http\.rs allows unsafe_code outside the four adapters/,
   );
 });
 
@@ -938,6 +761,16 @@ test('the outgoing data rule covers the span exporter client too', () => {
   assert.match(violations, /relay_client\.rs sends a raw body, a multipart part or an image/);
 });
 
+test('the diagnostics switch is read only by the span processor and the export loop (OBT-17)', () => {
+  assert.deepEqual(diagnosticsSwitchViolations(root), []);
+});
+
+test('the diagnostics switch rule rejects a reference from the HTTP adapters or core', () => {
+  const violations = diagnosticsSwitchViolations(fixtureBase('diagnostics-switch-leak')).join('\n');
+  assert.match(violations, /adapters\/src\/http\/heartbeat\.rs names the diagnostics switch/);
+  assert.match(violations, /core\/src\/gate\.rs names the diagnostics switch/);
+});
+
 test('the instrument rule rejects arguments without skip_all', () => {
   assert.match(
     instrumentViolations(fixtureBase('instrument-without-skip')).join('\n'),
@@ -1011,16 +844,19 @@ test('tauri.conf.json keeps the hardened shell', () => {
   );
 });
 
-test('the window gets exactly listen, unlisten, get_new_code, get_consent, set_consent and set_hotkey', () => {
+test('the window gets exactly listen, unlisten, get_new_code, get_consent, set_consent, set_hotkey, get_diagnostics and set_diagnostics', () => {
   const capability = readJson(`${agentTauri}/capabilities/main.json`);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(
     [...capability.permissions].sort(),
     [
       'allow-get-consent',
+      // The player's "send diagnostics" switch (OBT-14, OBT-15): read and save only; it carries no span and no secret.
+      'allow-get-diagnostics',
       'allow-get-new-code',
       'allow-set-consent',
-      // Assisted typing (AST-09): the window saves the player's hotkey choice; the command types nothing.
+      'allow-set-diagnostics',
+      // The window saves the player's accept-hotkey choice (AST-01); the command sends nothing to the game.
       'allow-set-hotkey',
       'core:event:allow-listen',
       'core:event:allow-unlisten',

@@ -66,3 +66,26 @@ Rules:
       backend" section updated (AD-098 lifted by ADR 037), how to follow a journey by `d2r.room.id`, `d2r.account.id`,
       `d2r.ticket.id`, and the egress re-measure note. The orchestrator runs the TraceQL query on `grafanacloud-traces`
       once after staging deploys and fills the result. Gate: `pnpm format:check && pnpm specs:check`
+
+## Batch 4 — the player's diagnostics switch (OBT-14 to OBT-17; maintainer decision 2026-11-22)
+
+- [x] T-D1 — Spec: OBT-14 to OBT-17 in `spec.md`, `not-scenario` lines in `acceptance.feature` (the agent window is not in
+      the acceptance stack). Gate: `node scripts/acceptance-check.mjs observability-tiers && pnpm specs:check`
+- [x] T-D2 — Agent: `DiagnosticsSwitch` and `FileDiagnosticsStore` (`adapters/src/telemetry/switch.rs`), read by the span
+      processor and the export loop; `get_diagnostics` / `set_diagnostics` commands. Gate:
+      `cargo nextest run -p d2rmm-agent-domain -p d2rmm-agent-core -p d2rmm-agent-adapters --lib`
+- [x] T-D3 — Window: `TelemetryView` (notice and switch), en and pt-BR, component tests. Gate:
+      `pnpm --filter @d2rmm/agent test && pnpm --filter @d2rmm/agent build`
+- [x] T-D4 — Docs: `telemetry.md` paragraph under the agent table.
+
+## Open
+
+- [ ] T12 — Bound the egress of the agent and the site (OBT-13, AD-128): the load journey measures the API's OTLP bytes
+      only. Measure spans per room from a staging trace sample (TraceQL count of agent and site spans per `d2r.room.id`),
+      take the bytes per span from the relay's request sizes, and add rooms per player-hour × spans per room × bytes per
+      span × the tier's sampling ratio to the API figure of `telemetryBytesPerPlayerHour`. Write the sum and the
+      resulting AD-128 share in `telemetry.md` and `load-baseline.md`. A doc-only task: no code, no ratio changes.
+      Gate: `pnpm format:check && pnpm specs:check`
+- [x] T13 — First re-measure written down: nightly run 45037822441 (API alone, full tier, 81 000 bytes per player-hour,
+      share 1.086, AD-128 not met) in `telemetry.md` and `load-baseline.md`. The figures were relayed by the orchestrator;
+      re-read `summary.json` of artifact 14762014360 where the host is reachable. Gate: same as T12.

@@ -15,8 +15,27 @@ The first measured load of the main journey (NFR-14). Measured on 2026-11-04 at 
 | Telemetry bytes a month at 100 players (`telemetryMonthlyBytes`)                      | 54351900000 |
 | Telemetry share of the 5 GiB monthly budget, limit 0.10 (`telemetryShareOfBudget`)    | 10.1238     |
 | Within the telemetry limit of 0.10, report-only in F0 (`withinTelemetryBudget`)       | no          |
-| Relay allowance a month, reported beside the telemetry (`relayAllowanceMonthlyBytes`) | 503316000   |
+| Relay allowance a month, reported beside the telemetry (`relayAllowanceMonthlyBytes`) | 503316480   |
 | Ceiling of 400 players reached (`ceilingReached`)                                     | yes         |
+
+**Telemetry rows are the API alone.** The load journey runs no site or agent exporter and no relay call, so the
+telemetry rows count only what the API exports to the sink (traces, metrics, logs). The 754 888 above is the 2026-11-04
+figure, in JSON, and is out of date. The first re-measure with protobuf and gzip, from the nightly run 45037822441 on
+`phase/F2` (2026-11-22, commit `431fa30`, profile `full`, full tier, API sampler 0.1; figures relayed from its
+`summary.json`):
+
+| Measure                                                                  | Value                            |
+| ------------------------------------------------------------------------ | -------------------------------- |
+| Telemetry bytes per player-hour (`telemetryBytesPerPlayerHour`)          | 80 999.59                        |
+| traces / metrics / logs (`telemetryBytesPerPlayerHourBySignal`)          | 62 876.61 / 1 380.01 / 16 742.96 |
+| Telemetry bytes a month at 100 players (`telemetryMonthlyBytes`)         | 5 831 970 448                    |
+| Share of the 5 GiB monthly budget, limit 0.10 (`telemetryShareOfBudget`) | 1.086                            |
+| Within the telemetry limit (`withinTelemetryBudget`)                     | no                               |
+| Stream bytes per player-hour (`bytesPerPlayerHour`)                      | 413 916.83                       |
+| Within the egress budget (`withinEgressBudget`)                          | no                               |
+
+The share is a lower bound: the agent and site spans are not measured by the journey (task T12 of `observability-tiers`).
+See `telemetry.md` § "Egress must be re-measured".
 
 Telemetry is report-only in F0 (AD-128): a share above 0.10 does not fail the run. Reducing telemetry is a condition of setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production.
 
