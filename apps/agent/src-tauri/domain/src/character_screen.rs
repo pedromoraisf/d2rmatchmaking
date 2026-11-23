@@ -1239,6 +1239,163 @@ mod tests {
         assert_eq!(rejected[0].reason.code(), "name-disagree");
     }
 
+    /// The refusal codes of a scene's slots, as `(slot, code)`, with the number of cards and of slots read.
+    fn refusals(scene: &Scene) -> (Vec<(u8, &'static str)>, usize, u8) {
+        let reading = scene.read(&[], &[]);
+        let codes = reading
+            .rejected
+            .iter()
+            .map(|rejection| (rejection.slot, rejection.reason.code()))
+            .collect();
+        (codes, reading.cards.len(), reading.slots_read)
+    }
+
+    const LEVEL: &str = "Level 88 Sorceress";
+
+    // T9 pins: one test per reason class of the card screens (`t9-analysis.md`), so a later change to a rule is measured.
+
+    #[test]
+    fn t9_class_a_no_level_line_anchors_no_card_and_refuses_nothing() {
+        // `slots0`: names and titles read, but no variant reads a level line: nothing is anchored, nothing is reported.
+        let scene = Scene::of(&[
+            (ScreenRegion::CreateNew, &["Create New"]),
+            (ScreenRegion::CardTitle(0), &["Matriarch", "Matriarch"]),
+            (ScreenRegion::CardName(0), &["Alpha", "Alpha"]),
+            (ScreenRegion::CardLevel(0), &["", "Level"]),
+        ]);
+        assert_eq!(refusals(&scene), (vec![], 0, 0));
+        // The level word with no level, or a level out of 1 to 99, is no level line either.
+        for text in ["Level", "Level 0 Sorceress", "Level 100 Sorceress"] {
+            let scene = Scene::of(&[
+                (ScreenRegion::CreateNew, &["Create New"]),
+                (ScreenRegion::CardName(0), &["Alpha"]),
+                (ScreenRegion::CardLevel(0), &[text]),
+            ]);
+            assert_eq!(refusals(&scene), (vec![], 0, 0), "{text}");
+        }
+    }
+
+    #[test]
+    fn t9_class_e_a_second_card_with_no_level_line_is_not_refused() {
+        let scene = Scene::of(&[
+            (ScreenRegion::CreateNew, &["Create New"]),
+            (ScreenRegion::CardTitle(0), &["", ""]),
+            (ScreenRegion::CardName(0), &["Alpha", "Alpha"]),
+            (ScreenRegion::CardLevel(0), &[LEVEL, LEVEL]),
+            (ScreenRegion::CardName(1), &["Bravo", "Bravo"]),
+            (ScreenRegion::CardLevel(1), &["", ""]),
+        ]);
+        assert_eq!(refusals(&scene), (vec![], 1, 1));
+    }
+
+    #[test]
+    fn t9_class_b_a_title_nobody_reads_refuses_the_card_whatever_else_reads() {
+        let card = |title: &[&str], name: &[&str], level: &[&str]| {
+            Scene::of(&[
+                (ScreenRegion::CreateNew, &["Create New"]),
+                (ScreenRegion::CardTitle(0), title),
+                (ScreenRegion::CardName(0), name),
+                (ScreenRegion::CardLevel(0), level),
+            ])
+        };
+        let ok_name = ["Alpha", "Alpha", "Alpha"];
+        let ok_level = [LEVEL, LEVEL, LEVEL];
+        // A found title line whose later readings are all blank or garbled: no title settles.
+        let first_only = |rest: &'static str| ["Matriarch", rest, rest];
+        assert_eq!(
+            refusals(&card(&first_only(""), &ok_name, &ok_level)),
+            (vec![(0, "title-unread")], 0, 1)
+        );
+        assert_eq!(
+            refusals(&card(&first_only("Marshal"), &ok_name, &ok_level)),
+            (vec![(0, "title-unread")], 0, 1)
+        );
+        // Two agreeing readings among blanks settle the title.
+        let reading = card(&["Matriarch", "Matriarch", ""], &ok_name, &ok_level).read(&[], &[]);
+        assert_eq!(reading.cards.len(), 1);
+        assert_eq!(reading.cards[0].title(), Some(Title::Matriarch));
+        // The title refuses first: a card whose other fields are unread too reports only the title.
+        assert_eq!(
+            refusals(&card(
+                &first_only("Marshal"),
+                &["12-34"],
+                &["Level 88 Zzzz"]
+            )),
+            (vec![(0, "title-unread")], 0, 1)
+        );
+        assert_eq!(
+            refusals(&card(
+                &first_only("Marshal"),
+                &["Alpha", "Bravo"],
+                &ok_level
+            )),
+            (vec![(0, "title-unread")], 0, 1)
+        );
+    }
+
+    #[test]
+    fn t9_class_c_names_are_settled_by_two_agreeing_readings_with_no_tie() {
+        let name = |names: &[&str]| {
+            Scene::of(&[
+                (ScreenRegion::CreateNew, &["Create New"]),
+                (ScreenRegion::CardTitle(0), &["", "", ""]),
+                (ScreenRegion::CardName(0), names),
+                (ScreenRegion::CardLevel(0), &[LEVEL, LEVEL, LEVEL]),
+            ])
+        };
+        // One row per reading set: the readings, then the refusal codes of slot 0 (empty = the card is accepted).
+        type Row = (&'static [&'static str], &'static [(u8, &'static str)]);
+        let table: [Row; 5] = [
+            // Three different names: no two agree, name-disagree.
+            (&["Alpha", "Bravo", "Charl"], &[(0, "name-disagree")]),
+            // Two agreeing readings outnumber one rival: accepted.
+            (&["Alpha", "Alpha", "Bravo"], &[]),
+            // A tie of two against two: name-disagree.
+            (
+                &["Alpha", "Alpha", "Bravo", "Bravo"],
+                &[(0, "name-disagree")],
+            ),
+            // Readings that are no name at all: name-unread, not a disagreement.
+            (&["12-34", "12-34", "12-34"], &[(0, "name-unread")]),
+            // One name among noise has no second reading to agree with: name-disagree (a name was read).
+            (&["Alpha", "12-34", "12-34"], &[(0, "name-disagree")]),
+        ];
+        for (names, expected) in table {
+            assert_eq!(refusals(&name(names)).0, expected, "{names:?}");
+        }
+    }
+
+    #[test]
+    fn t9_class_d_the_level_line_refuses_as_level_unread_or_class_unread() {
+        let level = |levels: &[&str]| {
+            Scene::of(&[
+                (ScreenRegion::CreateNew, &["Create New"]),
+                (ScreenRegion::CardTitle(0), &["", ""]),
+                (ScreenRegion::CardName(0), &["Alpha", "Alpha"]),
+                (ScreenRegion::CardLevel(0), levels),
+            ])
+        };
+        // A level read, the class not settled: class-unread; two levels that disagree are class-unread too.
+        assert_eq!(
+            refusals(&level(&["Level 88 Zzzz", "Level 88 Zzzz"])).0,
+            [(0, "class-unread")]
+        );
+        assert_eq!(
+            refusals(&level(&["Level 88 Sorceress", "Level 87 Sorceress"])).0,
+            [(0, "class-unread")]
+        );
+        // The first reading anchors the card but no reading settles a level: the line has no level word in the rest.
+        assert_eq!(
+            refusals(&level(&[LEVEL, "Sorceress"])).0,
+            [(0, "class-unread")]
+        );
+        assert_eq!(
+            refusals(&level(&[LEVEL, ""])).0,
+            [(0, "class-unread")],
+            "a lone settled reading among blanks needs a second one"
+        );
+    }
+
     #[test]
     fn a_screen_without_card_slots_reports_no_slot_and_no_rejection() {
         let reading = read(&[(ScreenRegion::Life, "Life: 925 / 925")], &[]);
