@@ -178,8 +178,8 @@ test('promote runs in the production environment, only from main, with the gate 
   for (const preview of ['stage-deploy.yml']) {
     assert.equal(
       workflow(preview).jobs.deploy.environment,
-      undefined,
-      "preview and staging environments are the maintainer's",
+      "${{ inputs.environment == 'staging' && 'staging' || '' }}",
+      "environments are the maintainer's: only `staging`, which the maintainer created, is named; a preview names none",
     );
   }
 });
@@ -243,8 +243,8 @@ test('api.yml: a phase push deploys staging only, never production, in one seria
   assert.doesNotMatch(text, /environment:\s*production/, 'no production environment in the caller');
   assert.equal(
     workflow('stage-deploy.yml').jobs.deploy.environment,
-    undefined,
-    'staging uses repository secrets',
+    "${{ inputs.environment == 'staging' && 'staging' || '' }}",
+    'staging reads the staging environment; a preview uses no environment',
   );
 });
 
