@@ -180,6 +180,29 @@ the production sampling ratio of the agent and the site stays at the default 10%
   sampling ratios were not changed by this note; reducing traces (78%) and logs (21%) is a separate decision, and the
   production endpoint stays on the 2026-11-20 decision below.
 
+**Agent and site bound (T12, 2026-11-24, staging `b6710f23`, the maintainer's field session).** With "Enviar
+diagnósticos" on, the agent exported **4 737 spans in 30 minutes** (22:10–22:40 UTC, two live rooms, the game open the
+whole time), counted in Tempo with `{ resource.service.name = "" } | count_over_time() by (name)`: `agent.vision.capture`
+1 228, `agent.vision.read` 1 227, `agent.vision.read-characters` 1 222, `agent.vision.read-chat` 729, `agent.heartbeat` and
+`agent.http.heartbeat` 123 each, `agent.vision.read-game-name` 39, `agent.vision.read-automap-name` 37, and 9 spans of the
+room path (assignment, ready check, stream, two observations, two run confirmations).
+
+- **Per player-hour, not per room.** The agent's spans come from its vision loop, which runs while the game is open, so
+  they scale with playing time: **9 474 spans per player-hour** at the staging ratio (100%), about **947** at the
+  production ratio (10%). The room path is under 0.2% of them.
+- **Bytes per span: an estimate.** The relay records no request size (no span attribute or metric carries it), so the
+  bytes per span are taken from the API's own wire figure above: 75 762 gzip bytes over 1 198 spans, **63 bytes per
+  span**. The agent batches its spans, so its real figure is probably lower; this is the conservative side.
+- **Site: 0 spans.** No span with a site service reached Tempo in the session (`resource.service.name` had only
+  `d2rmm-api` and the agent's empty name), so the site adds nothing measured.
+- **Sum (production ratio).** API 81 000 + agent 947 × 63 ≈ 59 900 + site 0 = **about 140 900 bytes per player-hour**;
+  × 100 players × 720 h ≈ 10.15 GB (9.45 GiB) a month, a **share of about 1.89** of the 5 GiB budget against the 0.10
+  limit (AD-128 not met; the agent is about 43% of it). At the staging ratio the agent alone would be about 599 000 bytes
+  per player-hour; staging is one tester, so it is not in the monthly figure.
+- **Defects seen while counting (for the next phase).** The agent's spans reach Tempo with an empty `service.name` (the
+  query above relies on it), and their trace ids show fewer than 32 hex digits, so the root is reported as "not yet
+  received".
+
 ### Where the telemetry bytes go (local profile, 2026-11-22, aa455127)
 
 The nightly's 81 000 bytes per player-hour (share 1.086) say how much, not what. This is the first split by span name,

@@ -80,7 +80,7 @@ Rules:
 
 ## Open
 
-- [ ] T12 — Bound the egress of the agent and the site (OBT-13, AD-128): the load journey measures the API's OTLP bytes
+- [x] T12 — Bound the egress of the agent and the site (OBT-13, AD-128): the load journey measures the API's OTLP bytes
       only. Measure spans per room from a staging trace sample (TraceQL count of agent and site spans per `d2r.room.id`),
       take the bytes per span from the relay's request sizes, and add rooms per player-hour × spans per room × bytes per
       span × the tier's sampling ratio to the API figure of `telemetryBytesPerPlayerHour`. Write the sum and the

@@ -34,7 +34,7 @@ figure, in JSON, and is out of date. The first re-measure with protobuf and gzip
 | Stream bytes per player-hour (`bytesPerPlayerHour`)                      | 413 916.83                       |
 | Within the egress budget (`withinEgressBudget`)                          | no                               |
 
-The share is a lower bound: the agent and site spans are not measured by the journey (task T12 of `observability-tiers`).
+The share is a lower bound: the agent and site spans are not measured by the journey. Task T12 of `observability-tiers` (2026-11-24) bounds them from a field session: the agent adds about 59 900 bytes per player-hour at the production ratio (947 spans × an estimated 63 bytes), the site 0, so the total is about 140 900 bytes per player-hour and the share about **1.89** (`docs/engineering/telemetry.md`, "Agent and site bound").
 See `telemetry.md` § "Egress must be re-measured".
 
 Telemetry is report-only in F0 (AD-128): a share above 0.10 does not fail the run. Reducing telemetry is a condition of setting `OTEL_EXPORTER_OTLP_ENDPOINT` in production.
