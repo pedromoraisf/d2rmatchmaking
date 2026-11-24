@@ -38,6 +38,10 @@ Raised by the maintainer on 2026-11-23: "entendo essa situação como um inciden
 4. **The runner cannot see secrets or environments** (the proxy blocks those API paths, by design). Each check went
    through the maintainer, one question at a time, and one blocked item sat in `decisions.md` for a day without a
    date to chase it.
+5. **The workflow never used the environment.** `stage-deploy`'s deploy job had no `environment:`, and a harness test
+   pinned that ("staging uses repository secrets"), so the settings the maintainer put in the environment `staging`
+   could never reach it. The orchestrator read `environment: staging` in the job log (an input value) as the job's
+   environment and sent the maintainer to the wrong place twice. Fixed by naming the environment for staging deploys.
 
 ## Actions
 
