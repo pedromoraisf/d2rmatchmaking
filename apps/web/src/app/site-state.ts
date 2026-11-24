@@ -37,6 +37,7 @@ export function shownRoom(view: RoomView): RoomShown {
       joinOrder: member.joinOrder,
       role: member.role,
       confirmed: member.confirmed ?? false,
+      elsewhere: member.elsewhere ?? false,
       class: member.class,
       level: member.level,
     })),
@@ -53,6 +54,7 @@ function withMarks(known: readonly RoomMemberShown[], listed: readonly Member[])
       joinOrder: member.joinOrder,
       role: member.role,
       confirmed: member.confirmed ?? false,
+      elsewhere: member.elsewhere ?? false,
       class: before?.class ?? null,
       level: before?.level ?? null,
     };

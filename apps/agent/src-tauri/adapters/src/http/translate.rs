@@ -3,7 +3,8 @@
 //! reaches the message type unchanged. The pure mapping lives here; the HTTP calls live in `gateway.rs`.
 
 use d2rmm_agent_core::messages::{
-    GameNameObservation, InvalidPairingCode, IssuedCode, PairingCode, Presence, Screen,
+    GameNameObservation, InvalidPairingCode, IssuedCode, OtherGameObservation, PairingCode,
+    PlayerKind, PlayerObservation, Presence, Screen,
 };
 use d2rmm_agent_domain::characters::{Card, Class, Difficulty, Mode};
 use d2rmm_agent_domain::room_assignment::{Assignment, GameName, Member, MemberRole, RoomId};
@@ -72,8 +73,8 @@ pub fn issued_code_from_contract(
     })
 }
 
-/// The heartbeat body of the contract: the agent version, the game state and the screen. The capture block says the agent
-/// captures nothing yet (F0), as the heartbeat has always sent it.
+/// The heartbeat body of the contract: the agent version, the game state and the screen. The capture block is the method of the last
+/// usable frame (`none` before one) and the usable share of the last looks (CAP-07).
 pub fn heartbeat_from_presence(
     presence: &Presence,
     version: &str,
@@ -82,7 +83,10 @@ pub fn heartbeat_from_presence(
         "agentVersion": version,
         "pcState": "IDLE",
         "game": { "running": presence.game_running, "window": "", "screen": screen_word(presence.screen) },
-        "capture": { "method": "none", "readRate": 0 },
+        "capture": {
+            "method": presence.capture.method_word(),
+            "readRate": f64::from(presence.capture.read_rate_percent) / 100.0,
+        },
     }))
 }
 
@@ -155,6 +159,40 @@ pub fn observation_to_contract(
     }))
 }
 
+/// A `PLAYER_JOINED_SEEN` or `PLAYER_LEFT_SEEN` observation in its contract shape. The domain checked the reading rule when it
+/// built the value (`PlayerObservation::of`), so a name that breaks it never reaches a body (SNM-06). The body holds the observation's own keys and nothing else.
+pub fn player_observation_to_contract(
+    value: &PlayerObservation,
+) -> Result<contract::Observation, serde_json::Error> {
+    let kind = match value.kind {
+        PlayerKind::Joined => "PLAYER_JOINED_SEEN",
+        PlayerKind::Left => "PLAYER_LEFT_SEEN",
+    };
+    serde_json::from_value(json!({
+        "idempotencyKey": value.key.to_string(),
+        "type": kind,
+        "run": value.run.get(),
+        "value": value.name(),
+        "confidence": value.confidence,
+        "capturedAt": value.captured_at,
+    }))
+}
+
+/// An `OTHER_GAME_SEEN` observation in its contract shape: the empty value, because the other game's name is never sent
+/// (ARL-09).
+pub fn other_game_observation_to_contract(
+    value: &OtherGameObservation,
+) -> Result<contract::Observation, serde_json::Error> {
+    serde_json::from_value(json!({
+        "idempotencyKey": value.key.to_string(),
+        "type": "OTHER_GAME_SEEN",
+        "run": value.run.get(),
+        "value": "",
+        "confidence": value.confidence,
+        "capturedAt": value.captured_at,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -170,7 +208,7 @@ mod tests {
     };
     use crate::contracts::generated as contract;
     use crate::contracts::schemas::SCHEMAS;
-    use d2rmm_agent_core::messages::{GameNameObservation, Presence, Screen};
+    use d2rmm_agent_core::messages::{CaptureReport, GameNameObservation, Presence, Screen};
     use d2rmm_agent_domain::characters::{Card, Class, Mode, Title};
     use d2rmm_agent_domain::room_assignment::{Member, MemberRole};
 
@@ -248,6 +286,7 @@ mod tests {
         let presence = Presence {
             game_running: true,
             screen: Screen::AutomapOpen,
+            capture: CaptureReport::default(),
         };
 
         let heartbeat = heartbeat_from_presence(&presence, "0.0.1").expect("a contract heartbeat");
@@ -267,6 +306,44 @@ mod tests {
     }
 
     #[test]
+    fn the_heartbeat_carries_the_capture_method_and_the_usable_share() {
+        use d2rmm_agent_domain::capture_cascade::CaptureMethod;
+        for (method, word) in [
+            (CaptureMethod::PrintWindow, "print-window"),
+            (CaptureMethod::GraphicsCapture, "graphics-capture"),
+            (CaptureMethod::ScreenCrop, "screen-crop"),
+        ] {
+            let presence = Presence {
+                game_running: true,
+                screen: Screen::InGame,
+                capture: CaptureReport {
+                    method: Some(method),
+                    read_rate_percent: 97,
+                },
+            };
+            let sent = serde_json::to_value(
+                heartbeat_from_presence(&presence, "0.0.1").expect("a contract heartbeat"),
+            )
+            .expect("the heartbeat serializes");
+            assert_eq!(sent["capture"]["method"], word);
+            assert_eq!(sent["capture"]["readRate"].as_f64(), Some(0.97));
+            assert!(schema("heartbeat.json").is_valid(&sent));
+        }
+        let full = Presence {
+            game_running: true,
+            screen: Screen::InGame,
+            capture: CaptureReport {
+                method: None,
+                read_rate_percent: 100,
+            },
+        };
+        let sent = serde_json::to_value(heartbeat_from_presence(&full, "0.0.1").expect("a body"))
+            .expect("serializes");
+        assert_eq!(sent["capture"]["readRate"].as_f64(), Some(1.0));
+        assert_eq!(sent["capture"]["method"], "none");
+    }
+
+    #[test]
     fn every_screen_is_sent_under_its_contract_word() {
         for (screen, word) in [
             (Screen::Unknown, "UNKNOWN"),
@@ -277,6 +354,7 @@ mod tests {
             let presence = Presence {
                 game_running: true,
                 screen,
+                capture: CaptureReport::default(),
             };
             let sent = serde_json::to_value(
                 heartbeat_from_presence(&presence, "0.0.1").expect("a contract heartbeat"),
@@ -332,6 +410,7 @@ mod tests {
         let presence = Presence {
             game_running: false,
             screen: Screen::Unknown,
+            capture: CaptureReport::default(),
         };
 
         let sent = serde_json::to_value(
@@ -406,6 +485,7 @@ mod tests {
         let presence = Presence {
             game_running: true,
             screen: Screen::Unknown,
+            capture: CaptureReport::default(),
         };
         let body = heartbeat_from_presence(&presence, "0.0.1").expect("a contract body");
         let sent = serde_json::to_value(&body).expect("the body serializes");
@@ -413,6 +493,52 @@ mod tests {
         assert_eq!(sent["game"]["running"].as_bool(), Some(true));
         assert_eq!(sent["agentVersion"], "0.0.1");
         assert!(heartbeat_from_presence(&presence, "not-a-version").is_err());
+    }
+
+    /// The keys a request body may carry are the contract's, and no more (AGT-05): a heartbeat and a batch of cards hold no
+    /// image, frame or free text beyond their fields.
+    #[test]
+    fn heartbeat_and_cards_carry_only_the_keys_of_their_contract() {
+        fn keys(value: &Value) -> BTreeSet<&str> {
+            value
+                .as_object()
+                .expect("an object")
+                .keys()
+                .map(String::as_str)
+                .collect()
+        }
+        let presence = Presence {
+            game_running: true,
+            screen: Screen::InGame,
+            capture: CaptureReport::default(),
+        };
+        let heartbeat = serde_json::to_value(
+            heartbeat_from_presence(&presence, "0.0.1").expect("a contract heartbeat"),
+        )
+        .expect("the heartbeat serializes");
+        assert_eq!(
+            keys(&heartbeat),
+            BTreeSet::from(["agentVersion", "capture", "game", "pcState"])
+        );
+        assert_eq!(
+            keys(&heartbeat["game"]),
+            BTreeSet::from(["running", "screen", "window"])
+        );
+        assert_eq!(
+            keys(&heartbeat["capture"]),
+            BTreeSet::from(["method", "readRate"])
+        );
+
+        let card =
+            Card::new("Sorc", Class::Sorceress, 85, Mode::Softcore, None).expect("the card builds");
+        let batch =
+            serde_json::to_value(characters_to_contract(&[card]).expect("a contract batch"))
+                .expect("the batch serializes");
+        assert_eq!(keys(&batch), BTreeSet::from(["characters"]));
+        assert_eq!(
+            keys(&batch["characters"][0]),
+            BTreeSet::from(["class", "hardcore", "level", "name", "unlockedDifficulties"])
+        );
     }
 
     /// A fused observation carries exactly the wire keys, the `GAME_NAME_SEEN` type and a body that matches its schema
@@ -454,5 +580,103 @@ mod tests {
             schema("observation.json").is_valid(&sent),
             "the body matches its schema"
         );
+    }
+
+    fn player(
+        kind: super::PlayerKind,
+        name: &str,
+    ) -> Result<super::PlayerObservation, d2rmm_agent_domain::player_observation::NameRefused> {
+        super::PlayerObservation::of(
+            kind,
+            Uuid::nil(),
+            NonZeroU64::new(3).expect("non-zero"),
+            Uuid::parse_str("6f9619ff-8b86-4011-b42d-00c04fc964ff").expect("a uuid"),
+            name,
+            0.75,
+            "2026-11-21T10:00:00Z"
+                .parse::<DateTime<Utc>>()
+                .expect("an instant"),
+        )
+    }
+
+    #[test]
+    fn an_other_game_body_has_the_type_and_an_empty_value() {
+        let observation = super::OtherGameObservation::of(
+            Uuid::from_u128(1),
+            NonZeroU64::MIN,
+            Uuid::from_u128(2),
+            1.0,
+            "2026-11-21T10:00:00Z"
+                .parse::<DateTime<Utc>>()
+                .expect("an instant"),
+        );
+        let body = serde_json::to_value(
+            super::other_game_observation_to_contract(&observation).expect("a body"),
+        )
+        .expect("json");
+        assert_eq!(body["type"], "OTHER_GAME_SEEN");
+        assert_eq!(body["value"], "");
+        assert_eq!(body["run"], 1);
+        assert_eq!(body.as_object().expect("an object").len(), 6);
+    }
+
+    #[test]
+    fn a_player_observation_body_holds_only_the_observation_keys() {
+        for (kind, word) in [
+            (super::PlayerKind::Joined, "PLAYER_JOINED_SEEN"),
+            (super::PlayerKind::Left, "PLAYER_LEFT_SEEN"),
+        ] {
+            let observation = player(kind, "Hammer").expect("a name");
+            let body = serde_json::to_value(
+                super::player_observation_to_contract(&observation).expect("a body"),
+            )
+            .expect("json");
+            let keys: BTreeSet<&str> = body
+                .as_object()
+                .expect("an object")
+                .keys()
+                .map(String::as_str)
+                .collect();
+            assert_eq!(
+                keys,
+                BTreeSet::from([
+                    "capturedAt",
+                    "confidence",
+                    "idempotencyKey",
+                    "run",
+                    "type",
+                    "value"
+                ])
+            );
+            assert_eq!(body["type"], word);
+            assert_eq!(body["value"], "Hammer");
+            assert_eq!(body["run"], 3);
+            assert_eq!(body["confidence"], 0.75);
+            assert_eq!(
+                body["idempotencyKey"],
+                "6f9619ff-8b86-4011-b42d-00c04fc964ff"
+            );
+            assert_eq!(body["capturedAt"], "2026-11-21T10:00:00Z");
+        }
+    }
+
+    #[test]
+    fn a_name_that_breaks_the_rule_never_becomes_a_body() {
+        // The domain refuses the name when it builds the observation, so no value reaches `player_observation_to_contract`.
+        for name in [
+            "",
+            "A",
+            "1Bob",
+            "Bob-",
+            "B-o_b",
+            "Bo b",
+            "Bob!",
+            "Abcdefghijklmnop",
+        ] {
+            assert!(player(super::PlayerKind::Joined, name).is_err(), "{name:?}");
+            assert!(!d2rmm_agent_domain::player_observation::is_player_name(
+                name
+            ));
+        }
     }
 }

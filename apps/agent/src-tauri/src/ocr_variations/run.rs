@@ -11,10 +11,17 @@ use d2rmm_agent_domain::language::LanguagePack;
 
 use super::catalogue::{DEFAULT_COMBOS, Variation, catalogue};
 use super::outcome::classify_image_detailed;
-use super::report::{Report, VariantResult};
+use super::popup_fields::{MemoReader, card_field_stats, lifted_card_field_stats};
+use super::report::{Report, VariantResult, short_name};
 #[cfg(test)]
 use crate::ocr_check::SCREENSHOTS;
-use crate::ocr_check::{folder_screenshots, read_screenshot};
+use crate::ocr_check::{MAINTAINER_CARDS, folder_screenshots, read_screenshot};
+
+/// The print whose card fields the report breaks down (the difficulty popup).
+/// The lifted diagnostic reads one variation in this many.
+const LIFT_EVERY: usize = 3;
+
+const POPUP_PRINT: &str = "maintainer-select-difficulty.png";
 
 /// The seed of the catalogue: fixed, so every run reads the same variations.
 pub const SEED: u64 = 20_261_118;
@@ -25,15 +32,61 @@ pub struct Options {
     pub combos: usize,
     pub summary: Option<PathBuf>,
     pub json: Option<PathBuf>,
+    /// `--shard i/n` (1-based): read only this shard's prints of the folder, so n jobs can split the run.
+    pub shard: Option<Shard>,
     pub folder: PathBuf,
 }
 
-/// Reads the arguments after the program name: `--variations [--combos N] [--summary <file>] [--json <file>] <folder>`.
+/// Shard `index` (1-based) of `count`: it reads the prints whose position in the sorted folder list is `index - 1` modulo
+/// `count`, so every print belongs to exactly one shard whatever the number of prints.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Shard {
+    pub index: usize,
+    pub count: usize,
+}
+
+impl Shard {
+    /// Reads `i/n` with `1 <= i <= n`.
+    pub fn parse(text: &str) -> Result<Shard, String> {
+        let bad = || format!("--shard {text:?} is not i/n with 1 <= i <= n");
+        let (index, count) = text.split_once('/').ok_or_else(bad)?;
+        let index: usize = index.parse().map_err(|_| bad())?;
+        let count: usize = count.parse().map_err(|_| bad())?;
+        if index == 0 || index > count {
+            return Err(bad());
+        }
+        Ok(Shard { index, count })
+    }
+
+    /// The names of this shard, in their order in `names`.
+    pub fn select(&self, names: &[String]) -> Vec<String> {
+        names
+            .iter()
+            .enumerate()
+            .filter(|(position, _)| position % self.count == self.index - 1)
+            .map(|(_, name)| name.clone())
+            .collect()
+    }
+}
+
+/// The `shard` entry of the JSON of a sharded run: which shard it is, every print the folder holds and the ones this shard
+/// read, so the merge can prove that the shards together read each print exactly once.
+pub fn shard_json(shard: Shard, folder_prints: &[String]) -> serde_json::Value {
+    serde_json::json!({
+        "index": shard.index,
+        "count": shard.count,
+        "folder_prints": folder_prints,
+        "assigned": shard.select(folder_prints),
+    })
+}
+
+/// Reads the arguments after the program name: `--variations [--combos N] [--shard i/n] [--summary <file>] [--json <file>] <folder>`.
 pub fn parse_args(args: &[String]) -> Result<Options, String> {
     let mut combos = DEFAULT_COMBOS;
     let mut summary = None;
     let mut json = None;
     let mut folder = None;
+    let mut shard = None;
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -50,6 +103,9 @@ pub fn parse_args(args: &[String]) -> Result<Options, String> {
             "--json" => {
                 json = Some(PathBuf::from(iter.next().ok_or("--json needs a file")?));
             }
+            "--shard" => {
+                shard = Some(Shard::parse(iter.next().ok_or("--shard needs i/n")?)?);
+            }
             flag if flag.starts_with("--") => return Err(format!("unknown option {flag}")),
             other => {
                 if folder.replace(PathBuf::from(other)).is_some() {
@@ -62,6 +118,7 @@ pub fn parse_args(args: &[String]) -> Result<Options, String> {
         combos,
         summary,
         json,
+        shard,
         folder: folder.ok_or("the folder with the five screenshots is missing")?,
     })
 }
@@ -76,6 +133,11 @@ pub fn run_images(
     combos: usize,
     progress: &mut dyn FnMut(&str),
 ) -> Report {
+    let pack = LanguagePack::english();
+    // Both the reading and the card-field diagnostic read through the memo: one OCR pass per frame.
+    let plain = Arc::clone(&reader);
+    let memo = Arc::new(MemoReader::new(reader));
+    let reader: Arc<dyn TextReader + Send + Sync> = memo.clone();
     let screens = ScreenReader::new(Arc::clone(&reader), Arc::new(LanguagePack::english()));
     let mut report = Report {
         seed,
@@ -85,10 +147,20 @@ pub fn run_images(
     for (name, image) in images {
         let started = Instant::now();
         let first = report.results.len();
-        for variation in variations {
+        for (index, variation) in variations.iter().enumerate() {
             let varied = variation.apply(image);
+            memo.next_frame();
             let (verdict, field_variants) =
                 classify_image_detailed(name, &*reader, &screens, &varied);
+            let card_fields = (name == POPUP_PRINT).then(|| {
+                let mut fields = card_field_stats(&*reader, &varied, &pack, &MAINTAINER_CARDS);
+                // A popup whose column read no card: what the column agrees on once lifted (every third variation, for the
+                // per-print time budget; the memo holds the plain frame's reads, so the lifted frame is read through the engine).
+                if fields.is_empty() && index % LIFT_EVERY == 0 {
+                    fields = lifted_card_field_stats(&*plain, &varied, &pack, &MAINTAINER_CARDS);
+                }
+                fields
+            });
             drop(varied);
             report.results.push(VariantResult {
                 screenshot: name.clone(),
@@ -96,6 +168,7 @@ pub fn run_images(
                 family: variation.family,
                 verdict,
                 field_variants,
+                card_fields,
             });
         }
         let seconds = started.elapsed().as_secs_f64();
@@ -107,6 +180,9 @@ pub fn run_images(
         };
         for line in this.family_lines(name) {
             progress(&line);
+        }
+        if let Some(line) = this.refusal_line(Some(name)) {
+            progress(&format!("  {} {line}", short_name(name)));
         }
         let all = this.totals(None);
         progress(&format!(
@@ -120,19 +196,38 @@ pub fn run_images(
     report
 }
 
+/// The prints a run reads: all of the folder's, or the shard's share of the ones that are there. The share is taken over the
+/// files present (sorted), so the shards partition them even when a known name is missing.
+fn shard_names(dir: &Path, shard: Option<Shard>) -> Vec<String> {
+    let all = folder_screenshots(dir);
+    match shard {
+        None => all,
+        Some(shard) => shard.select(&present_prints(dir)),
+    }
+}
+
+/// The prints of the folder that exist as files, in the order `folder_screenshots` lists them.
+pub fn present_prints(dir: &Path) -> Vec<String> {
+    folder_screenshots(dir)
+        .into_iter()
+        .filter(|name| dir.join(name).is_file())
+        .collect()
+}
+
 /// Reads the five screenshots of `dir`, decodes each once and runs the catalogue over it. A screenshot that is missing or
 /// does not decode is named in the log and skipped. Returns the report; the caller writes the summary and the JSON.
 pub fn run_folder(
     dir: &Path,
     reader: Arc<dyn TextReader + Send + Sync>,
     combos: usize,
+    shard: Option<Shard>,
     progress: &mut dyn FnMut(&str),
 ) -> Result<Report, String> {
     if !dir.is_dir() {
         return Err(format!("{} is not a folder", dir.display()));
     }
     let mut images = Vec::new();
-    for name in folder_screenshots(dir) {
+    for name in shard_names(dir, shard) {
         let path = dir.join(&name);
         match read_screenshot(&path) {
             Ok(image) => images.push((name, image)),
@@ -161,7 +256,11 @@ pub fn write_outputs(report: &Report, options: &Options) -> Result<(), String> {
             .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
     }
     if let Some(path) = &options.json {
-        let text = serde_json::to_string_pretty(&report.json())
+        let mut value = report.json();
+        if let Some(shard) = options.shard {
+            value["shard"] = shard_json(shard, &present_prints(&options.folder));
+        }
+        let text = serde_json::to_string_pretty(&value)
             .map_err(|error| format!("cannot encode the JSON: {error}"))?;
         std::fs::write(path, text)
             .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
@@ -191,6 +290,7 @@ mod tests {
                 combos: DEFAULT_COMBOS,
                 summary: None,
                 json: None,
+                shard: None,
                 folder: PathBuf::from("folder"),
             }
         );
@@ -202,6 +302,8 @@ mod tests {
             "s.md",
             "--json",
             "j.json",
+            "--shard",
+            "2/5",
             "dir",
         ]))
         .unwrap();
@@ -209,6 +311,61 @@ mod tests {
         assert_eq!(options.summary, Some(PathBuf::from("s.md")));
         assert_eq!(options.json, Some(PathBuf::from("j.json")));
         assert_eq!(options.folder, PathBuf::from("dir"));
+        assert_eq!(options.shard, Some(Shard { index: 2, count: 5 }));
+    }
+
+    fn names(count: usize) -> Vec<String> {
+        (0..count).map(|n| format!("print-{n:02}.png")).collect()
+    }
+
+    #[test]
+    fn a_shard_is_i_over_n_with_i_in_one_to_n() {
+        assert_eq!(Shard::parse("1/1").unwrap(), Shard { index: 1, count: 1 });
+        assert_eq!(Shard::parse("8/8").unwrap(), Shard { index: 8, count: 8 });
+        for bad in ["0/3", "4/3", "1", "a/3", "1/b", "1/0", "", "1/2/3", "-1/3"] {
+            let error = Shard::parse(bad).unwrap_err();
+            assert!(error.contains("is not i/n"), "{bad}: {error}");
+        }
+    }
+
+    #[test]
+    fn the_shards_split_the_sorted_list_round_robin_and_cover_it_once() {
+        let all = names(19);
+        let pick = |index| Shard { index, count: 8 }.select(&all);
+        assert_eq!(
+            pick(1),
+            vec!["print-00.png", "print-08.png", "print-16.png"]
+        );
+        assert_eq!(
+            pick(3),
+            vec!["print-02.png", "print-10.png", "print-18.png"]
+        );
+        assert_eq!(pick(4), vec!["print-03.png", "print-11.png"]);
+        assert_eq!(pick(8), vec!["print-07.png", "print-15.png"]);
+        let mut joined: Vec<String> = (1..=8).flat_map(pick).collect();
+        joined.sort();
+        assert_eq!(joined, all);
+        // One shard of one is the whole list; more shards than prints leaves the last ones empty.
+        assert_eq!(Shard { index: 1, count: 1 }.select(&all), all);
+        let few = names(2);
+        assert!(Shard { index: 3, count: 4 }.select(&few).is_empty());
+        assert_eq!(
+            Shard { index: 2, count: 4 }.select(&few),
+            vec!["print-01.png"]
+        );
+    }
+
+    #[test]
+    fn the_shard_entry_of_the_json_names_the_folder_and_the_share() {
+        let all = names(5);
+        let value = shard_json(Shard { index: 2, count: 3 }, &all);
+        assert_eq!(value["index"], 2);
+        assert_eq!(value["count"], 3);
+        assert_eq!(value["folder_prints"], serde_json::json!(all));
+        assert_eq!(
+            value["assigned"],
+            serde_json::json!(["print-01.png", "print-04.png"])
+        );
     }
 
     #[test]
@@ -219,6 +376,8 @@ mod tests {
             (vec!["--variations", "--combos", "x", "d"], "not a number"),
             (vec!["--variations", "--summary"], "needs a file"),
             (vec!["--variations", "--json"], "needs a file"),
+            (vec!["--variations", "--shard"], "needs i/n"),
+            (vec!["--variations", "--shard", "0/2", "d"], "is not i/n"),
             (vec!["--variations", "--nope", "d"], "unknown option"),
             (vec!["--variations", "a", "b"], "only one folder"),
         ] {
@@ -318,8 +477,13 @@ mod tests {
         assert_eq!(report.elapsed.len(), 3);
         assert_eq!(
             lines.len(),
-            3 * 2,
-            "a family line and a total line per screenshot: {lines:?}"
+            3 * 3,
+            "a family line, a refusal-reason line and a total line per screenshot: {lines:?}"
+        );
+        assert!(
+            lines.iter().any(|line| line
+                == "  party-revealed refused: blank-read-as-masked 2, unsupported-size 1"),
+            "{lines:?}"
         );
         assert!(
             lines
@@ -344,6 +508,7 @@ mod tests {
             combos: 0,
             summary: Some(dir.join("s.md")),
             json: Some(dir.join("j.json")),
+            shard: None,
             folder: dir.clone(),
         };
         let report = Report::default();
@@ -356,6 +521,20 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(dir.join("j.json")).unwrap()).unwrap();
         assert_eq!(json["totals"]["wrong"], 0);
+        assert!(
+            json.get("shard").is_none(),
+            "an unsharded run has no shard entry"
+        );
+        let sharded = Options {
+            shard: Some(Shard { index: 1, count: 2 }),
+            ..options.clone()
+        };
+        write_outputs(&report, &sharded).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(dir.join("j.json")).unwrap()).unwrap();
+        assert_eq!(json["shard"]["index"], 1);
+        assert_eq!(json["shard"]["count"], 2);
+        assert_eq!(json["shard"]["folder_prints"], serde_json::json!([]));
         let missing = Options {
             summary: Some(dir.join("no-such-dir").join("s.md")),
             json: None,
@@ -370,11 +549,33 @@ mod tests {
     }
 
     #[test]
+    fn a_shard_takes_its_share_of_the_files_that_are_there() {
+        let dir =
+            std::env::temp_dir().join(format!("d2rmm-variations-shard-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // Only the 1st, 3rd and 4th known prints exist: the missing ones take no place in the split.
+        for index in [0, 2, 3] {
+            std::fs::write(dir.join(SCREENSHOTS[index]), b"x").unwrap();
+        }
+        let present = present_prints(&dir);
+        assert_eq!(
+            present,
+            vec![SCREENSHOTS[0], SCREENSHOTS[2], SCREENSHOTS[3]]
+        );
+        let first = shard_names(&dir, Some(Shard { index: 1, count: 2 }));
+        let second = shard_names(&dir, Some(Shard { index: 2, count: 2 }));
+        assert_eq!(first, vec![SCREENSHOTS[0], SCREENSHOTS[3]]);
+        assert_eq!(second, vec![SCREENSHOTS[2]]);
+        assert_eq!(shard_names(&dir, None).len(), SCREENSHOTS.len());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn a_folder_that_is_not_one_is_an_error_and_missing_files_are_skipped() {
         let mut lines = Vec::new();
         let reader: Arc<dyn TextReader + Send + Sync> = Arc::new(MaskedPartyReader);
         let missing = std::env::temp_dir().join("d2rmm-no-such-variations-folder");
-        let error = run_folder(&missing, Arc::clone(&reader), 0, &mut |l| {
+        let error = run_folder(&missing, Arc::clone(&reader), 0, None, &mut |l| {
             lines.push(l.to_string())
         })
         .unwrap_err();
@@ -382,7 +583,8 @@ mod tests {
         let empty =
             std::env::temp_dir().join(format!("d2rmm-variations-empty-{}", std::process::id()));
         std::fs::create_dir_all(&empty).unwrap();
-        let report = run_folder(&empty, reader, 0, &mut |l| lines.push(l.to_string())).unwrap();
+        let report =
+            run_folder(&empty, reader, 0, None, &mut |l| lines.push(l.to_string())).unwrap();
         std::fs::remove_dir(&empty).unwrap();
         assert!(report.results.is_empty());
         assert_eq!(

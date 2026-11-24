@@ -3,19 +3,28 @@
 #![forbid(unsafe_code)]
 
 pub mod anchors;
+pub mod capture_cascade;
+pub mod capture_geometry;
 pub mod character_screen;
 pub mod characters;
+pub mod chat;
 pub mod frame_content;
 pub mod fusion;
 pub mod game_name_match;
+pub mod hotkey;
+pub mod hud_track;
 pub mod language;
 pub mod layout;
 pub mod name_diff;
 pub mod observation_retry;
+pub mod other_game;
 pub mod paired_device;
 pub mod pairing;
+pub mod player_observation;
+pub mod post_bucket;
 pub mod presence;
 pub mod reconnect;
+pub mod remote_config;
 pub mod room_assignment;
 pub mod timings;
 pub mod vision;

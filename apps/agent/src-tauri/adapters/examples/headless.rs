@@ -7,21 +7,26 @@
 //! the event `code`, `paired`, `assignment`, `observed`, `reveal` or `assignment`. Input, one command per line: `read` calls
 //! `Handle::read_once` once for the room the agent holds; `show <png>` makes the agent capture that picture from now on, with
 //! its sidecar `<png>.json` as the text of its regions (CHR-04, CHR-06, CHR-18); `consent on|off` gives or withdraws the
-//! player's consent in the agent's window (CHR-01). The composition runs in `run`, over injected input and output; `main`
+//! player's consent in the agent's window (CHR-01); `capture print|graphics good|black|failed` scripts how a capture method
+//! answers and `minimize on|off` minimizes the game window (capture-cascade); a `capture` event prints when the window's
+//! capture method or reason changes. The composition runs in `run`, over injected input and output; `main`
 //! wraps it over stdin and stdout. The server trusts the token and nothing else (ADR 010): this process only sends data.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use chrono::{DateTime, Utc};
 use d2rmm_agent_adapters::config::{AllowLoopbackHttp, ApiBase};
+use d2rmm_agent_adapters::config_store::FileConfigStore;
 use d2rmm_agent_adapters::http::api_client::ApiClient;
 use d2rmm_agent_adapters::http::client::client;
 use d2rmm_agent_adapters::http::gateway::HttpGateway;
+use d2rmm_agent_adapters::remote_config::WireReader;
 use d2rmm_agent_adapters::telemetry::relay_client::HeaderSource;
 use d2rmm_agent_adapters::telemetry::{self, ExportConfig, Mode, TelemetryGuard};
+use d2rmm_agent_core::capturer::Capturer;
 use d2rmm_agent_core::config::Config;
 use d2rmm_agent_core::fakes::{MemoryTokens, NoConsent, NoFrames, NoUpdates};
 use d2rmm_agent_core::groups::{
@@ -29,17 +34,22 @@ use d2rmm_agent_core::groups::{
 };
 use d2rmm_agent_core::messages::{GameNameObservation, IssuedCode, Presence};
 use d2rmm_agent_core::ports::{
-    ApiError, ApiGateway, ConsentStore, EventStream, FrameSource, ProcessSource, ReadError, Rgba,
-    SequentialIds, StateSink, StoreError, TextReader, TokenStore, WallClock,
+    ApiError, ApiGateway, ConsentStore, EventStream, FrameSource, MethodSource, Miss,
+    ProcessSource, ReadError, Rgba, SequentialIds, StateSink, StoreError, TextReader, TokenStore,
+    WallClock,
 };
+use d2rmm_agent_core::remote_config::{CHECK_EVERY, ConfigPorts, Outcome};
 use d2rmm_agent_core::runtime::{Handle, Runtime};
 use d2rmm_agent_core::screen_reader::ScreenReader;
 use d2rmm_agent_core::secret::Secret;
 use d2rmm_agent_core::view::{AgentView, PairingView, RoomView};
+use d2rmm_agent_domain::capture_cascade::CaptureMethod;
+use d2rmm_agent_domain::capture_geometry::{crop_rgba, crop_to_client};
 use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::layout::{
     PanelRegion, ScreenRegion, panel_region, screen_region, screen_text_regions,
 };
+use d2rmm_agent_domain::remote_config::Effective;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use serde_json::{Value, json};
@@ -91,6 +101,27 @@ impl StateSink for Lines {
         if view.pairing == PairingView::Paired && !was_paired {
             let _ = self.events.send(json!({ "event": "paired" }));
         }
+        // The agent holds a ready check (RDY-07): the hotkey answers only a check it holds, so a press before this line
+        // is dropped. The acceptance step waits for the line before it presses.
+        let check_before = before
+            .as_ref()
+            .is_some_and(|previous| previous.ready_check_open);
+        if view.ready_check_open && !check_before {
+            let _ = self.events.send(json!({ "event": "ready-check" }));
+        }
+        // The capture lines of the window (capture-cascade CAP-02, CAP-07): printed when the method or the reason changes.
+        let capture_of = |view: &AgentView| {
+            view.capture
+                .as_ref()
+                .map(|capture| (capture.method, capture.reason))
+        };
+        if let Some((method, reason)) =
+            capture_of(&view).filter(|now| Some(*now) != before.as_ref().and_then(capture_of))
+        {
+            let _ = self
+                .events
+                .send(json!({ "event": "capture", "method": method, "reason": reason }));
+        }
         let hinted =
             |room: Option<&RoomView>| room.is_some_and(|room| room.needs_reveal && !room.matched);
         if hinted(view.room.as_ref())
@@ -99,6 +130,35 @@ impl StateSink for Lines {
             let _ = self
                 .events
                 .send(json!({ "event": "reveal", "text": REVEAL_TEXT }));
+        }
+        // The window drops the room line when the room ends (ARL-01) and says "presence confirmed" once the API accepts the
+        // run (ARL-03): the acceptance scenarios read both here.
+        let held_before = before.as_ref().and_then(|previous| previous.room.as_ref());
+        if held_before.is_some() && view.room.is_none() {
+            let _ = self.events.send(json!({ "event": "room-dropped" }));
+        }
+        if view.room.as_ref().is_some_and(|room| room.confirmed)
+            && !held_before.is_some_and(|room| room.confirmed)
+        {
+            let _ = self.events.send(json!({ "event": "presence-confirmed" }));
+        }
+        // The window's room line, by state, when it changes (ARL-03, ARL-08): `waiting`, `confirmed` or `elsewhere`. No name.
+        let line_of = |room: Option<&RoomView>| {
+            room.map(|room| {
+                if room.elsewhere {
+                    "elsewhere"
+                } else if room.confirmed {
+                    "confirmed"
+                } else {
+                    "waiting"
+                }
+            })
+        };
+        let line = line_of(view.room.as_ref());
+        if line.is_some() && line != line_of(held_before) {
+            let _ = self
+                .events
+                .send(json!({ "event": "room-line", "line": line }));
         }
         if let Some(room) = &view.room {
             let held = before.as_ref().and_then(|previous| previous.room.as_ref());
@@ -147,6 +207,30 @@ impl ApiGateway for Reporting {
         let result = self.inner.post_observation(token, observation).await;
         if result.is_ok() {
             let _ = self.events.send(json!({ "event": "observed" }));
+        }
+        result
+    }
+
+    async fn post_player_observation(
+        &self,
+        token: &Secret,
+        observation: &d2rmm_agent_core::messages::PlayerObservation,
+    ) -> Result<(), ApiError> {
+        let result = self.inner.post_player_observation(token, observation).await;
+        if result.is_ok() {
+            let _ = self.events.send(json!({ "event": "chat-observed" }));
+        }
+        result
+    }
+
+    async fn post_other_game(
+        &self,
+        token: &Secret,
+        observation: &d2rmm_agent_core::messages::OtherGameObservation,
+    ) -> Result<(), ApiError> {
+        let result = self.inner.post_other_game(token, observation).await;
+        if result.is_ok() {
+            let _ = self.events.send(json!({ "event": "elsewhere-observed" }));
         }
         result
     }
@@ -298,7 +382,7 @@ fn sidecar_lines(sidecar: &Path, image: &Rgba) -> Vec<TextLine> {
             screen_region(screen, image.width, image.height)?,
         ))
     });
-    panels
+    let keyed = panels
         .chain(screens)
         .filter(|(key, _)| !MARKER_KEYS.contains(&key.as_str()))
         .filter_map(|(key, region)| {
@@ -307,8 +391,27 @@ fn sidecar_lines(sidecar: &Path, image: &Rgba) -> Vec<TextLine> {
                 text: text.to_string(),
                 region,
             })
-        })
-        .collect()
+        });
+    // The lines a sidecar draws at their own boxes (`"lines": [{ "text", "x", "y", "width", "height" }]`, the shape of the
+    // full-screen and per-mode fixtures): the screens the fixed regions do not reach, read by the word search.
+    let boxed = value
+        .get("lines")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|line| {
+            let number = |key: &str| u32::try_from(line.get(key)?.as_u64()?).ok();
+            Some(TextLine {
+                text: line.get("text")?.as_str()?.to_string(),
+                region: Region {
+                    x: number("x")?,
+                    y: number("y")?,
+                    width: number("width")?,
+                    height: number("height")?,
+                },
+            })
+        });
+    keyed.chain(boxed).collect()
 }
 
 fn holds(area: Region, line: &TextLine) -> bool {
@@ -350,13 +453,136 @@ impl TextReader for ShownText {
     }
 }
 
-/// The frame the example captures: the shown picture, or none before the first `show` (the game window is not there).
-struct ShownFrame(SharedShot);
+/// What a scripted capture method returns (the `capture` input lines): the shown frame, a black frame of its size, or none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Behaviour {
+    Good,
+    Black,
+    Failed,
+}
 
-impl FrameSource for ShownFrame {
-    fn capture(&self) -> Option<Rgba> {
-        let shown = self.0.lock().ok()?;
-        shown.as_ref().map(|shot| shot.frame.clone())
+impl Behaviour {
+    const fn code(self) -> u8 {
+        match self {
+            Self::Good => 0,
+            Self::Black => 1,
+            Self::Failed => 2,
+        }
+    }
+
+    const fn from_code(code: u8) -> Self {
+        match code {
+            1 => Self::Black,
+            2 => Self::Failed,
+            _ => Self::Good,
+        }
+    }
+}
+
+/// How the scripted game window behaves, switched by the `capture` and `minimize` input lines.
+#[derive(Default)]
+pub struct Script {
+    print_window: AtomicU8,
+    graphics_capture: AtomicU8,
+    minimized: AtomicBool,
+}
+
+impl Script {
+    fn behaviour_of(&self, method: CaptureMethod) -> Behaviour {
+        let slot = match method {
+            CaptureMethod::PrintWindow => &self.print_window,
+            _ => &self.graphics_capture,
+        };
+        Behaviour::from_code(slot.load(Ordering::SeqCst))
+    }
+
+    fn set(&self, method: CaptureMethod, behaviour: Behaviour) {
+        let slot = match method {
+            CaptureMethod::PrintWindow => &self.print_window,
+            _ => &self.graphics_capture,
+        };
+        slot.store(behaviour.code(), Ordering::SeqCst);
+    }
+}
+
+/// The client area a sidecar names: `client` (a rectangle inside a frame that holds a title bar), which the capture crops to,
+/// or `clientSize` (what the window reports, with the frame left as it is, so a frame of another size is refused).
+fn client_of(sidecar: &Value) -> Option<((u32, u32), (u32, u32))> {
+    let number = |value: &Value, key: &str| u32::try_from(value.get(key)?.as_u64()?).ok();
+    if let Some(client) = sidecar.get("client") {
+        return Some((
+            (number(client, "x")?, number(client, "y")?),
+            (number(client, "width")?, number(client, "height")?),
+        ));
+    }
+    let size = sidecar.get("clientSize")?;
+    Some(((0, 0), (number(size, "width")?, number(size, "height")?)))
+}
+
+/// The capture methods of the example, scripted: both return the shown picture (cropped to its client area when the sidecar
+/// names one), a black frame or nothing, as the `capture` lines say. No picture shown, or a minimized window, is no game window.
+struct ScriptedMethods {
+    shared: SharedShot,
+    script: std::sync::Arc<Script>,
+}
+
+impl ScriptedMethods {
+    fn sidecar_value(&self) -> Option<Value> {
+        let shown = self.shared.lock().ok()?;
+        let text = std::fs::read_to_string(&shown.as_ref()?.sidecar).ok()?;
+        serde_json::from_str(&text).ok()
+    }
+}
+
+impl MethodSource for ScriptedMethods {
+    fn methods(&self) -> Vec<CaptureMethod> {
+        vec![CaptureMethod::PrintWindow, CaptureMethod::GraphicsCapture]
+    }
+
+    fn capture_with(&self, method: CaptureMethod) -> Result<Rgba, Miss> {
+        if self.script.minimized.load(Ordering::SeqCst) {
+            return Err(Miss::NoWindow);
+        }
+        let shown = self.shared.lock().map_err(|_| Miss::Failed)?;
+        let frame = shown.as_ref().ok_or(Miss::NoWindow)?.frame.clone();
+        drop(shown);
+        // A sidecar with a `client` rectangle describes a frame that holds a title bar: the capture keeps the client area only.
+        let sidecar = self.sidecar_value();
+        let frame = match sidecar
+            .as_ref()
+            .filter(|sidecar| sidecar.get("client").is_some())
+        {
+            Some(sidecar) => {
+                let (offset, size) = client_of(sidecar).ok_or(Miss::Failed)?;
+                let rect = crop_to_client((frame.width, frame.height), offset, size)
+                    .ok_or(Miss::Failed)?;
+                Rgba {
+                    width: rect.width,
+                    height: rect.height,
+                    pixels: crop_rgba(&frame.pixels, frame.width, rect).ok_or(Miss::Failed)?,
+                }
+            }
+            None => frame,
+        };
+        match self.script.behaviour_of(method) {
+            Behaviour::Good => Ok(frame),
+            Behaviour::Black => Ok(Rgba {
+                pixels: vec![0; frame.pixels.len()],
+                ..frame
+            }),
+            Behaviour::Failed => Err(Miss::Failed),
+        }
+    }
+
+    fn client_size(&self) -> Option<(u32, u32)> {
+        // The sidecar's client rectangle or reported client size, else the shown picture's own size (a window with no title bar).
+        if let Some((_, size)) = self.sidecar_value().as_ref().and_then(client_of) {
+            return Some(size);
+        }
+        let shown = self.shared.lock().ok()?;
+        shown
+            .as_ref()
+            .map(|shot| (shot.frame.width, shot.frame.height))
     }
 }
 
@@ -380,6 +606,7 @@ enum ScreenMode {
     Screens {
         shared: SharedShot,
         consent: std::sync::Arc<AtomicBool>,
+        script: std::sync::Arc<Script>,
     },
 }
 
@@ -389,6 +616,10 @@ pub enum Command {
     Read,
     Show(PathBuf),
     Consent(bool),
+    /// `capture print|graphics good|black|failed`: how a capture method answers from now on (capture-cascade).
+    Capture(CaptureMethod, Behaviour),
+    /// `minimize on|off`: the game window is minimized, or back.
+    Minimize(bool),
     Other,
 }
 
@@ -401,7 +632,24 @@ pub fn parse_command(line: &str) -> Command {
     if let Some(path) = line.strip_prefix("show ") {
         return Command::Show(PathBuf::from(path.trim()));
     }
+    if let Some(rest) = line.strip_prefix("capture ") {
+        let mut words = rest.split_whitespace();
+        let method = match words.next() {
+            Some("print") => CaptureMethod::PrintWindow,
+            Some("graphics") => CaptureMethod::GraphicsCapture,
+            _ => return Command::Other,
+        };
+        let behaviour = match words.next() {
+            Some("good") => Behaviour::Good,
+            Some("black") => Behaviour::Black,
+            Some("failed") => Behaviour::Failed,
+            _ => return Command::Other,
+        };
+        return Command::Capture(method, behaviour);
+    }
     match line {
+        "minimize on" => Command::Minimize(true),
+        "minimize off" => Command::Minimize(false),
         "consent on" => Command::Consent(true),
         "consent off" => Command::Consent(false),
         _ => Command::Other,
@@ -433,6 +681,11 @@ struct Arguments {
     agent_version: String,
     /// The player has given capture consent before the run starts (`--consent`, CHR-01).
     consent: bool,
+    /// Where the last good remote configuration is kept (`--config-dir`, remote-config RCF-06). Without it the example runs
+    /// no configuration loop.
+    config_dir: Option<PathBuf>,
+    /// The interval between fetches of the configuration (`--config-every-ms`; six hours in the product).
+    config_every: Duration,
 }
 
 fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
@@ -441,6 +694,8 @@ fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
     let mut party = false;
     let mut agent_version = None;
     let mut consent = false;
+    let mut config_dir = None;
+    let mut config_every = CHECK_EVERY;
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
         if flag == "--consent" {
@@ -451,6 +706,13 @@ fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
         match flag.as_str() {
             "--api-base" => api_base = Some(value.clone()),
             "--agent-version" => agent_version = Some(value.clone()),
+            "--config-dir" => config_dir = Some(PathBuf::from(value)),
+            "--config-every-ms" => {
+                let millis: u64 = value
+                    .parse()
+                    .map_err(|_| format!("--config-every-ms needs a whole number, not {value}"))?;
+                config_every = Duration::from_millis(millis);
+            }
             "--read-fixture" => fixture = Some(PathBuf::from(value)),
             "--party-fixture" => {
                 fixture = Some(PathBuf::from(value));
@@ -465,6 +727,8 @@ fn parse_arguments(args: &[String]) -> Result<Arguments, String> {
         party,
         agent_version: agent_version.unwrap_or_else(|| VERSION.to_string()),
         consent,
+        config_dir,
+        config_every,
     })
 }
 
@@ -500,6 +764,7 @@ fn start(
     mode: ScreenMode,
     version: &str,
     events: UnboundedSender<Value>,
+    remote_config: Option<(PathBuf, Duration)>,
 ) -> Result<(Handle<Reporting>, TelemetryGuard), String> {
     let base = api_base.url().as_str().trim_end_matches('/').to_string();
     // The F0 read path reads the sidecar text. The screen mode captures the shown frames with the player's consent and reads
@@ -515,9 +780,17 @@ fn start(
             std::sync::Arc::new(NoConsent),
             std::sync::Arc::new(Sidecar(String::new())),
         ),
-        ScreenMode::Screens { shared, consent } => (
+        ScreenMode::Screens {
+            shared,
+            consent,
+            script,
+        } => (
             std::sync::Arc::new(ShownText(std::sync::Arc::clone(&shared))),
-            std::sync::Arc::new(ShownFrame(std::sync::Arc::clone(&shared))),
+            // The screen loop captures through the cascade, over the scripted methods (capture-cascade).
+            std::sync::Arc::new(Capturer::new(ScriptedMethods {
+                shared: std::sync::Arc::clone(&shared),
+                script,
+            })),
             std::sync::Arc::new(SwitchConsent(consent)),
             std::sync::Arc::new(ShownText(shared)),
         ),
@@ -538,6 +811,8 @@ fn start(
         ratio: EXPORT_RATIO,
         agent_version: version.to_string(),
         environment: "headless".to_string(),
+        tier: telemetry::TelemetryTier::Full,
+        switch: telemetry::DiagnosticsSwitch::on(),
     };
     let guard = telemetry::init(Mode::Release, Some(export)).map_err(|error| error.to_string())?;
 
@@ -584,7 +859,7 @@ fn start(
                 language: std::sync::Arc::new(d2rmm_agent_domain::language::LanguagePack::english()),
             },
             gateway,
-            tokens,
+            tokens: std::sync::Arc::clone(&tokens),
             processes: std::sync::Arc::new(GameOpen),
             frames,
             reader: screen_reader,
@@ -598,7 +873,27 @@ fn start(
         events,
         last: Mutex::new(None),
     });
-    Ok((Runtime::start(&config, sink, groups), guard))
+    let handle = Runtime::start(&config, sink, groups);
+    // The remote configuration loop (remote-config RCF-04): the agent's own API, the token it holds and the last good body in
+    // the directory the scenario names. Without a directory the example runs no loop.
+    let handle = match remote_config {
+        None => handle,
+        Some((directory, every)) => {
+            let http = client(api_base).map_err(|error| error.to_string())?;
+            handle.with_config(
+                ConfigPorts {
+                    gateway: std::sync::Arc::new(HttpGateway::new(ApiClient::new(
+                        version, api_base, http,
+                    ))),
+                    tokens: std::sync::Arc::clone(&tokens),
+                    store: std::sync::Arc::new(FileConfigStore::in_directory(Some(directory))),
+                    reader: std::sync::Arc::new(WireReader),
+                },
+                every,
+            )
+        }
+    };
+    Ok((handle, guard))
 }
 
 /// Writes each event as one line, until every sender is gone or the output fails.
@@ -624,6 +919,7 @@ where
     let frame = decode_png(&arguments.fixture).map_err(|message| failure(1, message))?;
     let shared: SharedShot = std::sync::Arc::new(Mutex::new(None));
     let consent = std::sync::Arc::new(AtomicBool::new(arguments.consent));
+    let script = std::sync::Arc::new(Script::default());
     let mode = if arguments.party {
         // The first frame is the fixture picture, shown from the start; `show <png>` replaces it.
         *shared
@@ -635,6 +931,7 @@ where
         ScreenMode::Screens {
             shared: std::sync::Arc::clone(&shared),
             consent: std::sync::Arc::clone(&consent),
+            script: std::sync::Arc::clone(&script),
         }
     } else {
         let sidecar = std::fs::read_to_string(sidecar_path(&arguments.fixture))
@@ -646,8 +943,22 @@ where
 
     let (events, received) = mpsc::unbounded_channel();
     let writer = tokio::spawn(write_lines(output, received));
-    let (handle, guard) = start(&api_base, mode, &arguments.agent_version, events)
-        .map_err(|message| failure(1, message))?;
+    let config_events = events.clone();
+    let (handle, guard) = start(
+        &api_base,
+        mode,
+        &arguments.agent_version,
+        events,
+        arguments
+            .config_dir
+            .clone()
+            .map(|directory| (directory, arguments.config_every)),
+    )
+    .map_err(|message| failure(1, message))?;
+    let handle = std::sync::Arc::new(handle);
+    if arguments.config_dir.is_some() {
+        report_configuration(&handle, &config_events);
+    }
 
     let mut lines = BufReader::new(input).lines();
     while let Some(line) = lines
@@ -669,6 +980,8 @@ where
                 Err(message) => eprintln!("{message}"),
             },
             Command::Consent(given) => consent.store(given, Ordering::SeqCst),
+            Command::Capture(method, behaviour) => script.set(method, behaviour),
+            Command::Minimize(minimized) => script.minimized.store(minimized, Ordering::SeqCst),
             Command::Other => {}
         }
         // The agent's accept hotkey (RDY-07): the same accept path the Tauri global shortcut takes.
@@ -679,6 +992,37 @@ where
     let _ = guard.shutdown();
     writer.abort();
     Ok(())
+}
+
+/// One line per fetch of the remote configuration: `{"event":"config","version":<n>,"outcome":"…","probeEvery":<n>,
+/// "phrases":"built-in|configured"}`. A last good body applied at start prints its line at once, with no fetch behind it, so a
+/// restart with the API gone still says which version runs (RCF-06, RCF-08).
+fn report_configuration(
+    handle: &std::sync::Arc<Handle<Reporting>>,
+    events: &UnboundedSender<Value>,
+) {
+    let held = handle.config();
+    if held.version > 0 {
+        let _ = events.send(config_line(&held, Outcome::Applied));
+    }
+    let (handle, events) = (std::sync::Arc::clone(handle), events.clone());
+    tokio::spawn(async move {
+        let mut fetches = handle.config_fetches();
+        while fetches.changed().await.is_ok() {
+            let outcome = fetches.borrow_and_update().outcome;
+            let _ = events.send(config_line(&handle.config(), outcome));
+        }
+    });
+}
+
+fn config_line(effective: &Effective, outcome: Outcome) -> Value {
+    json!({
+        "event": "config",
+        "version": effective.version,
+        "outcome": outcome.word(),
+        "probeEvery": effective.cadence.probe_every,
+        "phrases": if effective.phrases.is_configured() { "configured" } else { "built-in" },
+    })
 }
 
 #[cfg(not(test))]
@@ -696,6 +1040,8 @@ async fn main() -> std::process::ExitCode {
 
 #[cfg(test)]
 mod tests {
+    use crate::Behaviour;
+    use d2rmm_agent_domain::capture_cascade::CaptureMethod;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -907,6 +1253,18 @@ mod tests {
         assert_eq!(parse_command("consent on"), Command::Consent(true));
         assert_eq!(parse_command("consent off"), Command::Consent(false));
         assert_eq!(parse_command("consent maybe"), Command::Other);
+        assert_eq!(
+            parse_command("capture print black"),
+            Command::Capture(CaptureMethod::PrintWindow, Behaviour::Black)
+        );
+        assert_eq!(
+            parse_command("capture graphics failed"),
+            Command::Capture(CaptureMethod::GraphicsCapture, Behaviour::Failed)
+        );
+        assert_eq!(parse_command("capture crop good"), Command::Other);
+        assert_eq!(parse_command("capture print"), Command::Other);
+        assert_eq!(parse_command("minimize on"), Command::Minimize(true));
+        assert_eq!(parse_command("minimize off"), Command::Minimize(false));
         assert_eq!(parse_command(""), Command::Other);
     }
 
@@ -939,6 +1297,34 @@ mod tests {
         );
     }
 
+    /// A sidecar's `lines` are shown at their own boxes, whatever the layout's fixed regions are (screen-recognition).
+    #[test]
+    fn a_sidecar_shows_its_boxed_lines() {
+        use super::sidecar_lines;
+        use d2rmm_agent_core::ports::Rgba;
+
+        let directory = std::env::temp_dir().join(format!("d2rmm-lines-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("a directory");
+        let sidecar = directory.join("shot.png.json");
+        std::fs::write(
+            &sidecar,
+            r#"{ "createNew": "Create New", "lines": [
+                { "text": "Life: 9 / 9", "x": 436, "y": 880, "width": 170, "height": 22 },
+                { "text": "no box" } ] }"#,
+        )
+        .expect("a sidecar");
+        let frame = Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: Vec::new(),
+        };
+        let lines = sidecar_lines(&sidecar, &frame);
+        std::fs::remove_dir_all(&directory).ok();
+        assert_eq!(lines.len(), 1, "a line with no box is not shown");
+        assert_eq!(lines[0].text, "Life: 9 / 9");
+        assert_eq!((lines[0].region.x, lines[0].region.y), (436, 880));
+    }
+
     /// `--consent` gives the player's consent before the run; without it the example reads nothing.
     #[test]
     fn consent_is_a_flag_that_takes_no_value() {
@@ -960,6 +1346,64 @@ mod tests {
         assert!(
             parse_arguments(&given).expect("parses").consent,
             "the flag gives consent"
+        );
+    }
+
+    #[test]
+    fn the_configuration_flags_name_a_directory_and_an_interval() {
+        use super::{CHECK_EVERY, parse_arguments};
+
+        let base = [
+            "--api-base",
+            "http://127.0.0.1:1",
+            "--party-fixture",
+            "frame.png",
+        ]
+        .map(str::to_string);
+        let none = parse_arguments(&base).expect("parses");
+        assert_eq!(none.config_dir, None, "no directory, no loop");
+        assert_eq!(none.config_every, CHECK_EVERY, "six hours by default");
+
+        let mut given = base.to_vec();
+        given.extend(
+            ["--config-dir", "/tmp/config", "--config-every-ms", "500"].map(str::to_string),
+        );
+        let given = parse_arguments(&given).expect("parses");
+        assert_eq!(
+            given.config_dir,
+            Some(std::path::PathBuf::from("/tmp/config"))
+        );
+        assert_eq!(given.config_every, Duration::from_millis(500));
+
+        let mut broken = base.to_vec();
+        broken.extend(["--config-every-ms", "soon"].map(str::to_string));
+        assert!(parse_arguments(&broken).is_err());
+    }
+
+    #[test]
+    fn the_config_line_says_the_version_the_outcome_the_cadence_and_the_phrases() {
+        use super::config_line;
+        use d2rmm_agent_core::remote_config::Outcome;
+        use d2rmm_agent_domain::remote_config::{Effective, Words};
+
+        let mut effective = Effective::built_in();
+        assert_eq!(
+            config_line(&effective, Outcome::Unchanged),
+            serde_json::json!({
+                "event": "config", "version": 0, "outcome": "unchanged", "probeEvery": 60, "phrases": "built-in",
+            })
+        );
+        effective.version = 5;
+        effective.cadence.probe_every = 30;
+        effective.phrases.en = Words {
+            party: Some("Party".into()),
+            ..Words::default()
+        };
+        assert_eq!(
+            config_line(&effective, Outcome::Applied),
+            serde_json::json!({
+                "event": "config", "version": 5, "outcome": "applied", "probeEvery": 30, "phrases": "configured",
+            })
         );
     }
 }

@@ -245,6 +245,25 @@ where
     let list = any_reading(&text(ScreenRegion::CreateNew), |read| {
         pack.is_word(read, CREATE_NEW) || pack.is_squashed_word(read, CREATE_NEW)
     });
+    // The automap's "Difficulty:" line, searched for by its word in the top-right area when the fixed box above missed (the
+    // same window and full-screen drift as the HUD); before the HUD, because an open automap shows the HUD too. The
+    // character list never shows it.
+    if !list && anchors::find_automap_in_variants(pack, &lines(ScreenRegion::AutomapArea)).is_some()
+    {
+        return Reading::without_cards(Screen::AutomapOpen);
+    }
+    // The HUD's Life or Mana label, searched for by its word in the bottom band: D2R does not scale its HUD linearly
+    // between a window and full screen, so the fixed box above misses one of them (0.3.0). The character list never
+    // shows it, so a frame with the list does not read the band.
+    if !list && anchors::find_hud_in_variants(pack, &lines(ScreenRegion::HudBand)).is_some() {
+        return Reading::without_cards(Screen::InGame);
+    }
+    // The list's "Create New" button, searched for by its word in the bottom-right area when the fixed box above missed (the
+    // same window and full-screen drift): only a frame that is neither the automap nor in game gets here, so an in-game
+    // frame costs no read of this area.
+    let list = list
+        || anchors::find_create_new_in_variants(pack, &lines(ScreenRegion::CreateNewArea))
+            .is_some();
     let popup_lines = lines(ScreenRegion::PopupArea);
     let popup_title = anchors::popup_title_in_variants(pack, &popup_lines);
     let popup_options = u8::try_from(anchors::popup_options_in_variants(pack, &popup_lines).len())
@@ -719,8 +738,19 @@ mod tests {
             dimmed: &[ScreenRegion],
             ink: impl FnMut(Region, Region) -> super::BandRead,
         ) -> Reading {
+            self.read_with_pack(&LanguagePack::english(), selected, dimmed, ink)
+        }
+
+        /// Reads the scene with `pack`'s words.
+        fn read_with_pack(
+            &self,
+            pack: &LanguagePack,
+            selected: &[u8],
+            dimmed: &[ScreenRegion],
+            ink: impl FnMut(Region, Region) -> super::BandRead,
+        ) -> Reading {
             read_screen(
-                &LanguagePack::english(),
+                pack,
                 HEIGHT,
                 |region| self.readings(region),
                 |search| self.lines(search),
@@ -770,6 +800,147 @@ mod tests {
         ]
     }
 
+    /// The pt-BR pack as `resources/lang/pt-BR.json` held it before the field bug: the Party words and the two chat phrases.
+    fn brazilian_party_only() -> LanguagePack {
+        pack_of(&[
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+        ])
+    }
+
+    /// The pt-BR pack with the words read on the maintainer's own pt-BR screenshots (2026-11-21): the selection screen, the
+    /// difficulty popup and the HUD. No class or title that was not seen is here.
+    fn brazilian_screens() -> LanguagePack {
+        pack_of(&[
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+            ("createNew", "Criar novo"),
+            ("tabOnline", "Online"),
+            ("tabOffline", "Offline"),
+            ("characterLevel", "Nv."),
+            ("titleMatriarch", "Matriarca"),
+            ("classSorceress", "Maga"),
+            ("classAmazon", "Amazona"),
+            ("classNecromancer", "Necromante"),
+            ("classAssassin", "Assassina"),
+            ("selectDifficulty", "Selecionar dificuldade"),
+            ("difficultyNormal", "Normal"),
+            ("difficultyNightmare", "Pesadelo"),
+            ("difficultyHell", "Tormento"),
+            ("life", "Vida:"),
+            ("mana", "Mana:"),
+            ("difficultyLabel", "Dificuldade:"),
+        ])
+    }
+
+    fn pack_of(words: &[(&str, &str)]) -> LanguagePack {
+        LanguagePack::from_words(
+            "pt-BR",
+            words
+                .iter()
+                .map(|(key, word)| ((*key).to_string(), (*word).to_string())),
+        )
+        .expect("the pack builds")
+    }
+
+    /// A pt-BR selection screen with a titled Matriarca (slot 0, gold frame) and an untitled Maga (slot 1), and the popup.
+    fn lista() -> Vec<(ScreenRegion, &'static str)> {
+        vec![
+            (ScreenRegion::CreateNew, "Criar novo"),
+            (ScreenRegion::CardTitle(0), "Matriarca"),
+            (ScreenRegion::CardName(0), "vukVuka"),
+            (ScreenRegion::CardLevel(0), "Nv. 88 Maga"),
+            (ScreenRegion::CardTitle(1), ""),
+            (ScreenRegion::CardName(1), "vukaDao"),
+            (ScreenRegion::CardLevel(1), "Nv. 11 Maga"),
+            (ScreenRegion::SelectDifficulty, "Selecionar dificuldade"),
+            (ScreenRegion::PopupNormal, "Normal"),
+            (ScreenRegion::PopupNightmare, "Pesadelo"),
+            (ScreenRegion::PopupHell, "Tormento"),
+        ]
+    }
+
+    fn read_pt(pack: &LanguagePack, pairs: &[(ScreenRegion, &str)], selected: &[u8]) -> Reading {
+        single(pairs).read_with_pack(pack, selected, &[], |_, _| super::BandRead::NoInk)
+    }
+
+    #[test]
+    fn the_pt_br_pack_with_only_the_party_words_reads_no_character_screen_and_no_hud() {
+        // Pin of the field bug (pt-BR client, "Tela: não reconhecida"): the pack held only the Party words, so the words
+        // of the selection screen, the popup and the HUD found nothing and every frame read Unknown.
+        let pack = brazilian_party_only();
+        assert_eq!(read_pt(&pack, &lista(), &[0]).screen, Screen::Unknown);
+        let hud = [(ScreenRegion::Life, "Vida: 925 / 925")];
+        assert_eq!(read_pt(&pack, &hud, &[]).screen, Screen::Unknown);
+        let automap = [(ScreenRegion::AreaDifficulty, "Dificuldade: Tormento")];
+        assert_eq!(read_pt(&pack, &automap, &[]).screen, Screen::Unknown);
+    }
+
+    #[test]
+    fn the_pt_br_selection_screen_reads_its_cards_and_its_popup_with_the_observed_words() {
+        let reading = read_pt(&brazilian_screens(), &lista(), &[0]);
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!(reading.cards.len(), 2);
+        let matriarca = &reading.cards[0];
+        assert_eq!(matriarca.name(), "vukVuka");
+        assert_eq!(matriarca.class(), Class::Sorceress);
+        assert_eq!(matriarca.level(), 88);
+        assert_eq!(matriarca.title(), Some(Title::Matriarch));
+        assert_eq!(
+            matriarca.unlocked_difficulties(),
+            vec![Normal, Nightmare, Hell]
+        );
+        let untitled = &reading.cards[1];
+        assert_eq!(untitled.class(), Class::Sorceress);
+        assert_eq!(untitled.level(), 11);
+        assert_eq!(untitled.title(), None);
+        assert_eq!(untitled.unlocked_difficulties(), vec![Normal]);
+    }
+
+    #[test]
+    fn the_nv_prefix_of_a_pt_br_card_is_data_the_card_parser_reads_like_the_english_level_word() {
+        // "Nv." is not a word: its comparison form is "NV". It works as data because the reader squashes the pack word and
+        // the read alike (punctuation dropped) and takes the first token of the line as the level word.
+        let pack = brazilian_screens();
+        assert_eq!(
+            parse_level_and_class("Nv. 88 Maga", &pack),
+            Some((88, Class::Sorceress))
+        );
+        assert_eq!(
+            parse_level_and_class("NV. 5 AMAZONA", &pack),
+            Some((5, Class::Amazon))
+        );
+        assert_eq!(
+            parse_level_and_class("Nv. 45 Necromante", &pack),
+            Some((45, Class::Necromancer))
+        );
+        assert_eq!(
+            parse_level_and_class("Nv. 7 Assassina", &pack),
+            Some((7, Class::Assassin))
+        );
+        for text in [
+            "Level 88 Maga",
+            "Nv. 88 Sorceress",
+            "Nv. 88 Bárbaro",
+            "Nv. 88",
+        ] {
+            assert_eq!(parse_level_and_class(text, &pack), None, "{text:?}");
+        }
+    }
+
+    #[test]
+    fn the_pt_br_hud_and_automap_read_in_game_and_the_english_words_do_not() {
+        let pack = brazilian_screens();
+        let hud = [(ScreenRegion::Life, "Vida: 925 / 925")];
+        assert_eq!(read_pt(&pack, &hud, &[]).screen, Screen::InGame);
+        let automap = [(ScreenRegion::AreaDifficulty, "Dificuldade: Tormento")];
+        assert_eq!(read_pt(&pack, &automap, &[]).screen, Screen::AutomapOpen);
+        let english = [(ScreenRegion::Life, "Life: 925 / 925")];
+        assert_eq!(read_pt(&pack, &english, &[]).screen, Screen::Unknown);
+    }
+
     #[test]
     fn the_gold_of_a_selected_frame_is_told_from_the_grey_of_an_unselected_one() {
         assert!(is_gold(227, 201, 97), "the selected card, lit");
@@ -793,6 +964,32 @@ mod tests {
         assert_eq!(read(&in_game, &[]).screen, Screen::InGame);
         assert_eq!(read(&[], &[]).screen, Screen::Unknown);
         assert!(read(&[], &[]).cards.is_empty());
+    }
+
+    #[test]
+    fn the_fixed_life_box_reads_only_the_life_word_and_comes_before_the_list_marker() {
+        // The order today: automap, the fixed Life box, the list marker. A Mana word in that box is no marker, and the
+        // Life word wins over a list marker read in the same frame (screen-recognition keeps the fixed box first).
+        let mana = [(ScreenRegion::Life, "Mana: 400 / 400")];
+        assert_eq!(read(&mana, &[]).screen, Screen::Unknown);
+        let both = [
+            (ScreenRegion::Life, "Life: 925 / 925"),
+            (ScreenRegion::CreateNew, "Create New"),
+        ];
+        assert_eq!(read(&both, &[]).screen, Screen::InGame);
+        assert!(read(&both, &[]).cards.is_empty());
+    }
+
+    #[test]
+    fn text_that_is_no_marker_reads_unknown_in_every_marker_region() {
+        let other = [
+            (ScreenRegion::AreaDifficulty, "Town Portal"),
+            (ScreenRegion::Life, "Level 88"),
+            (ScreenRegion::CreateNew, "Join Game"),
+        ];
+        let reading = read(&other, &[]);
+        assert_eq!(reading.screen, Screen::Unknown);
+        assert!(reading.cards.is_empty());
     }
 
     #[test]
@@ -1040,6 +1237,163 @@ mod tests {
         let rejected = scene.read(&[], &[]).rejected;
         assert_eq!(rejected.len(), 1);
         assert_eq!(rejected[0].reason.code(), "name-disagree");
+    }
+
+    /// The refusal codes of a scene's slots, as `(slot, code)`, with the number of cards and of slots read.
+    fn refusals(scene: &Scene) -> (Vec<(u8, &'static str)>, usize, u8) {
+        let reading = scene.read(&[], &[]);
+        let codes = reading
+            .rejected
+            .iter()
+            .map(|rejection| (rejection.slot, rejection.reason.code()))
+            .collect();
+        (codes, reading.cards.len(), reading.slots_read)
+    }
+
+    const LEVEL: &str = "Level 88 Sorceress";
+
+    // T9 pins: one test per reason class of the card screens (`t9-analysis.md`), so a later change to a rule is measured.
+
+    #[test]
+    fn t9_class_a_no_level_line_anchors_no_card_and_refuses_nothing() {
+        // `slots0`: names and titles read, but no variant reads a level line: nothing is anchored, nothing is reported.
+        let scene = Scene::of(&[
+            (ScreenRegion::CreateNew, &["Create New"]),
+            (ScreenRegion::CardTitle(0), &["Matriarch", "Matriarch"]),
+            (ScreenRegion::CardName(0), &["Alpha", "Alpha"]),
+            (ScreenRegion::CardLevel(0), &["", "Level"]),
+        ]);
+        assert_eq!(refusals(&scene), (vec![], 0, 0));
+        // The level word with no level, or a level out of 1 to 99, is no level line either.
+        for text in ["Level", "Level 0 Sorceress", "Level 100 Sorceress"] {
+            let scene = Scene::of(&[
+                (ScreenRegion::CreateNew, &["Create New"]),
+                (ScreenRegion::CardName(0), &["Alpha"]),
+                (ScreenRegion::CardLevel(0), &[text]),
+            ]);
+            assert_eq!(refusals(&scene), (vec![], 0, 0), "{text}");
+        }
+    }
+
+    #[test]
+    fn t9_class_e_a_second_card_with_no_level_line_is_not_refused() {
+        let scene = Scene::of(&[
+            (ScreenRegion::CreateNew, &["Create New"]),
+            (ScreenRegion::CardTitle(0), &["", ""]),
+            (ScreenRegion::CardName(0), &["Alpha", "Alpha"]),
+            (ScreenRegion::CardLevel(0), &[LEVEL, LEVEL]),
+            (ScreenRegion::CardName(1), &["Bravo", "Bravo"]),
+            (ScreenRegion::CardLevel(1), &["", ""]),
+        ]);
+        assert_eq!(refusals(&scene), (vec![], 1, 1));
+    }
+
+    #[test]
+    fn t9_class_b_a_title_nobody_reads_refuses_the_card_whatever_else_reads() {
+        let card = |title: &[&str], name: &[&str], level: &[&str]| {
+            Scene::of(&[
+                (ScreenRegion::CreateNew, &["Create New"]),
+                (ScreenRegion::CardTitle(0), title),
+                (ScreenRegion::CardName(0), name),
+                (ScreenRegion::CardLevel(0), level),
+            ])
+        };
+        let ok_name = ["Alpha", "Alpha", "Alpha"];
+        let ok_level = [LEVEL, LEVEL, LEVEL];
+        // A found title line whose later readings are all blank or garbled: no title settles.
+        let first_only = |rest: &'static str| ["Matriarch", rest, rest];
+        assert_eq!(
+            refusals(&card(&first_only(""), &ok_name, &ok_level)),
+            (vec![(0, "title-unread")], 0, 1)
+        );
+        assert_eq!(
+            refusals(&card(&first_only("Marshal"), &ok_name, &ok_level)),
+            (vec![(0, "title-unread")], 0, 1)
+        );
+        // Two agreeing readings among blanks settle the title.
+        let reading = card(&["Matriarch", "Matriarch", ""], &ok_name, &ok_level).read(&[], &[]);
+        assert_eq!(reading.cards.len(), 1);
+        assert_eq!(reading.cards[0].title(), Some(Title::Matriarch));
+        // The title refuses first: a card whose other fields are unread too reports only the title.
+        assert_eq!(
+            refusals(&card(
+                &first_only("Marshal"),
+                &["12-34"],
+                &["Level 88 Zzzz"]
+            )),
+            (vec![(0, "title-unread")], 0, 1)
+        );
+        assert_eq!(
+            refusals(&card(
+                &first_only("Marshal"),
+                &["Alpha", "Bravo"],
+                &ok_level
+            )),
+            (vec![(0, "title-unread")], 0, 1)
+        );
+    }
+
+    #[test]
+    fn t9_class_c_names_are_settled_by_two_agreeing_readings_with_no_tie() {
+        let name = |names: &[&str]| {
+            Scene::of(&[
+                (ScreenRegion::CreateNew, &["Create New"]),
+                (ScreenRegion::CardTitle(0), &["", "", ""]),
+                (ScreenRegion::CardName(0), names),
+                (ScreenRegion::CardLevel(0), &[LEVEL, LEVEL, LEVEL]),
+            ])
+        };
+        // One row per reading set: the readings, then the refusal codes of slot 0 (empty = the card is accepted).
+        type Row = (&'static [&'static str], &'static [(u8, &'static str)]);
+        let table: [Row; 5] = [
+            // Three different names: no two agree, name-disagree.
+            (&["Alpha", "Bravo", "Charl"], &[(0, "name-disagree")]),
+            // Two agreeing readings outnumber one rival: accepted.
+            (&["Alpha", "Alpha", "Bravo"], &[]),
+            // A tie of two against two: name-disagree.
+            (
+                &["Alpha", "Alpha", "Bravo", "Bravo"],
+                &[(0, "name-disagree")],
+            ),
+            // Readings that are no name at all: name-unread, not a disagreement.
+            (&["12-34", "12-34", "12-34"], &[(0, "name-unread")]),
+            // One name among noise has no second reading to agree with: name-disagree (a name was read).
+            (&["Alpha", "12-34", "12-34"], &[(0, "name-disagree")]),
+        ];
+        for (names, expected) in table {
+            assert_eq!(refusals(&name(names)).0, expected, "{names:?}");
+        }
+    }
+
+    #[test]
+    fn t9_class_d_the_level_line_refuses_as_level_unread_or_class_unread() {
+        let level = |levels: &[&str]| {
+            Scene::of(&[
+                (ScreenRegion::CreateNew, &["Create New"]),
+                (ScreenRegion::CardTitle(0), &["", ""]),
+                (ScreenRegion::CardName(0), &["Alpha", "Alpha"]),
+                (ScreenRegion::CardLevel(0), levels),
+            ])
+        };
+        // A level read, the class not settled: class-unread; two levels that disagree are class-unread too.
+        assert_eq!(
+            refusals(&level(&["Level 88 Zzzz", "Level 88 Zzzz"])).0,
+            [(0, "class-unread")]
+        );
+        assert_eq!(
+            refusals(&level(&["Level 88 Sorceress", "Level 87 Sorceress"])).0,
+            [(0, "class-unread")]
+        );
+        // The first reading anchors the card but no reading settles a level: the line has no level word in the rest.
+        assert_eq!(
+            refusals(&level(&[LEVEL, "Sorceress"])).0,
+            [(0, "class-unread")]
+        );
+        assert_eq!(
+            refusals(&level(&[LEVEL, ""])).0,
+            [(0, "class-unread")],
+            "a lone settled reading among blanks needs a second one"
+        );
     }
 
     #[test]
@@ -1955,5 +2309,477 @@ mod tests {
         assert_eq!(read_level("+8"), None);
         assert_eq!(read_level("+88"), None);
         assert_eq!(read_level("8 "), None);
+    }
+}
+
+#[cfg(test)]
+mod hud_band_tests {
+    use super::{BandRead, Probes, read_screen};
+    use crate::language::LanguagePack;
+    use crate::layout::ScreenRegion;
+    use crate::presence::Screen;
+    use crate::vision::{Region, TextLine};
+
+    fn line(text: &str, x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width: 160,
+                height: 22,
+            },
+        }
+    }
+
+    /// Reads a frame where only the band has lines, and `create_new` is what the list marker reads. Returns the screen and
+    /// how many times the band was read.
+    fn read(band: Vec<Vec<TextLine>>, create_new: &str) -> (Screen, usize) {
+        let mut band_reads = 0;
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |region| (region == ScreenRegion::CreateNew).then(|| vec![create_new.to_string()]),
+            |search| {
+                if search == ScreenRegion::HudBand {
+                    band_reads += 1;
+                    band.clone()
+                } else {
+                    Vec::new()
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| false,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (reading.screen, band_reads)
+    }
+
+    #[test]
+    fn a_life_line_anywhere_in_the_band_is_in_game_at_both_layouts() {
+        // The window (1920×1056) and the full screen (1920×1080) put the label at other places.
+        for (x, y) in [(400, 844), (432, 868)] {
+            let (screen, _) = read(vec![vec![line("Life: 925 / 925", x, y)]], "");
+            assert_eq!(screen, Screen::InGame);
+        }
+    }
+
+    /// Reads a frame with lines in the automap area and in the HUD band; returns the screen and the areas read, in order.
+    fn read_areas(
+        automap: Vec<Vec<TextLine>>,
+        band: Vec<Vec<TextLine>>,
+        create_new: &str,
+    ) -> (Screen, Vec<ScreenRegion>) {
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |region| (region == ScreenRegion::CreateNew).then(|| vec![create_new.to_string()]),
+            |search| {
+                asked.push(search);
+                match search {
+                    ScreenRegion::AutomapArea => automap.clone(),
+                    ScreenRegion::HudBand => band.clone(),
+                    _ => Vec::new(),
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| false,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (reading.screen, asked)
+    }
+
+    #[test]
+    fn a_difficulty_line_anywhere_in_the_area_is_the_automap_and_wins_over_the_hud() {
+        let automap = vec![vec![line("Difficulty: Hell", 1700, 90)]];
+        let band = vec![vec![line("Life: 925 / 925", 436, 868)]];
+        let (screen, asked) = read_areas(automap, band, "");
+        assert_eq!(screen, Screen::AutomapOpen);
+        assert_eq!(
+            asked,
+            [ScreenRegion::AutomapArea],
+            "the HUD band is not read"
+        );
+    }
+
+    #[test]
+    fn no_difficulty_line_leaves_the_hud_to_decide_and_the_list_reads_neither_area() {
+        let band = vec![vec![line("Life: 925 / 925", 436, 868)]];
+        let other = vec![vec![line("Rogue Encampment", 1700, 40)]];
+        let (screen, asked) = read_areas(other.clone(), band.clone(), "");
+        assert_eq!(screen, Screen::InGame);
+        assert_eq!(asked, [ScreenRegion::AutomapArea, ScreenRegion::HudBand]);
+        let (_, asked) = read_areas(other, band, "Create New");
+        assert!(!asked.contains(&ScreenRegion::AutomapArea));
+        assert!(!asked.contains(&ScreenRegion::HudBand));
+    }
+
+    #[test]
+    fn a_mana_line_alone_is_in_game() {
+        let (screen, _) = read(vec![vec![line("Mana: 400 / 400", 1500, 868)]], "");
+        assert_eq!(screen, Screen::InGame);
+    }
+
+    #[test]
+    fn a_band_with_other_text_is_not_in_game() {
+        let (screen, reads) = read(vec![vec![line("Town Portal", 900, 868)]], "");
+        assert_eq!(screen, Screen::Unknown);
+        assert_eq!(reads, 1);
+    }
+
+    /// Reads a frame whose fixed "Create New" box reads nothing, with `marker` the lines of the marker's wide area and the
+    /// card column showing a list. Returns the screen and the areas read, in order.
+    fn read_with_list_column(marker: Vec<Vec<TextLine>>) -> (Screen, Vec<ScreenRegion>) {
+        let column = vec![vec![
+            line("SORCERESS", 1576, 91),
+            line("Level 88 Sorceress", 1576, 114),
+        ]];
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| {
+                asked.push(search);
+                match search {
+                    ScreenRegion::CardColumn => column.clone(),
+                    ScreenRegion::CreateNewArea => marker.clone(),
+                    _ => Vec::new(),
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| false,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (reading.screen, asked)
+    }
+
+    /// Changed expectation (screen-recognition T10, the specified change; was `Unknown` with no wide marker area read): a list
+    /// whose fixed "Create New" box reads nothing is the character selection screen when the word is found in the wider
+    /// bottom-right area, read after the automap's and the HUD band's.
+    #[test]
+    fn a_list_whose_fixed_marker_misses_is_found_by_its_word_in_the_wide_area_after_the_other_areas()
+     {
+        let (screen, asked) = read_with_list_column(vec![vec![line("Create New", 1650, 905)]]);
+        assert_eq!(screen, Screen::CharacterSelect);
+        assert_eq!(
+            asked[..4],
+            [
+                ScreenRegion::AutomapArea,
+                ScreenRegion::HudBand,
+                ScreenRegion::CreateNewArea,
+                ScreenRegion::PopupArea
+            ]
+        );
+    }
+
+    #[test]
+    fn a_list_whose_marker_is_nowhere_stays_unknown_and_other_bottom_right_text_is_no_marker() {
+        let (screen, asked) = read_with_list_column(Vec::new());
+        assert_eq!(screen, Screen::Unknown);
+        assert!(asked.contains(&ScreenRegion::CreateNewArea));
+        for other in ["Exit", "Create", "New Game", "Create New Character"] {
+            let (screen, _) = read_with_list_column(vec![vec![line(other, 1650, 905)]]);
+            assert_eq!(screen, Screen::Unknown, "{other}");
+        }
+    }
+
+    #[test]
+    fn a_noisy_read_of_the_marker_still_counts_when_it_is_the_word_with_stray_spaces_or_case() {
+        for read in ["CREATE NEW", "C R E A T E  N E W", "create new"] {
+            let (screen, _) = read_with_list_column(vec![vec![line(read, 1650, 905)]]);
+            assert_eq!(screen, Screen::CharacterSelect, "{read}");
+        }
+    }
+
+    #[test]
+    fn the_marker_area_is_read_only_when_neither_the_fixed_box_nor_an_earlier_area_decided() {
+        // The fixed box reads the marker: no wide read. In game (the band): decided before it. The automap: decided before.
+        let in_game = vec![vec![line("Life: 925 / 925", 436, 868)]];
+        let (screen, asked) = read_areas(Vec::new(), in_game, "");
+        assert_eq!(screen, Screen::InGame);
+        assert!(!asked.contains(&ScreenRegion::CreateNewArea));
+        let automap = vec![vec![line("Difficulty: Hell", 1700, 90)]];
+        let (screen, asked) = read_areas(automap, Vec::new(), "");
+        assert_eq!(screen, Screen::AutomapOpen);
+        assert!(!asked.contains(&ScreenRegion::CreateNewArea));
+        let (_, asked) = read_areas(Vec::new(), Vec::new(), "Create New");
+        assert!(!asked.contains(&ScreenRegion::CreateNewArea));
+    }
+
+    /// Rule 14 pin: a frame that shows neither the list marker nor the HUD, the automap or a popup is `Unknown`, whatever
+    /// else it shows at the bottom right.
+    #[test]
+    fn text_at_the_bottom_right_that_is_not_the_marker_is_unknown() {
+        let (screen, _) = read(vec![vec![line("Exit", 1700, 900)]], "Exit");
+        assert_eq!(screen, Screen::Unknown);
+    }
+
+    #[test]
+    fn the_character_list_never_reads_the_band() {
+        let (screen, reads) = read(vec![vec![line("Life: 925 / 925", 400, 844)]], "Create New");
+        assert_eq!(reads, 0, "the band is read only without the list");
+        assert_ne!(screen, Screen::InGame);
+    }
+}
+
+/// The popup over a dimmed list whose cards no reading finds (screen-recognition T9; the `cards-refused-0of2-slots0-options3`
+/// class, 155 variations of the last `ocr-variations`).
+#[cfg(test)]
+mod popup_column_tests {
+    use super::{BandRead, Probes, read_screen};
+    use crate::language::LanguagePack;
+    use crate::layout::ScreenRegion;
+    use crate::presence::Screen;
+    use crate::vision::{Region, TextLine};
+
+    fn line(text: &str, x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width: 200,
+                height: 20,
+            },
+        }
+    }
+
+    fn popup() -> Vec<Vec<TextLine>> {
+        vec![vec![
+            line("Select Difficulty", 940, 360),
+            line("Normal", 940, 430),
+            line("Nightmare", 940, 500),
+            line("Hell", 940, 570),
+        ]]
+    }
+
+    fn list_cards() -> Vec<Vec<TextLine>> {
+        vec![vec![
+            line("vukVuka", 1576, 91),
+            line("Level 88 Sorceress", 1576, 114),
+        ]]
+    }
+
+    /// Reads a frame with the popup open and `column` as what the card column reads; returns the reading's screen, cards
+    /// found and slots, and the areas asked in order.
+    fn read_popup(column: Vec<Vec<TextLine>>) -> (Screen, usize, u8, Vec<ScreenRegion>) {
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| {
+                asked.push(search);
+                match search {
+                    ScreenRegion::PopupArea => popup(),
+                    ScreenRegion::CardColumn => column.clone(),
+                    _ => Vec::new(),
+                }
+            },
+            |_| None,
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (
+            reading.screen,
+            reading.cards.len(),
+            reading.slots_read,
+            asked,
+        )
+    }
+
+    #[test]
+    fn a_popup_over_a_column_no_reading_finds_cards_in_is_the_selection_screen_with_no_slot_read() {
+        // Pinned before the change: the popup decides the screen, the column is read once, nothing more is asked.
+        let (screen, cards, slots, asked) = read_popup(Vec::new());
+        assert_eq!((screen, cards, slots), (Screen::CharacterSelect, 0, 0));
+        assert_eq!(
+            asked
+                .iter()
+                .filter(|r| **r == ScreenRegion::CardColumn)
+                .count(),
+            1
+        );
+        assert_eq!(asked.last(), Some(&ScreenRegion::CardColumn));
+    }
+
+    #[test]
+    fn a_popup_over_a_column_that_reads_cards_registers_them_with_one_column_read() {
+        let (screen, _, slots, asked) = read_popup(list_cards());
+        assert_eq!((screen, slots), (Screen::CharacterSelect, 1));
+        assert_eq!(
+            asked
+                .iter()
+                .filter(|r| **r == ScreenRegion::CardColumn)
+                .count(),
+            1
+        );
+    }
+
+    /// The popup over a column whose cards read, with `name` and `level` as what the fields pass reads of each card's lines.
+    fn read_fields(name: &[&str], level: &[&str]) -> super::Reading {
+        let said = |texts: &[&str]| -> Option<Vec<String>> {
+            Some(texts.iter().map(|t| (*t).to_string()).collect())
+        };
+        read_screen(
+            &LanguagePack::english(),
+            1080,
+            |_| None,
+            |search| match search {
+                ScreenRegion::PopupArea => popup(),
+                ScreenRegion::CardColumn => list_cards(),
+                _ => Vec::new(),
+            },
+            |region| match region.y.saturating_sub(5) {
+                86..=96 => said(name),
+                109..=119 => said(level),
+                _ => None,
+            },
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        )
+    }
+
+    #[test]
+    fn a_card_under_the_popup_settles_on_two_agreeing_readings_of_its_fields() {
+        // Pinned before the lifted read is made stricter: a field read by three variants settles when two agree and no other
+        // value matches in count, so a rival reading in the third does not refuse the card.
+        let reading = read_fields(
+            &["vukVuka", "vukVuka", "vukVuko"],
+            &[
+                "Level 88 Sorceress",
+                "Level 88 Sorceress",
+                "Level 83 Sorceress",
+            ],
+        );
+        assert_eq!(reading.cards.len(), 1, "{:?}", reading.rejected);
+        assert_eq!(reading.cards[0].name(), "vukVuka");
+        assert_eq!(reading.cards[0].level(), 88);
+    }
+
+    #[test]
+    fn a_card_under_the_popup_with_three_different_name_readings_is_refused() {
+        let reading = read_fields(
+            &["vukVuka", "vukVuko", "vukVukb"],
+            &[
+                "Level 88 Sorceress",
+                "Level 88 Sorceress",
+                "Level 88 Sorceress",
+            ],
+        );
+        assert!(reading.cards.is_empty());
+        assert_eq!(reading.rejected.len(), 1);
+    }
+}
+
+/// A card whose title line the lines pass reads as no title in any variant (screen-recognition T9; the `title-unread` class,
+/// about 235 of the selection and popup variations of the last `ocr-variations`).
+#[cfg(test)]
+mod garbled_title_tests {
+    use super::{BandRead, Probes, RejectReason, read_screen};
+    use crate::language::LanguagePack;
+    use crate::layout::ScreenRegion;
+    use crate::vision::{Region, TextLine};
+
+    fn region(y: u32) -> Region {
+        Region {
+            x: 1576,
+            y,
+            width: 236,
+            height: 18,
+        }
+    }
+
+    fn line(text: &str, y: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: region(y),
+        }
+    }
+
+    /// A list (the marker reads) with one card: the title line `title_lines` reads (in the lines pass), the name and the
+    /// level, and `title_field` as what the fields pass reads of the title region. Returns the reading and the regions the
+    /// fields pass was asked for.
+    fn read(title_lines: &str, title_field: &[&str]) -> (super::Reading, Vec<Region>) {
+        let column = vec![vec![
+            line(title_lines, 60),
+            line("vukVuka", 91),
+            line("Level 88 Sorceress", 114),
+        ]];
+        let mut asked = Vec::new();
+        let reading = read_screen(
+            &LanguagePack::english(),
+            1080,
+            |text_region| {
+                (text_region == ScreenRegion::CreateNew).then(|| vec!["Create New".to_string()])
+            },
+            |search| {
+                if search == ScreenRegion::CardColumn {
+                    column.clone()
+                } else {
+                    Vec::new()
+                }
+            },
+            |asked_region| {
+                asked.push(asked_region);
+                let said = |texts: &[&str]| Some(texts.iter().map(|t| (*t).to_string()).collect());
+                match asked_region.y {
+                    60 => said(title_field),
+                    91 => said(&["vukVuka", "vukVuka", "vukVuka"]),
+                    114 => said(&[
+                        "Level 88 Sorceress",
+                        "Level 88 Sorceress",
+                        "Level 88 Sorceress",
+                    ]),
+                    _ => None,
+                }
+            },
+            Probes {
+                selected: |_| false,
+                lit: |_| true,
+                title_ink: |_, _| BandRead::NoInk,
+            },
+        );
+        (reading, asked)
+    }
+
+    const MATRIARCH: [&str; 3] = ["Matriarch", "MATRIARCH", "Matriarch"];
+
+    #[test]
+    fn a_known_title_line_is_read_again_as_a_field_and_the_card_reads() {
+        let (reading, asked) = read("Matriarch", &MATRIARCH);
+        assert_eq!(reading.cards.len(), 1);
+        assert!(asked.contains(&region(60)), "the title line is read again");
+    }
+
+    #[test]
+    fn a_title_line_that_reads_as_no_title_refuses_the_card_and_is_not_read_again() {
+        // Pinned before the change: the field pass is never asked for a line the lines pass read as no title ("Marshal" is
+        // none of the pack's), even when it would read as one.
+        let (reading, asked) = read("Marshal", &MATRIARCH);
+        assert!(reading.cards.is_empty());
+        assert_eq!(reading.rejected.len(), 1);
+        assert_eq!(reading.rejected[0].reason, RejectReason::TitleUnread);
+        assert!(
+            !asked.contains(&region(60)),
+            "no read of that line: {asked:?}"
+        );
     }
 }

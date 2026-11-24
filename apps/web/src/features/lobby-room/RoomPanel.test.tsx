@@ -1,10 +1,14 @@
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApiClient } from '../../shared/api-client.ts';
 import { jsonResponse, routeFetch } from '../../test/fake-api.ts';
 import { renderInLanguage } from '../../test/render.tsx';
 import { type RoomMemberShown, type RoomShown, RoomPanel } from './RoomPanel.tsx';
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 afterEach(() => {
   cleanup();
@@ -101,6 +105,30 @@ describe('RoomPanel: what the room shows (LBR-12)', () => {
     expect(rows[1]?.textContent).toContain('Barbarian, level 84');
     expect(rows[1]?.textContent).toContain('You');
     expect(rows[1]?.textContent).toContain('Waiting');
+  });
+
+  it('shows a member in another game as such, in place of confirmed (ARL-11)', () => {
+    show(
+      room({ stage: 'created', members: [{ ...ALICE, confirmed: true, elsewhere: true }, BOB] }),
+      'acc-bob',
+    );
+
+    const rows = within(screen.getByRole('list', { name: 'Members' })).getAllByRole('listitem');
+    expect(rows[0]?.textContent).toContain('In another game');
+    expect(rows[0]?.textContent).not.toContain('Confirmed by the agent');
+    expect(rows[1]?.textContent).toContain('Waiting');
+  });
+
+  it('shows a member in another game in pt-BR (ARL-11)', () => {
+    show(
+      room({ stage: 'active', members: [{ ...ALICE, confirmed: true, elsewhere: true }, BOB] }),
+      'acc-bob',
+      ['pt-BR'],
+    );
+
+    const rows = within(screen.getByRole('list', { name: 'Membros' })).getAllByRole('listitem');
+    expect(rows[0]?.textContent).toContain('Em outro jogo');
+    expect(rows[0]?.textContent).not.toContain('Confirmado pelo agente');
   });
 
   it('shows a member whose character is unknown without inventing one', () => {
@@ -285,6 +313,26 @@ describe('RoomPanel: an ended room is history, not a live room', () => {
 
     expect(screen.queryByRole('region', { name: 'Your room' })).toBeNull();
     expect(screen.queryByText(/closed the room/)).toBeNull();
+  });
+
+  it('keeps an ended room put away after a reload, and shows another room normally (ARL-05)', async () => {
+    show(ended('closed'), 'acc-alice');
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    cleanup();
+
+    show(ended('closed'), 'acc-alice');
+    expect(screen.queryByRole('region', { name: 'Your room' })).toBeNull();
+    cleanup();
+
+    show({ ...ended('expired'), roomId: '9999' }, 'acc-alice');
+    expect(screen.getByRole('region', { name: 'Your room' })).toBeTruthy();
+  });
+
+  it('stores only the room id in the browser', async () => {
+    show(ended('closed'), 'acc-alice');
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+    expect(window.localStorage.getItem('d2rmm.dismissed-rooms')).toBe('["4821"]');
   });
 
   it('offers no dismiss while the room is open', () => {

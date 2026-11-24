@@ -1,0 +1,23 @@
+{
+  "height": 1056,
+  "lines": [
+    {
+      "text": "Life: 925 / 925",
+      "x": 380,
+      "y": 862,
+      "width": 170,
+      "height": 22
+    },
+    {
+      "text": "Mana: 400 / 400",
+      "x": 1500,
+      "y": 862,
+      "width": 170,
+      "height": 22
+    }
+  ],
+  "clientSize": {
+    "width": 1920,
+    "height": 1080
+  }
+}

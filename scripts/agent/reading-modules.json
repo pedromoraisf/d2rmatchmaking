@@ -10,7 +10,12 @@
     "domain/src/vocabulary.rs",
     "domain/src/vision.rs",
     "domain/src/name_diff.rs",
+    "domain/src/hud_track.rs",
+    "domain/src/remote_config.rs",
     "core/src/party.rs",
-    "core/src/screen_reader.rs"
+    "core/src/screen_reader.rs",
+    "domain/src/chat.rs",
+    "core/src/automap_name.rs",
+    "core/src/chat_step.rs"
   ]
 }

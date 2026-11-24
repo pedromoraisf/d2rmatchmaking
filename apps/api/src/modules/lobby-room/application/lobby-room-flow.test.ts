@@ -217,6 +217,27 @@ describe('confirmation by the agents (LBR-03, LBR-04, LBR-11)', () => {
   });
 });
 
+describe('the assignment of a room that ended (ARL-01, ARL-02)', () => {
+  it('is gone once the room expired: an agent that missed the end reads no assignment on reconnect', async () => {
+    const world = await awaitingHost();
+    expect(await world.useCases.getAssignment({ agentId: 'agent-2' })).not.toBeNull();
+    world.clock.advance(180_000);
+    await world.useCases.expireRooms();
+    expect(await stageOf(world)).toBe('expired');
+
+    expect(await world.useCases.getAssignment({ agentId: 'agent-1' })).toBeNull();
+    expect(await world.useCases.getAssignment({ agentId: 'agent-2' })).toBeNull();
+  });
+
+  it('is gone once the host closed the room', async () => {
+    const world = await active();
+    await world.useCases.closeRoom({ accountId: 'account-1', roomId: 'room-1' });
+    expect(await stageOf(world)).toBe('closed');
+
+    expect(await world.useCases.getAssignment({ agentId: 'agent-2' })).toBeNull();
+  });
+});
+
 describe('expireRooms (LBR-05)', () => {
   it('expires a room 3 minutes after it waited for the host, not one millisecond before', async () => {
     const world = await awaitingHost();
@@ -284,6 +305,16 @@ describe('openNextRun (LBR-06)', () => {
     ]);
     const assignment = await world.useCases.getAssignment({ agentId: 'agent-2' });
     expect(assignment?.expectedGameName).toBe('mmbaalh-2');
+  });
+
+  it("a stranger's refused request takes no name from the sequence", async () => {
+    const world = await active();
+
+    await world.useCases.openNextRun({ accountId: 'account-9', roomId: 'room-1' });
+    await world.useCases.openNextRun({ accountId: 'account-1', roomId: 'room-1' });
+
+    const room = await world.useCases.getCurrentRoom({ accountId: 'account-1' });
+    expect(room?.expectedGameName).toBe('mmbaalh-2');
   });
 
   it('refuses a member who is not the host (403), a stranger (404) and a room that is not active (409)', async () => {
@@ -428,7 +459,7 @@ describe('the room panel snapshot (LBR-12)', () => {
 });
 
 describe('telemetry (LBR-13)', () => {
-  it('opens a span per use case with the room, run, difficulty and activity, and no name', async () => {
+  it('opens a span per use case with the room, run, game data and no name (LBR-13, OBT-03)', async () => {
     const world = await active();
     exporter.reset();
 
@@ -455,6 +486,9 @@ describe('telemetry (LBR-13)', () => {
       'd2r.difficulty': 'hell',
       'd2r.room.activity': 'baal',
       'd2r.queue.mode': 'leveling',
+      'd2r.run.id': 'room-1/2',
+      'd2r.game.name': 'mmbaalh-2',
+      'd2r.room.stage': 'awaiting_host',
     });
     for (const span of spans) {
       expect(Object.keys(span.attributes)).not.toContain('accountId');

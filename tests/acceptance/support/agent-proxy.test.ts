@@ -42,7 +42,7 @@ afterEach(async () => {
 });
 
 describe('the recording proxy', () => {
-  it('forwards the request unchanged and records its method, path and traceparent', async () => {
+  it('forwards the request unchanged and records its method, path, traceparent, content type and body keys', async () => {
     proxy = await startRecordingProxy(upstreamUrl);
     const response = await fetch(`${proxy.url}/v1/lobby-rooms/mmbaalh-1/observations?x=1`, {
       method: 'POST',
@@ -65,7 +65,13 @@ describe('the recording proxy', () => {
       traceparent: TRACEPARENT,
     });
     expect(proxy.requests()).toStrictEqual([
-      { method: 'POST', path: '/v1/lobby-rooms/mmbaalh-1/observations', traceparent: TRACEPARENT },
+      {
+        method: 'POST',
+        path: '/v1/lobby-rooms/mmbaalh-1/observations',
+        traceparent: TRACEPARENT,
+        contentType: 'application/json',
+        bodyKeys: ['room'],
+      },
     ]);
   });
 
@@ -83,6 +89,53 @@ describe('the recording proxy', () => {
       200,
     );
     expect(found.traceparent).toBeUndefined();
+  });
+});
+
+describe('the recording proxy and a chat sighting', () => {
+  it('keeps the type and the value of a chat sighting and no value of any other body', async () => {
+    proxy = await startRecordingProxy(upstreamUrl);
+    const send = (body: unknown) =>
+      fetch(`${proxy?.url}/v1/lobby-rooms/r/observations`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    await send({ type: 'PLAYER_JOINED_SEEN', value: 'Hammer', run: 1 });
+    await send({ type: 'PLAYER_LEFT_SEEN', value: 'Eve', run: 1 });
+    await send({ type: 'GAME_NAME_SEEN', value: 'mmbaalh-1', run: 1 });
+    await expect
+      .poll(() => proxy?.requests().filter((record) => record.bodyKeys !== undefined).length)
+      .toBe(3);
+
+    const records = proxy?.requests() ?? [];
+    expect(records.map((record) => record.chat)).toStrictEqual([
+      { type: 'PLAYER_JOINED_SEEN', value: 'Hammer' },
+      { type: 'PLAYER_LEFT_SEEN', value: 'Eve' },
+      undefined,
+    ]);
+    expect(JSON.stringify(records)).not.toContain('mmbaalh-1');
+  });
+});
+
+describe('the recording proxy watching for a name', () => {
+  it('notes a body that carries the text, in any case, and keeps no body', async () => {
+    proxy = await startRecordingProxy(upstreamUrl);
+    const post = (body: string) =>
+      fetch(`${proxy?.url}/v1/lobby-rooms/r/observations`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+      });
+    await post(JSON.stringify({ type: 'GAME_NAME_SEEN', value: 'mmbaalh-1' }));
+    const watching = proxy.watch('Duels');
+    await post(JSON.stringify({ type: 'OTHER_GAME_SEEN', value: '' }));
+    await expect.poll(() => proxy?.requests().length).toBe(2);
+    expect(watching.carried()).toBe(false);
+
+    await post(JSON.stringify({ type: 'OTHER_GAME_SEEN', value: 'a DUELS game' }));
+    await expect.poll(() => watching.carried()).toBe(true);
+    expect(JSON.stringify(proxy.requests())).not.toContain('DUELS');
   });
 });
 

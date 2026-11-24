@@ -16,9 +16,22 @@ export type Delivery =
 export type CurrentAgentLookup = Pick<AgentsPort, 'currentAgentOf'>;
 
 /**
+ * Looks up the current agent of every account at once (UPK-04), then builds each account's deliveries in the order of
+ * `accountIds`: the lookups are independent, so they run together, and the result order never depends on which finishes first.
+ */
+async function perAccount(
+  accountIds: readonly string[],
+  agents: CurrentAgentLookup,
+  build: (accountId: string, agentId: string | null) => Delivery[],
+): Promise<Delivery[]> {
+  const agentIds = await Promise.all(accountIds.map((accountId) => agents.currentAgentOf(accountId)));
+  return accountIds.flatMap((accountId, index) => build(accountId, agentIds[index] ?? null));
+}
+
+/**
  * Maps a domain event to the stream messages it produces (design.md § Platform, stream projection):
  * `RoomAssignmentChanged` → `room.assigned` to each member's site and to each member's current agent;
- * `RoomStageChanged` → `room.stage_changed` to each member's site; `RoomRunOpened` → `room.run_opened` to each member's
+ * `RoomStageChanged` → `room.stage_changed` to each member's site, and to the current agent when the room expired or closed; `RoomRunOpened` → `room.run_opened` to each member's
  * site and agent; `RoomMemberChanged` → `room.member_changed` to each member's site (and the member who left); `AgentPresenceChanged` → `agent.presence_changed`
  * to the owner's site. `MatchFormed` and `AgentRevoked` are not streamed (AgentRevoked closes streams instead).
  */
@@ -35,30 +48,48 @@ export async function projectStreamEvent(
         expectedGameName: payload.expectedGameName,
         members: [...payload.members],
       };
-      const deliveries: Delivery[] = [];
-      for (const member of payload.members) {
-        deliveries.push({
-          stream: 'site',
-          accountId: member.accountId,
-          event: { type: 'room.assigned', data },
-        });
-        const agentId = await agents.currentAgentOf(member.accountId);
-        if (agentId !== null) {
-          deliveries.push({ stream: 'agent', agentId, event: { type: 'room.assigned', data } });
-        }
-      }
-      return deliveries;
+      // The agent's copy keeps the key with no members: it reads the room, the run and the name (stream-egress SEG-03).
+      const agentData = { ...data, members: [] };
+      return perAccount(
+        payload.members.map((member) => member.accountId),
+        agents,
+        (accountId, agentId) => [
+          { stream: 'site', accountId, event: { type: 'room.assigned', data } },
+          ...(agentId === null
+            ? []
+            : [
+                {
+                  stream: 'agent' as const,
+                  agentId,
+                  event: { type: 'room.assigned' as const, data: agentData },
+                },
+              ]),
+        ],
+      );
     }
     case 'RoomStageChanged': {
       const { payload } = event;
-      return payload.members.map((member) => ({
-        stream: 'site' as const,
-        accountId: member.accountId,
-        event: {
-          type: 'room.stage_changed' as const,
-          data: { roomId: payload.roomId, stage: payload.stage, members: [...payload.members] },
-        },
-      }));
+      const data = { roomId: payload.roomId, stage: payload.stage, members: [...payload.members] };
+      // The agent's copy is the room and the stage: it reads nothing of the members (stream-egress SEG-01).
+      const agentData = { roomId: payload.roomId, stage: payload.stage };
+      // The agent holds an assignment only while the room lives: it needs to hear the end (ARL-01), and no other stage.
+      const agentHears = payload.stage === 'expired' || payload.stage === 'closed';
+      return perAccount(
+        payload.members.map((member) => member.accountId),
+        agentHears ? agents : { currentAgentOf: async () => null },
+        (accountId, agentId) => [
+          { stream: 'site', accountId, event: { type: 'room.stage_changed', data } },
+          ...(agentId === null
+            ? []
+            : [
+                {
+                  stream: 'agent' as const,
+                  agentId,
+                  event: { type: 'room.stage_changed' as const, data: agentData },
+                },
+              ]),
+        ],
+      );
     }
     case 'RoomRunOpened': {
       // The next run (LBR-06): every member's site and current agent get the new name; the agent reads for it from now on.
@@ -69,19 +100,24 @@ export async function projectStreamEvent(
         expectedGameName: payload.expectedGameName,
         members: [...payload.members],
       };
-      const deliveries: Delivery[] = [];
-      for (const member of payload.members) {
-        deliveries.push({
-          stream: 'site',
-          accountId: member.accountId,
-          event: { type: 'room.run_opened', data },
-        });
-        const agentId = await agents.currentAgentOf(member.accountId);
-        if (agentId !== null) {
-          deliveries.push({ stream: 'agent', agentId, event: { type: 'room.run_opened', data } });
-        }
-      }
-      return deliveries;
+      // The agent's copy keeps the key with no members, as the assignment's does (stream-egress SEG-03).
+      const agentData = { ...data, members: [] };
+      return perAccount(
+        payload.members.map((member) => member.accountId),
+        agents,
+        (accountId, agentId) => [
+          { stream: 'site', accountId, event: { type: 'room.run_opened', data } },
+          ...(agentId === null
+            ? []
+            : [
+                {
+                  stream: 'agent' as const,
+                  agentId,
+                  event: { type: 'room.run_opened' as const, data: agentData },
+                },
+              ]),
+        ],
+      );
     }
     case 'RoomMemberChanged': {
       // A confirmation, a departure or a new host (LBR-04, LBR-07, LBR-08): the remaining members' sites, and the member
@@ -136,20 +172,27 @@ export async function projectStreamEvent(
     case 'ReadyCheckStarted': {
       // The open check goes to each member's site and agent (RDY-01).
       const { payload } = event;
-      const deliveries: Delivery[] = [];
-      for (const member of payload.members) {
-        const data = readyCheckViewFor(payload, member.accountId);
-        deliveries.push({
-          stream: 'site',
-          accountId: member.accountId,
-          event: { type: 'ready_check.started', data },
-        });
-        const agentId = await agents.currentAgentOf(member.accountId);
-        if (agentId !== null) {
-          deliveries.push({ stream: 'agent', agentId, event: { type: 'ready_check.started', data } });
-        }
-      }
-      return deliveries;
+      return perAccount(
+        payload.members.map((member) => member.accountId),
+        agents,
+        (accountId, agentId) => {
+          const data = readyCheckViewFor(payload, accountId);
+          // The agent's hotkey reads the id and the deadline: its copy keeps the key with no members (stream-egress SEG-03).
+          const agentData = { ...data, members: [] };
+          return [
+            { stream: 'site', accountId, event: { type: 'ready_check.started', data } },
+            ...(agentId === null
+              ? []
+              : [
+                  {
+                    stream: 'agent' as const,
+                    agentId,
+                    event: { type: 'ready_check.started' as const, data: agentData },
+                  },
+                ]),
+          ];
+        },
+      );
     }
     case 'ReadyCheckUpdated': {
       // An acceptance, while the check is open, goes to each member's site only (RDY-02).
@@ -166,16 +209,13 @@ export async function projectStreamEvent(
     case 'ReadyCheckResolved': {
       // The outcome goes to every member's site and agent; the body names no one (RDY-03 … RDY-05).
       const { payload } = event;
-      const deliveries: Delivery[] = [];
-      for (const accountId of payload.accountIds) {
-        const data = { id: payload.readyCheckId, outcome: payload.outcome };
-        deliveries.push({ stream: 'site', accountId, event: { type: 'ready_check.resolved', data } });
-        const agentId = await agents.currentAgentOf(accountId);
-        if (agentId !== null) {
-          deliveries.push({ stream: 'agent', agentId, event: { type: 'ready_check.resolved', data } });
-        }
-      }
-      return deliveries;
+      const data = { id: payload.readyCheckId, outcome: payload.outcome };
+      return perAccount(payload.accountIds, agents, (accountId, agentId) => [
+        { stream: 'site', accountId, event: { type: 'ready_check.resolved', data } },
+        ...(agentId === null
+          ? []
+          : [{ stream: 'agent' as const, agentId, event: { type: 'ready_check.resolved' as const, data } }]),
+      ]);
     }
     case 'CharactersRecorded': {
       // The site refetches its list; the event carries no character (CHR-12, CHR-13).

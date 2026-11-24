@@ -80,46 +80,109 @@ test('the verdict is the exit code of ocr-check.exe on the extracted folder', ()
   assert.notEqual(read['continue-on-error'], true);
 });
 
-// The variations job (robustness measure under the quality ratchet): same guards, and it uploads the counts file only.
+// The variations job (robustness measure under the quality ratchet), sharded over 8 Windows jobs and merged by the
+// required check `ocr-variations`.
+const shard = wf.jobs['ocr-variations-shard'];
 const variations = wf.jobs['ocr-variations'];
+const SHARDS = 8;
 
-test('the variations job has the same guards as the check', () => {
-  assert.equal(variations['runs-on'], 'windows-latest');
-  assert.match(variations.if, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
-  assert.equal(variations['timeout-minutes'], 120);
-  const checkout = variations.steps.find((s) => /^actions\/checkout@/.test(s.uses ?? ''));
+test('the variations shards have the same guards as the check', () => {
+  assert.equal(shard['runs-on'], 'windows-latest');
+  assert.match(shard.if, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+  assert.equal(shard['timeout-minutes'], 120);
+  const checkout = shard.steps.find((s) => /^actions\/checkout@/.test(s.uses ?? ''));
   assert.equal(checkout.with['persist-credentials'], false);
-  for (const step of variations.steps.filter((s) => s.uses)) assert.match(step.uses, SHA_PINNED);
-  const withSecret = variations.steps.filter((s) => JSON.stringify(s).includes('secrets.'));
+  for (const step of shard.steps.filter((s) => s.uses)) assert.match(step.uses, SHA_PINNED);
+  const withSecret = shard.steps.filter((s) => JSON.stringify(s).includes('secrets.'));
   assert.equal(withSecret.length, 1);
   assert.equal(withSecret[0].env.PW, '${{ secrets.OCR_PRINTS_PASSWORD }}');
+  assert.match(withSecret[0].run, /7z\.exe" e .*-p"\$PW"/);
 });
 
-test('the variations job uploads only the counts file and deletes the extracted folder last', () => {
-  const uploads = variations.steps.filter((s) => /upload-artifact/.test(s.uses ?? ''));
+test('the prints are split over a matrix of 8 shards that all run and report', () => {
+  assert.deepEqual(shard.strategy.matrix.shard, [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal(shard.strategy.matrix.shard.length, SHARDS);
+  assert.equal(shard.strategy['fail-fast'], false);
+  const run = shard.steps.find((s) => (s.run ?? '').includes('--variations'));
+  assert.match(run.run, new RegExp(`--shard \\$\\{\\{ matrix\\.shard \\}\\}/${SHARDS} `));
+});
+
+test('the shards upload only their counts file and delete the extracted folder last', () => {
+  const uploads = shard.steps.filter((s) => /upload-artifact/.test(s.uses ?? ''));
   assert.equal(uploads.length, 1);
-  assert.equal(uploads[0].with.name, 'ocr-variations');
+  assert.equal(uploads[0].with.name, 'ocr-variations-shard-${{ matrix.shard }}');
   assert.match(uploads[0].with.path, /ocr-variations\.json$/);
-  const last = variations.steps.at(-1);
+  assert.doesNotMatch(uploads[0].with.path, /real-prints/);
+  const last = shard.steps.at(-1);
   assert.equal(last.if, 'always()');
   assert.match(last.run, /rm -rf "\$RUNNER_TEMP\/real-prints"/);
 });
 
-test('the variations run is never given the show-reads flag', () => {
-  const run = variations.steps.find((s) => (s.run ?? '').includes('--variations'));
-  assert.match(run.run, /ocr-check\.exe --variations --summary .*--json .*"\$RUNNER_TEMP\/real-prints"/);
+test('a shard run is never given the show-reads flag and its failure is not swallowed', () => {
+  const run = shard.steps.find((s) => (s.run ?? '').includes('--variations'));
+  assert.match(
+    run.run,
+    /ocr-check\.exe --variations --shard .* --summary .*--json .*"\$RUNNER_TEMP\/real-prints"/,
+  );
   assert.doesNotMatch(text, /--show-reads/);
   assert.doesNotMatch(run.run, /continue-on-error/);
+  assert.notEqual(run['continue-on-error'], true);
 });
 
-test('the variations job holds the counts to the ratchet in the ocr context, after the run and before the upload', () => {
-  const steps = variations.steps;
+test('each print is held to the 20-minute budget, after the run and before the upload', () => {
+  const steps = shard.steps;
   const run = steps.findIndex((s) => (s.run ?? '').includes('--variations'));
+  const budget = steps.findIndex((s) => (s.run ?? '').includes('ocr-variations-shards.mjs budget'));
+  const upload = steps.findIndex((s) => /upload-artifact/.test(s.uses ?? ''));
+  assert.ok(run < budget && budget < upload);
+  assert.match(steps[budget].run.trim(), /--json "\$RUNNER_TEMP\/ocr-variations\.json" --minutes 20$/);
+  assert.notEqual(steps[budget]['continue-on-error'], true);
+  assert.equal(
+    steps[upload].if.includes('always()'),
+    true,
+    'the counts are uploaded even when the budget fails',
+  );
+});
+
+test('the required check ocr-variations keeps its name, needs every shard and fails when one did not succeed', () => {
+  assert.equal(variations.name, 'ocr-variations');
+  assert.equal(variations.needs, 'ocr-variations-shard');
+  assert.match(variations.if, /always\(\)/);
+  assert.match(variations.if, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+  const verdict = variations.steps.find((s) =>
+    (s.env?.SHARDS ?? '').includes('needs.ocr-variations-shard.result'),
+  );
+  assert.match(verdict.run, /\[ "\$SHARDS" != "success" \].*exit 1/);
+  assert.notEqual(verdict['continue-on-error'], true);
+});
+
+test('the merge job sees no secret and no screenshot, and merges the same number of shards the matrix runs', () => {
+  assert.doesNotMatch(JSON.stringify(variations), /secrets\.|real-prints"|7z/);
+  const checkout = variations.steps.find((s) => /^actions\/checkout@/.test(s.uses ?? ''));
+  assert.equal(checkout.with['persist-credentials'], false);
+  for (const step of variations.steps.filter((s) => s.uses)) assert.match(step.uses, SHA_PINNED);
+  const download = variations.steps.find((s) => /download-artifact/.test(s.uses ?? ''));
+  assert.equal(download.with.pattern, 'ocr-variations-shard-*');
+  const merge = variations.steps.find((s) => (s.run ?? '').includes('ocr-variations-shards.mjs merge'));
+  assert.match(merge.run.trim(), new RegExp(`--count ${SHARDS} --out reports/ocr-variations\\.json$`));
+  assert.match(merge.run, /--dir "\$RUNNER_TEMP\/shards"/);
+});
+
+test('the merged counts are held to the ratchet in the ocr context, after the merge and before the upload', () => {
+  const steps = variations.steps;
+  const merge = steps.findIndex((s) => (s.run ?? '').includes('ocr-variations-shards.mjs merge'));
   const gate = steps.findIndex((s) => (s.run ?? '').includes('quality-ratchet.mjs'));
   const upload = steps.findIndex((s) => /upload-artifact/.test(s.uses ?? ''));
-  assert.ok(run < gate && gate < upload);
-  assert.match(steps[gate].run, /cp "\$RUNNER_TEMP\/ocr-variations\.json" reports\/ocr-variations\.json/);
+  assert.ok(merge < gate && gate < upload);
   assert.match(steps[gate].run, /quality-collect\.mjs/);
   assert.match(steps[gate].run, /quality-ratchet\.mjs --context ocr/);
   assert.notEqual(steps[gate]['continue-on-error'], true);
+  assert.equal(steps[upload].with.name, 'ocr-variations');
+  assert.equal(steps[upload].with.path, 'reports/ocr-variations.json');
+});
+
+test('a new push cancels the run on the superseded SHA of the same pull request', () => {
+  assert.ok(wf.concurrency, 'the workflow has a concurrency block');
+  assert.match(wf.concurrency.group, /github\.event\.pull_request\.number/);
+  assert.equal(wf.concurrency['cancel-in-progress'], true);
 });

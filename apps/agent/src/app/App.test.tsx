@@ -17,6 +17,7 @@ const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   room: null,
   update: 'idle',
   readyCheckOpen: false,
+  hotkey: 'Ctrl+Shift+A',
   diagnostics: null,
   ...overrides,
 });
@@ -49,6 +50,16 @@ describe('App', () => {
     expect(screen.getByText('Expires in 4 min')).toBeTruthy();
   });
 
+  it('sends a changed hotkey through the set_hotkey command (AST-01)', () => {
+    render(<App translate={en} />);
+    publish(view());
+
+    fireEvent.change(screen.getByLabelText('Accept a ready check'), { target: { value: 'Alt+Q' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(invoke).toHaveBeenCalledWith('set_hotkey', { combination: 'Alt+Q' });
+  });
+
   it('paused view requests a new code through the get_new_code command', () => {
     render(<App translate={en} />);
     publish(view({ pairing: 'paused' }));
@@ -78,5 +89,68 @@ describe('App', () => {
 
     expect(await screen.findByRole('button', { name: 'Allow capture' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Withdraw consent' })).toBeNull();
+  });
+
+  it('shows the diagnostics the store holds and asks the store to change them on a press', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) =>
+      command === 'get_diagnostics'
+        ? { enabled: true, tier: 'production' }
+        : command === 'set_diagnostics'
+          ? false
+          : undefined,
+    );
+    render(<App translate={en} />);
+
+    const control = (await screen.findByRole('switch', { name: 'Send diagnostics' })) as HTMLInputElement;
+    expect(control.checked).toBe(true);
+    fireEvent.click(control);
+
+    expect(invoke).toHaveBeenCalledWith('set_diagnostics', { enabled: false });
+    expect(await screen.findByText('Diagnostics are off. The agent sends none.')).toBeTruthy();
+    vi.mocked(invoke).mockImplementation(async () => undefined);
+  });
+
+  it('keeps the switch, as on, with an error line when the store does not answer', async () => {
+    vi.mocked(invoke).mockImplementation(async () => undefined);
+    render(<App translate={en} />);
+
+    const control = (await screen.findByRole('switch', { name: 'Send diagnostics' })) as HTMLInputElement;
+    expect(control.checked).toBe(true);
+    expect(screen.getByRole('alert').textContent).toContain('Could not read your diagnostics setting');
+  });
+
+  it('keeps the switch, as on, when get_diagnostics is rejected', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'get_diagnostics') {
+        throw new Error('refused');
+      }
+      return undefined;
+    });
+    render(<App translate={en} />);
+
+    const control = (await screen.findByRole('switch', { name: 'Send diagnostics' })) as HTMLInputElement;
+    expect(control.checked).toBe(true);
+    expect(screen.getByRole('alert').textContent).toContain('Could not read your diagnostics setting');
+    vi.mocked(invoke).mockImplementation(async () => undefined);
+  });
+
+  it('says the choice was not saved when set_diagnostics is rejected, and keeps the switch as it was', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'get_diagnostics') {
+        return { enabled: true, tier: 'production' };
+      }
+      if (command === 'set_diagnostics') {
+        throw new Error('refused');
+      }
+      return undefined;
+    });
+    render(<App translate={en} />);
+
+    const control = (await screen.findByRole('switch', { name: 'Send diagnostics' })) as HTMLInputElement;
+    fireEvent.click(control);
+
+    expect(await screen.findByText('Could not save your choice. Try again.')).toBeTruthy();
+    expect((screen.getByRole('switch', { name: 'Send diagnostics' }) as HTMLInputElement).checked).toBe(true);
+    vi.mocked(invoke).mockImplementation(async () => undefined);
   });
 });

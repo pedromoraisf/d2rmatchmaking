@@ -15,7 +15,7 @@ const jobs = workflow.jobs;
 const { quality, report, load, acceptance } = jobs;
 const agent = jobs['agent-mutation'];
 const api = jobs['api-mutation'];
-const DOWNLOAD = 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093';
+const DOWNLOAD = 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333';
 const FULL_SHA = /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/u;
 
 const stepNamed = (job, name) => job.steps.find((step) => step.name === name);
@@ -49,14 +49,17 @@ test('the report names the suites that ran: all on the schedule, the input other
 });
 
 // NGT-01: parallel jobs, matrix per crate with shards, matrix per API layer.
-test('agent mutation is a matrix per crate, with two shards for domain and adapters, and does not stop at one failure', () => {
+test('agent mutation is a matrix per crate, with five round-robin shards for domain and two for adapters, and does not stop at one failure', () => {
   assert.equal(agent.strategy['fail-fast'], false);
   assert.deepEqual(
     agent.strategy.matrix.include.map((entry) => [entry.crate, entry.shard]),
     [
       ['core', ''],
-      ['domain', '--shard 0/2'],
-      ['domain', '--shard 1/2'],
+      ['domain', '--shard 0/5 --sharding round-robin'],
+      ['domain', '--shard 1/5 --sharding round-robin'],
+      ['domain', '--shard 2/5 --sharding round-robin'],
+      ['domain', '--shard 3/5 --sharding round-robin'],
+      ['domain', '--shard 4/5 --sharding round-robin'],
       ['adapters', '--shard 0/2'],
       ['adapters', '--shard 1/2'],
     ],
@@ -65,11 +68,11 @@ test('agent mutation is a matrix per crate, with two shards for domain and adapt
   assert.equal(agent.needs, 'detect');
 });
 
-test('core keeps --in-place, and every shard writes its own output and artifact', () => {
+test('core and adapters run --in-place, and every shard writes its own output and artifact', () => {
   const entries = agent.strategy.matrix.include;
   assert.deepEqual(
     entries.filter((entry) => entry.in_place === '--in-place').map((entry) => entry.crate),
-    ['core'],
+    ['core', 'adapters', 'adapters'],
   );
   assert.equal(new Set(entries.map((entry) => entry.out)).size, entries.length, 'one output per shard');
   assert.equal(
@@ -150,6 +153,18 @@ test('load builds the two images with buildx and its cache, runs the full ladder
   const check = runs(load).indexOf('node --test scripts/load/check/full-summary.check.mjs');
   assert.ok(run >= 0 && check > run, 'the check follows the run');
   assert.equal(stepNamed(load, 'Check the full summary')['continue-on-error'], true);
+});
+
+test('the load run uses the images the job just built (UPK-06)', () => {
+  const names = load.steps.map((step) => step.name ?? '');
+  const lastBuild = Math.max(
+    ...load.steps.map((step, i) =>
+      String(step.uses ?? '').startsWith('docker/build-push-action@') ? i : -1,
+    ),
+  );
+  const run = names.indexOf('Load test (full ladder)');
+  assert.ok(run > lastBuild, 'the run follows both builds');
+  assert.equal(load.steps[run].env.LOAD_IMAGES_PREBUILT, '1');
 });
 
 test('the load job sets no target, so the harness refuses nothing and starts its own containers', () => {
@@ -289,4 +304,23 @@ test('every job has a timeout', () => {
     if (name !== 'backup' && name !== 'detect')
       assert.ok(job['timeout-minutes'] > 0, `${name} has a timeout`);
   }
+});
+
+// The cargo-mutants version is pinned, so a new release never changes the nightly's mutants or its score unannounced.
+const installedTools = (job) =>
+  job.steps
+    .filter((step) => String(step.uses ?? '').startsWith('taiki-e/install-action@'))
+    .flatMap((step) => String(step.with?.tool ?? '').split(','));
+const unpinnedMutants = (tools) =>
+  tools.filter((tool) => /^cargo-mutants(?!@\d+\.\d+\.\d+$)/u.test(tool.trim()));
+
+test('the nightly installs an exact cargo-mutants version', () => {
+  const tools = installedTools(agent);
+  assert.ok(
+    tools.some((tool) => tool.startsWith('cargo-mutants')),
+    'the job installs cargo-mutants',
+  );
+  assert.deepEqual(unpinnedMutants(tools), []);
+  assert.deepEqual(unpinnedMutants(['cargo-mutants']), ['cargo-mutants']);
+  assert.deepEqual(unpinnedMutants(['cargo-mutants@27']), ['cargo-mutants@27']);
 });

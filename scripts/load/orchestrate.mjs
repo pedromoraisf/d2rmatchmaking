@@ -12,6 +12,7 @@
 
 import { join } from 'node:path';
 import { cleanupPlan, sweepPlan } from './lib/cleanup-plan.mjs';
+import { captureDirProblem } from './lib/capture-dir.mjs';
 import { containerOk, peakOf } from './lib/container-health.mjs';
 import {
   apiArgs,
@@ -45,6 +46,7 @@ import {
   OPENSSL_IMAGE,
   POSTGRES_IMAGE,
 } from './lib/images.mjs';
+import { PREBUILT_VARIABLE, useBuiltImages } from './lib/prebuilt-images.mjs';
 import { classifyDockerFailure } from './lib/preflight.mjs';
 import { nextStep, profileFor } from './lib/profile.mjs';
 import { p95 } from './lib/percentile.mjs';
@@ -157,6 +159,9 @@ export async function runLoad(input) {
     const refusal = guardTarget(env) ?? guardDocker(env);
     if (refusal !== null) return refused(refusal.message);
     limits = limitsFrom(env);
+    const captureDir = env.LOAD_TELEMETRY_CAPTURE_DIR;
+    const captureRefusal = captureDir ? captureDirProblem(captureDir, paths.root) : null;
+    if (captureRefusal !== null) return refused(captureRefusal);
   } catch (error) {
     return refused(messageOf(error));
   }
@@ -189,7 +194,7 @@ export async function runLoad(input) {
   let versions = null;
   let error = null;
   let refusalMessage = null;
-  let leftBehind = [];
+  let leftBehind;
   try {
     const version = await docker.version();
     if (version.code !== 0) {
@@ -419,7 +424,17 @@ async function listRunDirectories(fs, tmpdir) {
 }
 
 async function buildImages(ctx) {
-  const { docker, paths, log } = ctx;
+  const { docker, paths, log, env } = ctx;
+  if (env[PREBUILT_VARIABLE] === '1' && typeof docker.imageExists === 'function') {
+    const present = {
+      api: await docker.imageExists(API_IMAGE_TAG),
+      k6: await docker.imageExists(K6_IMAGE_TAG),
+    };
+    if (useBuiltImages(env, present)) {
+      log(`using the prebuilt images ${API_IMAGE_TAG} and ${K6_IMAGE_TAG}`);
+      return;
+    }
+  }
   log(`building the API image ${API_IMAGE_TAG}`);
   const api = await docker.build({
     file: join(paths.loadDir, 'docker', 'api.Dockerfile'),
@@ -582,7 +597,14 @@ async function startServices(ctx) {
   pushContainer(ctx, names.sink);
   await dockerRun(
     ctx,
-    sinkArgs({ runId, image: NODE_ALPINE_IMAGE, loadDir: paths.loadDir, tokenFile: dirs.tokenFile }),
+    sinkArgs({
+      runId,
+      image: NODE_ALPINE_IMAGE,
+      loadDir: paths.loadDir,
+      tokenFile: dirs.tokenFile,
+      // Off unless a local profiling run names a host directory (the telemetry breakdown reads it).
+      captureDir: ctx.env.LOAD_TELEMETRY_CAPTURE_DIR || undefined,
+    }),
     'starting the telemetry sink',
     NODE_ALPINE_IMAGE,
   );
@@ -643,7 +665,9 @@ async function probeVersions(ctx) {
 async function runSteps(ctx) {
   let step = nextStep(ctx.profile, ctx.rows);
   let provisioned = [];
-  while (step !== null) {
+  // A local profiling run stops after this many steps (`LOAD_MAX_STEPS=1` is the 25-player step); unset, the whole ladder runs.
+  const maxSteps = Number.parseInt(ctx.env.LOAD_MAX_STEPS ?? '', 10);
+  while (step !== null && !(maxSteps > 0 && ctx.rows.length >= maxSteps)) {
     const outcome = await runStep(ctx, step, provisioned);
     provisioned = outcome.players;
     ctx.rows.push(outcome.row);
@@ -868,12 +892,14 @@ async function runStepBody(ctx, step, provisioned, timings) {
     iterations: measured.iterations,
     errorRatio: ratio,
     bytesReceived: measured.meterBytes,
+    bytesByEvent: measured.eventBytes ?? null,
     telemetryBytes: measured.sinkBytes,
     telemetryBytesBySignal: signalBytesOf(measured.sinkBytesBySignal),
     windowSeconds: measured.windowSeconds,
     peakCpuPercent: peaks.peakCpuPercent,
     peakMemoryBytes: peaks.peakMemoryBytes,
-    roomsCreated: rooms,
+    // The rooms that reached `created` in the window, counted by the journey; the sampled peak only for a step file without it.
+    roomsCreated: typeof measured.roomsCreated === 'number' ? measured.roomsCreated : rooms,
     agentAssignedFrames: measured.agentAssignedFrames,
     matchesPosted: measured.matchesPosted,
     iterationsStarted: measured.iterationsStarted,

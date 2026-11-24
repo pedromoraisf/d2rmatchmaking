@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import type { ApiClient, ApiResult } from '../../shared/api-client.ts';
 import { classKey, stageKey } from '../../shared/labels.ts';
 import { tracedAction } from '../../shared/telemetry.ts';
+import { dismissRoom, isRoomDismissed } from './dismissed-rooms.ts';
 import './room.css';
 
 type Stage = RoomView['stage'];
@@ -18,6 +19,8 @@ export interface RoomMemberShown {
   joinOrder: number;
   role: 'host' | 'member';
   confirmed: boolean;
+  /** The member's agent saw the member in another game for this run (ARL-11). */
+  elsewhere?: boolean;
   class: CharacterClass | null;
   level: number | null;
 }
@@ -57,10 +60,12 @@ export function RoomPanel({ room, you, client, onActed }: RoomPanelProps) {
   const { t } = useTranslation();
   const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [failed, setFailed] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  // The room id put away in this visit; a reload reads the browser's memory of it (ARL-05).
+  const [putAway, setPutAway] = useState<string | null>(null);
   const nameRef = useRef<HTMLElement | null>(null);
 
   const open = isOpen(room.stage);
+  const dismissed = !open && (putAway === room.roomId || isRoomDismissed(room.roomId));
   const isHost = room.members.some((member) => member.accountId === you && member.role === 'host');
 
   async function copyName() {
@@ -119,7 +124,14 @@ export function RoomPanel({ room, you, client, onActed }: RoomPanelProps) {
           <p role="status" className="ended">
             {t(room.stage === 'closed' ? 'room.ended.closed' : 'room.ended.expired')}
           </p>
-          <button type="button" className="btn" onClick={() => setDismissed(true)}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              dismissRoom(room.roomId);
+              setPutAway(room.roomId);
+            }}
+          >
             {t('room.dismiss')}
           </button>
         </>
@@ -171,8 +183,18 @@ export function RoomPanel({ room, you, client, onActed }: RoomPanelProps) {
             {member.role === 'host' ? <span className="tag hostmark">{t('room.host')}</span> : null}
             {member.accountId === you ? <span className="tag">{t('room.you')}</span> : null}
             {open ? (
-              <span className={member.confirmed ? 'pres ok' : 'pres wait'}>
-                {t(member.confirmed ? 'room.presence.confirmed' : 'room.presence.waiting')}
+              <span
+                className={
+                  member.elsewhere === true ? 'pres away' : member.confirmed ? 'pres ok' : 'pres wait'
+                }
+              >
+                {t(
+                  member.elsewhere === true
+                    ? 'room.presence.elsewhere'
+                    : member.confirmed
+                      ? 'room.presence.confirmed'
+                      : 'room.presence.waiting',
+                )}
               </span>
             ) : null}
           </li>

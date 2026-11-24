@@ -2,6 +2,7 @@
 // the update line. Nothing is shown for an idle update.
 import {
   connectivityLabel,
+  hotkeyUnavailableLabel,
   readyCheckLabel,
   revealLabel,
   roomLabel,
@@ -30,11 +31,15 @@ export function StatusView({ view, translate }: StatusViewProps) {
   if (reveal !== null) {
     labels.push(reveal);
   }
+  const unavailable = hotkeyUnavailableLabel(view.hotkeyUnavailable, view.hotkey);
+  if (unavailable !== null) {
+    labels.push(unavailable);
+  }
   const update = updateLabel(view.update);
   if (update !== null) {
     labels.push(update);
   }
-  const readyCheck = readyCheckLabel(view.readyCheckOpen);
+  const readyCheck = readyCheckLabel(view.readyCheckOpen, view.hotkey);
   if (readyCheck !== null) {
     labels.push(readyCheck);
   }

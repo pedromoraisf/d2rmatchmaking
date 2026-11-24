@@ -3,9 +3,12 @@
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use d2rmm_agent_domain::hotkey::HotkeyChoice;
+
 use crate::ports::StateSink;
 use crate::view::{
-    AgentView, CaptureView, Connectivity, DiagnosticsView, PairingView, RoomView, UpdateView,
+    AgentView, CaptureView, Connectivity, DiagnosticsView, HotkeyFailure, HotkeyPress, PairingView,
+    RoomView, UpdateView,
 };
 
 /// Owns the agent view and publishes every change through the state sink (AGS-34).
@@ -24,8 +27,12 @@ impl Hub {
                 room: None,
                 update: UpdateView::Idle,
                 ready_check_open: false,
+                hotkey: HotkeyChoice::default_accept().to_string(),
+                hotkey_unavailable: None,
+                last_press: None,
                 diagnostics: None,
                 capture: None,
+                config_version: 0,
             }),
         }
     }
@@ -60,6 +67,27 @@ impl Hub {
         self.change(|view| view.ready_check_open = open);
     }
 
+    /// Shows the accept hotkey the agent registers (RDY-07).
+    pub fn set_hotkey(&self, choice: &HotkeyChoice) {
+        self.change(|view| view.hotkey = choice.to_string());
+    }
+
+    /// Shows why the OS did not let the agent register the hotkey it wants, or (`None`) that it holds it now (RDY-07).
+    /// An unchanged answer publishes nothing, so a retry that fails the same way does not publish again. Returns whether the
+    /// view changed.
+    pub fn set_hotkey_unavailable(&self, reason: Option<HotkeyFailure>) -> bool {
+        if lock(&self.view).hotkey_unavailable == reason {
+            return false;
+        }
+        self.change(|view| view.hotkey_unavailable = reason);
+        true
+    }
+
+    /// Shows the last hotkey press the agent received (every press is published: it proves the OS delivers them).
+    pub fn set_last_press(&self, press: HotkeyPress) {
+        self.change(|view| view.last_press = Some(press));
+    }
+
     /// Shows what the last look at the game read. An unchanged reading publishes nothing, so a once-a-second look does not
     /// publish once a second.
     pub fn set_diagnostics(&self, diagnostics: DiagnosticsView) {
@@ -74,6 +102,14 @@ impl Hub {
         let unchanged = lock(&self.view).capture.as_ref() == Some(&capture);
         if !unchanged {
             self.change(|view| view.capture = Some(capture));
+        }
+    }
+
+    /// Shows the version of the configuration the agent runs (RCF-08). An unchanged version publishes nothing.
+    pub fn set_config_version(&self, version: u32) {
+        let unchanged = lock(&self.view).config_version == version;
+        if !unchanged {
+            self.change(|view| view.config_version = version);
         }
     }
 

@@ -69,6 +69,7 @@ impl<S: ChunkSource> SseEventStream<S> {
                     StreamEffect::ReadyCheckResolved(end) => {
                         return StreamItem::ReadyCheckResolved(end);
                     }
+                    StreamEffect::RoomEnded(end) => return StreamItem::RoomEnded(end),
                     StreamEffect::Ignore => continue,
                 }
             }

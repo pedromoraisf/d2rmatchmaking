@@ -18,7 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { POSTGRES_URL_ENV } from './global-setup.ts';
-import { freePort, PortInUseError, reportsAddressInUse, retryOnPortInUse } from './ports.ts';
+import { freePort, onceAsync, PortInUseError, reportsAddressInUse, retryOnPortInUse } from './ports.ts';
 import { BNET_CLIENT_ID, BNET_CLIENT_SECRET, FakeBattleNet } from './fake-battle-net.ts';
 
 /** The repository root: this file is in tests/acceptance/support. */
@@ -62,7 +62,12 @@ export interface Stack {
    * fake Battle.net provider's script and records.
    */
   reset(): Promise<void>;
-  /** Moves the controllable clock of both APIs forward by `ms`. */
+  /**
+   * Moves the controllable clock of the staging API forward by `ms`. Only the staging API: every scenario that passes time
+   * runs on it, and the plain API shares its database, so a plain clock moved with it would run the room and agent sweeps
+   * on the same rows. Whichever API swept first then published the outbox rows to its own bus: when the plain one did, the
+   * staging API's streams never heard the event (@ARL-01 failed that way). A plain clock that stays behind finds nothing due.
+   */
   advanceClock(ms: number): Promise<void>;
   /**
    * Redelivers the newest MatchFormed of the worker database on the staging API's bus, as an at-least-once relay
@@ -80,11 +85,24 @@ export interface Stack {
    */
   closeSiteStreams(accountId: string): Promise<number>;
   /**
+   * What the staging API serves on `GET /v1/agents/config` (remote-config RCF-05, RCF-06): the given text as it is, under the
+   * given version, or nothing for `null`. A scenario sends a value outside its range or a body that is not JSON, which the
+   * committed file may not hold. A reset puts the committed document back.
+   */
+  serveAgentConfig(body: string | null, version?: number): Promise<void>;
+  /**
    * Adds the account to the room as its next member (the highest join order plus one). A duel group has two players and
    * joining a room past the queue is F3, so a room of three can only be seeded: LBR-07 needs a third member to hand the
    * host role to. The rows are the ones the room's own use cases write; the API reads them as any other member's.
    */
   seedRoomMember(roomId: string, accountId: string): Promise<void>;
+  /**
+   * How many observations the API stored for the room. A chat sighting answers the same whether it matched or not
+   * (server-name-match SNM-03), so the scenarios read what was kept from the table, not from the answer.
+   */
+  observationCount(roomId: string): Promise<number>;
+  /** The type and the value of each observation the API stored for the room, oldest first. */
+  observationRows(roomId: string): Promise<readonly { readonly type: string; readonly value: string }[]>;
   /** Estimated API clock in epoch ms: the start of the API processes plus every advance so far. */
   apiClockMs(): number;
   /** Stops every child process and returns when they have exited. */
@@ -197,6 +215,8 @@ interface ApiEnvInput {
   readonly site: string;
   readonly staging: boolean;
   readonly controlSecret: string;
+  /** `D2RMM_ENV` of the API, which sets its telemetry tier (ADR 037): `staging` and `local` are full. Default `local`. */
+  readonly environment?: 'local' | 'staging' | 'production';
   readonly telemetry?: { readonly otlpEndpoint: string };
   /** The Battle.net settings of the API: its client and the provider's base URL. Absent: Battle.net sign-in is off (IDB-06). */
   readonly bnet?: { readonly baseUrl: string };
@@ -223,7 +243,7 @@ function apiEnv(input: ApiEnvInput): Record<string, string> {
     // apps/agent): the minimum is lowered for that stack only, so the example can pair. The plain stack keeps 0.0.1.
     AGENT_MIN_VERSION: input.telemetry === undefined ? '0.0.1' : '0.0.0',
     D2RMM_ACCEPTANCE: 'true',
-    D2RMM_ENV: 'local',
+    D2RMM_ENV: input.environment ?? 'local',
     D2RMM_BUILD_SHA: ACCEPTANCE_BUILD_SHA,
     TEST_CONTROL_SECRET: input.controlSecret,
     ...(input.telemetry === undefined
@@ -321,7 +341,9 @@ export async function startStack(workerIndex: number, runtime: string): Promise<
     return await retryOnPortInUse(() => startStackProcesses(workerIndex));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`the acceptance stack of worker ${workerIndex} (${runtime}) did not start: ${message}`);
+    throw new Error(`the acceptance stack of worker ${workerIndex} (${runtime}) did not start: ${message}`, {
+      cause: error,
+    });
   }
 }
 
@@ -442,16 +464,16 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
       for (const api of apis) {
         const answer = await controls(`${api}/__test/reset`);
         if (answer.status !== 204) {
-          throw new Error(`reset of ${api} answered ${answer.status}`);
+          const detail = answer.status === 503 ? ` ${await answer.text().catch(() => '')}` : '';
+          throw new Error(`reset of ${api} answered ${answer.status}${detail}`);
         }
       }
     },
     async advanceClock(ms: number) {
-      for (const api of apis) {
-        const answer = await controls(`${api}/__test/clock`, { advanceMs: ms });
-        if (answer.status !== 204) {
-          throw new Error(`clock advance of ${api} answered ${answer.status}`);
-        }
+      const api = origins.stagingApi;
+      const answer = await controls(`${api}/__test/clock`, { advanceMs: ms });
+      if (answer.status !== 204) {
+        throw new Error(`clock advance of ${api} answered ${answer.status}`);
       }
       advanced += ms;
     },
@@ -481,6 +503,43 @@ async function startStackProcesses(workerIndex: number): Promise<Stack> {
         throw new Error(`site-stream close of ${origins.stagingApi} answered ${answer.status}`);
       }
       return ((await answer.json()) as { closed: number }).closed;
+    },
+    async serveAgentConfig(body: string | null, version?: number) {
+      const answer = await fetch(`${origins.stagingApi}/__test/agent-config`, {
+        method: 'PUT',
+        headers: { [CONTROL_HEADER]: controlSecret, 'Content-Type': 'application/json' },
+        body: JSON.stringify(version === undefined ? { body } : { body, version }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (answer.status !== 204) {
+        throw new Error(`serving the agent configuration on ${origins.stagingApi} answered ${answer.status}`);
+      }
+    },
+    async observationCount(roomId: string) {
+      const client = new pg.Client({ connectionString: databaseUrl });
+      await client.connect();
+      try {
+        const counted = await client.query(
+          'select count(*)::int as n from lobby.observations where room_id = $1::uuid',
+          [roomId],
+        );
+        return Number(counted.rows[0]?.n ?? 0);
+      } finally {
+        await client.end();
+      }
+    },
+    async observationRows(roomId: string) {
+      const client = new pg.Client({ connectionString: databaseUrl });
+      await client.connect();
+      try {
+        const rows = await client.query(
+          'select type, value from lobby.observations where room_id = $1::uuid order by received_at, captured_at',
+          [roomId],
+        );
+        return rows.rows.map((row) => ({ type: String(row.type), value: String(row.value) }));
+      } finally {
+        await client.end();
+      }
     },
     async seedRoomMember(roomId: string, accountId: string) {
       const client = new pg.Client({ connectionString: databaseUrl });
@@ -534,6 +593,11 @@ export interface TracedStack {
 export interface TracedStackOptions {
   /** The OTLP/HTTP endpoint the traced API exports to: the local backend, or a FakeTelemetryBackend in relay scenarios. */
   readonly otlpEndpoint: string;
+  /**
+   * `D2RMM_ENV` of the traced API, which sets its telemetry tier (OBT-01). Default `production`: the trace scenarios of
+   * OBS-28 and OBS-29 scan the spans for names and need the tier that carries none.
+   */
+  readonly environment?: 'local' | 'staging' | 'production';
 }
 
 /** Starts the traced stack. The database name is per process, so two traced stacks of one run never share a database. */
@@ -542,7 +606,7 @@ export async function startTracedStack(options: TracedStackOptions): Promise<Tra
     return await retryOnPortInUse(() => startTracedProcesses(options));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`the traced acceptance stack did not start: ${message}`);
+    throw new Error(`the traced acceptance stack did not start: ${message}`, { cause: error });
   }
 }
 
@@ -550,16 +614,11 @@ export async function startTracedStack(options: TracedStackOptions): Promise<Tra
  * The telemetry-on site, built once per process: the traced stacks of one worker serve the same build, so a scenario that
  * starts its own stack does not wait for a new build. The build lives in the temporary directory, outside every stack.
  */
-let telemetrySiteBuild: Promise<string> | undefined;
-
-function telemetrySite(): Promise<string> {
-  telemetrySiteBuild ??= (async () => {
-    const outDir = mkdtempSync(path.join(tmpdir(), 'd2rmm-telemetry-site-'));
-    await buildTelemetrySite(outDir);
-    return outDir;
-  })();
-  return telemetrySiteBuild;
-}
+const telemetrySite = onceAsync(async (): Promise<string> => {
+  const outDir = mkdtempSync(path.join(tmpdir(), 'd2rmm-telemetry-site-'));
+  await buildTelemetrySite(outDir);
+  return outDir;
+});
 
 async function startTracedProcesses(options: TracedStackOptions): Promise<TracedStack> {
   const adminUrl = process.env[POSTGRES_URL_ENV];
@@ -610,6 +669,7 @@ async function startTracedProcesses(options: TracedStackOptions): Promise<Traced
           site: origins.site,
           staging: true,
           controlSecret,
+          environment: options.environment ?? 'production',
           telemetry: { otlpEndpoint: options.otlpEndpoint },
         }),
       },

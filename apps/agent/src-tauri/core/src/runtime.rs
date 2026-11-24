@@ -5,6 +5,8 @@
 use std::sync::Arc;
 
 use d2rmm_agent_domain::fusion::fuse;
+use d2rmm_agent_domain::hotkey::HotkeyChoice;
+use d2rmm_agent_domain::remote_config::Effective;
 use d2rmm_agent_domain::room_assignment::Assignment;
 use tokio::sync::{mpsc, watch};
 
@@ -13,9 +15,11 @@ use crate::device_state::DeviceState;
 use crate::groups::StreamPorts;
 use crate::groups::{Groups, ReadPorts};
 use crate::pair::{self, Command};
-use crate::ports::{ApiGateway, Rgba, StateSink, TokenStore};
+use crate::ports::{ApiGateway, ConfigGateway, Rgba, StateSink, TokenStore};
 use crate::post_observation;
 use crate::ready_check;
+use crate::remote_config::{self, ConfigFetch, ConfigPorts};
+use crate::view::{HotkeyFailure, HotkeyPress};
 use crate::{beat, check_update, follow_stream, read_frame, watch_screen};
 
 const COMMAND_BUFFER: usize = 8;
@@ -92,6 +96,50 @@ pub struct Handle<G> {
 }
 
 impl<G: ApiGateway + Send + Sync + 'static> Handle<G> {
+    /// Starts the remote configuration loop (RCF-04): the last good body is applied at once, and the API is asked once the agent is
+    /// paired and then every `every`. Call it inside the runtime's context.
+    #[must_use]
+    pub fn with_config<C: ConfigGateway + Send + Sync + 'static>(
+        self,
+        ports: ConfigPorts<C>,
+        every: std::time::Duration,
+    ) -> Self {
+        // The last good body runs from the first look, not from the loop's first poll.
+        remote_config::load_stored(&self.device, &ports);
+        tokio::spawn(remote_config::run(Arc::clone(&self.device), ports, every));
+        self
+    }
+
+    /// The configuration the agent runs now (RCF-08): the built-in defaults until a fetch applies a newer one.
+    pub fn config(&self) -> Effective {
+        self.device.config.borrow().clone()
+    }
+
+    /// Every fetch of the configuration as it ends, with a count (RCF-08, RCF-11).
+    pub fn config_fetches(&self) -> watch::Receiver<ConfigFetch> {
+        self.device.config_fetch.subscribe()
+    }
+
+    /// The accept hotkey the agent registers now (RDY-07).
+    pub fn hotkey(&self) -> HotkeyChoice {
+        self.device.hotkey()
+    }
+
+    /// Holds the accept hotkey the app read from its local file (RDY-07).
+    pub fn set_hotkey(&self, choice: HotkeyChoice) {
+        self.device.set_hotkey(choice);
+    }
+
+    /// Shows why the OS refused the hotkey the agent wants, or (`None`) that it holds it now (RDY-07).
+    pub fn set_hotkey_unavailable(&self, reason: Option<HotkeyFailure>) {
+        self.device.set_hotkey_unavailable(reason);
+    }
+
+    /// Records a hotkey press the OS delivered: which combination it was, or that it matched none (field test of 2026-11-21).
+    pub fn record_hotkey_press(&self, press: HotkeyPress) {
+        self.device.record_hotkey_press(press);
+    }
+
     /// "Get a new code": honoured only while the pairing loop is paused (AGS-34).
     pub fn get_new_code(&self) {
         let _ = self.commands.try_send(Command::GetNewCode);
@@ -188,7 +236,10 @@ mod tests {
     use d2rmm_agent_domain::language::LanguagePack;
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
-    use super::Probe;
+    use d2rmm_agent_domain::hotkey::HotkeyChoice;
+
+    use super::{Handle, Probe, Runtime};
+    use crate::config::Config;
     use crate::device_state::DeviceState;
     use crate::fakes::{
         FakeApiGateway, MemoryTokens, NoConsent, NoFrameReader, NoFrames, NoProcesses, NoText,
@@ -199,6 +250,7 @@ mod tests {
     };
     use crate::party::PartyPorts;
     use crate::ports::{SequentialIds, TokenStore, WallClock};
+    use crate::view::{HotkeyFailure, HotkeyPress};
     use crate::watch_screen::ScreenPorts;
 
     use chrono::{DateTime, Utc};
@@ -243,12 +295,10 @@ mod tests {
         probe.set_paired(true);
     }
 
-    #[test]
-    fn groups_build_a_device() {
-        let gateway = Arc::new(FakeApiGateway::new());
-        let tokens = Arc::new(MemoryTokens::default());
+    fn groups(gateway: &Arc<FakeApiGateway>, tokens: &Arc<MemoryTokens>) -> Groups<FakeApiGateway> {
+        let (gateway, tokens) = (Arc::clone(gateway), Arc::clone(tokens));
         let clock: Arc<dyn WallClock + Send + Sync> = Arc::new(FixedClock);
-        let _groups = Groups {
+        Groups {
             pairing: PairingPorts {
                 gateway: Arc::clone(&gateway),
                 tokens: tokens.clone(),
@@ -291,12 +341,82 @@ mod tests {
                     language: Arc::new(LanguagePack::english()),
                 },
             },
-        };
+        }
+    }
+
+    #[test]
+    fn groups_build_a_device() {
+        let gateway = Arc::new(FakeApiGateway::new());
+        let tokens = Arc::new(MemoryTokens::default());
+        let _groups = groups(&gateway, &tokens);
         let device = DeviceState::new(Arc::new(NullSink));
 
         assert_eq!(device.epoch(), 0);
         assert!(!device.is_paired(), "a device starts unpaired");
         assert!(gateway.calls().is_empty(), "the gateway port is wired");
         assert!(tokens.load().is_none(), "the token store is shared");
+    }
+
+    fn started() -> (Handle<FakeApiGateway>, Probe) {
+        let gateway = Arc::new(FakeApiGateway::new());
+        let tokens = Arc::new(MemoryTokens::default());
+        Runtime::start_with_probe(
+            &Config {
+                version: "0.0.0".to_string(),
+            },
+            Arc::new(NullSink),
+            groups(&gateway, &tokens),
+        )
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_hotkey_the_os_refused_is_shown_with_its_reason_until_a_registration_succeeds() {
+        let (handle, _probe) = started();
+        assert_eq!(handle.device.hub.snapshot().hotkey_unavailable, None);
+
+        handle.set_hotkey_unavailable(Some(HotkeyFailure::Refused));
+        handle.set_hotkey_unavailable(Some(HotkeyFailure::Refused));
+        assert_eq!(
+            handle.device.hub.snapshot().hotkey_unavailable,
+            Some(HotkeyFailure::Refused)
+        );
+
+        handle.set_hotkey_unavailable(Some(HotkeyFailure::NoManager));
+        assert_eq!(
+            handle.device.hub.snapshot().hotkey_unavailable,
+            Some(HotkeyFailure::NoManager)
+        );
+
+        handle.set_hotkey_unavailable(None);
+        assert_eq!(handle.device.hub.snapshot().hotkey_unavailable, None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_last_hotkey_press_is_shown_and_absent_before_the_first() {
+        let (handle, _probe) = started();
+        assert_eq!(handle.device.hub.snapshot().last_press, None);
+        handle.record_hotkey_press(HotkeyPress::Accept);
+        assert_eq!(
+            handle.device.hub.snapshot().last_press,
+            Some(HotkeyPress::Accept)
+        );
+        handle.record_hotkey_press(HotkeyPress::Unmatched);
+        assert_eq!(
+            handle.device.hub.snapshot().last_press,
+            Some(HotkeyPress::Unmatched)
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_hotkey_the_app_sets_is_held_and_shown_in_the_view() {
+        let (handle, _probe) = started();
+        assert_eq!(handle.hotkey(), HotkeyChoice::default_accept());
+        assert_eq!(handle.device.hub.snapshot().hotkey, "Ctrl+Shift+A");
+
+        let choice = HotkeyChoice::parse("alt+g").expect("valid");
+        handle.set_hotkey(choice);
+
+        assert_eq!(handle.hotkey(), choice);
+        assert_eq!(handle.device.hub.snapshot().hotkey, "Alt+G");
     }
 }

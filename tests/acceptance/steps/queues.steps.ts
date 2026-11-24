@@ -11,6 +11,7 @@ import type { DataTable } from 'playwright-bdd';
 import { After, Given, Then, When, test } from '../fixtures.ts';
 import { AGENT_VERSION, type GameState, type SimulatedAgent } from '../support/agent-client.ts';
 import { HeadlessAgent, prepareFixture } from '../support/headless-agent.ts';
+import { requireAccountId } from '../support/ports.ts';
 import { HEADLESS_START_TIMEOUT_MS, stateOf } from '../support/scenario-state.ts';
 import { SESSION_COOKIE, submitPairingCode, type World } from '../support/world.ts';
 
@@ -147,7 +148,7 @@ async function passTime(world: World, ms: number): Promise<void> {
 }
 
 /** Opens the site in a new browser of the player, signed in with the player's session, and waits for the first view. */
-async function openSiteFor(world: World, name: string): Promise<void> {
+export async function openSiteFor(world: World, name: string): Promise<void> {
   const session = await world.sessionOf(name);
   const visitor = await world.newVisitor();
   const previous = world.pendingSessionCookie;
@@ -165,7 +166,7 @@ async function openSiteFor(world: World, name: string): Promise<void> {
   // "Signed in" is drawn from the session read; the site's stream reaches the API a moment later, and a join before that
   // is refused with `site-not-open` (422). The step ends when the API counts the stream, as a join needs it (QUE-05).
   await expect
-    .poll(() => world.stack.siteStreamCount(world.player(name).accountId ?? ''), {
+    .poll(() => world.stack.siteStreamCount(requireAccountId(name, world.player(name).accountId)), {
       message: `${name}'s site stream is open at the API`,
     })
     .toBeGreaterThan(0);
@@ -791,11 +792,13 @@ Given("Alice's agent is the headless agent", async ({ world }) => {
   await agent.waitFor('paired');
 });
 
-When("Alice presses the agent's accept hotkey", ({ world }) => {
+When("Alice presses the agent's accept hotkey", async ({ world }) => {
   const agent = stateOf(world).agent;
   if (agent === undefined) {
     throw new Error("Alice's agent is not the headless agent in this scenario");
   }
+  // The hotkey answers only the check the agent holds; a press before the stream or the API handed it over is dropped.
+  await agent.waitFor('ready-check', 30_000);
   agent.hotkey();
 });
 

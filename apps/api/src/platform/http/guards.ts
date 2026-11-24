@@ -1,7 +1,9 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AgentVersion, type AgentsPort } from '../../modules/agents/index.ts';
 import type { IdentityPort } from '../../modules/identity/index.ts';
-import type { Clock } from '../../shared-kernel/index.ts';
+import type { Cancel, Clock, Scheduler } from '../../shared-kernel/index.ts';
+import { RelayLimiter } from './relay-limiter.ts';
+import { createRouteLimit } from './route-limit.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -38,6 +40,12 @@ export interface Guards {
   readonly requireSession: Guard;
   readonly requireSameOrigin: Guard;
   readonly requireAgentOrSite: Guard;
+  /** After the session guard on `GET /v1/agents/me`: 60 requests a minute per account (UPK-02). */
+  readonly limitAgentStatus: Guard;
+  /** After the guard of a ready-check route: 60 requests a minute per account, agent or site alike (UPK-03). */
+  readonly limitReadyCheck: Guard;
+  /** Sweeps the route limiter's stale keys every 30 s until the returned function is called. `main/` starts it (UPK-02, UPK-03). */
+  watchRouteLimits(scheduler: Scheduler): Cancel;
 }
 
 const LOOKUPS_PER_SECOND = 10;
@@ -116,6 +124,9 @@ export function createGuards(deps: GuardDeps): Guards {
   }
   const minimum = minimumVersion.value;
   const lookups = new LookupBucket(deps.clock);
+  const routeLimiter = new RelayLimiter(deps.clock);
+  const accountOf = (request: FastifyRequest): string | undefined =>
+    request.agentAccountId ?? request.accountId;
 
   /** One agent lookup through the bucket: a miss asks the gate first. `throttled` when the gate refused. */
   async function lookupAgent(
@@ -150,6 +161,10 @@ export function createGuards(deps: GuardDeps): Guards {
   }
 
   return {
+    limitAgentStatus: createRouteLimit(routeLimiter, deps.clock, 'agent-status', accountOf),
+    limitReadyCheck: createRouteLimit(routeLimiter, deps.clock, 'ready-check', accountOf),
+    watchRouteLimits: (scheduler) => routeLimiter.watch(scheduler),
+
     /** Every agent route: no header, a value that is not a semantic version, or one below the minimum → 426 (AWS-12). */
     async requireAgentVersion(request, reply) {
       const header = request.headers['x-agent-version'];

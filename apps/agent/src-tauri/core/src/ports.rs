@@ -7,13 +7,17 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
+use d2rmm_agent_domain::capture_cascade::{CaptureMethod, CascadeParams};
 use d2rmm_agent_domain::characters::Card;
-use d2rmm_agent_domain::room_assignment::Assignment;
+use d2rmm_agent_domain::frame_content::FrameContent;
+use d2rmm_agent_domain::remote_config::{Effective, Wire};
+use d2rmm_agent_domain::room_assignment::{Assignment, RoomId};
 use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
 use uuid::Uuid;
 
 use crate::messages::{
-    FrameReading, GameNameObservation, IssuedCode, Presence, ReadyCheckEnd, ReadyCheckOpen,
+    FrameReading, GameNameObservation, IssuedCode, OtherGameObservation, PlayerObservation,
+    Presence, ReadyCheckEnd, ReadyCheckOpen,
 };
 use crate::secret::Secret;
 use crate::view::AgentView;
@@ -136,6 +140,66 @@ pub trait FrameSource {
     fn window_size(&self) -> Option<(u32, u32)> {
         None
     }
+
+    /// What the capture is doing, for the window and the heartbeat (CAP-07). A source with one fixed way to capture has
+    /// nothing to say: no method, a read rate of 0.
+    fn status(&self) -> CaptureStatus {
+        CaptureStatus::default()
+    }
+
+    /// Ends every capture session the source holds, when the player withdrew consent or the game is gone (CAP-05, CAP-09).
+    /// Idempotent; a source that holds none does nothing.
+    fn release(&self) {}
+
+    /// Hands the source the cascade's numbers before a look (RCF-08). A source with one fixed way to capture has no cascade.
+    fn configure(&self, _params: CascadeParams) {}
+}
+
+/// What a frame source says about its capture (CAP-07): the method that gave the last usable frame, the share of the last
+/// looks that gave one, and whether the last look it was asked for gave none. Numbers and fixed words only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CaptureStatus {
+    /// The method of the last usable frame; `None` before one, or after a look that gave none.
+    pub method: Option<CaptureMethod>,
+    /// The usable share of the last looks, a whole percent.
+    pub read_rate_percent: u8,
+    /// The last look was asked for and no method gave a usable frame (CAP-02).
+    pub unusable: bool,
+    /// What the usable frame of the last look holds, when the source already measured it: the loop does not measure it again.
+    pub content: Option<FrameContent>,
+}
+
+/// Why a method gave no frame. A game window that is not there (closed, minimized) is not a failure of the method, and does
+/// not move the cascade (CAP-05).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Miss {
+    /// No game window with a client area: nothing was captured.
+    NoWindow,
+    /// The window is there and the method returned no frame.
+    Failed,
+}
+
+/// The ways to capture the game window the PC offers, one capture at a time (capture-cascade, design § Ports). Every method
+/// returns the client area of the game window and nothing else (CAP-04); the `Capturer` decides which one to ask.
+pub trait MethodSource {
+    /// The methods this PC can offer, in any order; the cascade orders them.
+    fn methods(&self) -> Vec<CaptureMethod>;
+
+    /// One capture with `method`: the client area as a frame, or why there is none.
+    fn capture_with(&self, method: CaptureMethod) -> Result<Rgba, Miss>;
+
+    /// The size of the game's client area now, when the platform can say it. A frame of another size is refused (CAP-04).
+    fn client_size(&self) -> Option<(u32, u32)> {
+        None
+    }
+
+    /// The size of the whole game window, for the diagnostics.
+    fn window_size(&self) -> Option<(u32, u32)> {
+        None
+    }
+
+    /// Ends every capture session of every method (CAP-09). Idempotent.
+    fn release(&self) {}
 }
 
 /// Whether the player consented to screen capture, kept on this PC (CHR-01, CHR-02). The store holds no secret.
@@ -144,10 +208,24 @@ pub trait ConsentStore {
     fn save(&self, consent: bool) -> Result<(), StoreError>;
 }
 
+/// Where the player's "send diagnostics" choice is kept, the way `ConsentStore` keeps the consent (OBT-15). The store holds no
+/// secret.
+pub trait DiagnosticsStore {
+    /// The stored choice: on when none was made (the default), off when it cannot be read (OBT-15).
+    fn load(&self) -> bool;
+    fn save(&self, on: bool) -> Result<(), StoreError>;
+}
+
 /// Reads the screen a frame shows and, on the character selection screen, every complete card on it (CHR-04, CHR-06).
 /// A card with any field it could not read is left out. The reader holds no state between frames.
 pub trait FrameReader {
     fn read(&self, frame: &Rgba) -> FrameReading;
+
+    /// `read` under the configuration the agent runs now (RCF-08): the reader takes the values it uses at this look. A reader
+    /// that uses none reads as `read` does.
+    fn read_with(&self, frame: &Rgba, _config: &Effective) -> FrameReading {
+        self.read(frame)
+    }
 }
 
 /// Why an update check did not install a version (AGS-26).
@@ -191,6 +269,18 @@ pub trait ApiGateway {
         token: &Secret,
         observation: &GameNameObservation,
     ) -> impl Future<Output = Result<(), ApiError>> + Send;
+    /// Posts one chat sighting (a player joined or left) to its room, once: the caller never retries it (server-name-match).
+    fn post_player_observation(
+        &self,
+        token: &Secret,
+        observation: &PlayerObservation,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
+    /// Posts one `OTHER_GAME_SEEN` (the player is in another game) to its room, once: the caller never retries it (ARL-09).
+    fn post_other_game(
+        &self,
+        token: &Secret,
+        observation: &OtherGameObservation,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
     /// Sends the complete cards of one character selection screen, 1 to 24 of them (CHR-09).
     fn post_characters(
         &self,
@@ -216,6 +306,30 @@ pub trait ApiGateway {
     ) -> impl Future<Output = Result<Option<ReadyCheckOpen>, ApiError>> + Send;
 }
 
+/// Why a room ended: the stage the API moved it to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoomEndReason {
+    Expired,
+    Closed,
+}
+
+impl RoomEndReason {
+    /// The reason as the span event records it (ARL-07).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Expired => "expired",
+            Self::Closed => "closed",
+        }
+    }
+}
+
+/// A room that expired or closed, and why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoomEnd {
+    pub room: RoomId,
+    pub reason: RoomEndReason,
+}
+
 /// One item of the room stream: an assignment, a ready check that opened or ended, or the end of the stream and why it
 /// ended.
 #[derive(Debug, Clone, PartialEq)]
@@ -223,6 +337,8 @@ pub enum StreamItem {
     RoomAssigned(Assignment),
     ReadyCheckStarted(ReadyCheckOpen),
     ReadyCheckResolved(ReadyCheckEnd),
+    /// The room with this id expired or closed (LBR-05): an assignment held for it is dropped.
+    RoomEnded(RoomEnd),
     Ended(EndReason),
 }
 
@@ -425,4 +541,46 @@ mod read_lines_tests {
         }
         assert!(Broken.read_lines(&frame(), REGION).is_empty());
     }
+}
+
+/// What one request for the remote configuration came to (remote-config RCF-04). The body is bytes: the core never reads JSON,
+/// the `ConfigReader` port does, and `from_wire` decides.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Fetched {
+    /// A `200`: the body and the `ETag` the API gave it.
+    Body {
+        bytes: Vec<u8>,
+        etag: Option<String>,
+    },
+    /// A `304`: the API still serves what the agent holds.
+    NotModified,
+    /// A `404`: the API serves no configuration, so the agent keeps what it holds (the built-in defaults with none).
+    Absent,
+    /// The request failed.
+    Failed(ApiError),
+}
+
+/// The API's configuration route, on the agent's own API base only (RCF-04, ADR 010). The request carries the token, the agent
+/// version and the tag of what the agent holds; nothing else.
+pub trait ConfigGateway {
+    fn fetch_config(
+        &self,
+        token: &Secret,
+        held_etag: Option<&str>,
+    ) -> impl Future<Output = Fetched> + Send;
+}
+
+/// Keeps the last good body on the PC (RCF-06): written whole or not at all, read back through the same rules as a fetched body.
+pub trait ConfigStore {
+    /// The stored body, or `None` when there is none.
+    fn load(&self) -> Option<Vec<u8>>;
+    fn save(&self, body: &[u8]) -> Result<(), StoreError>;
+    /// Removes a stored body that failed its rules.
+    fn delete(&self);
+}
+
+/// Reads a body into the closed set of fields the agent knows (RCF-02, RCF-10): `None` when it is not a JSON object or is over
+/// the size limit. Unknown fields are not carried.
+pub trait ConfigReader {
+    fn read(&self, body: &[u8]) -> Option<Wire>;
 }

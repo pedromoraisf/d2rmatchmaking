@@ -1,0 +1,562 @@
+//! Search, then track, a label of the in-game screens: the HUD's Life or Mana line (`ScreenRegion::HudBand`) and the
+//! automap's "Difficulty:" line (`ScreenRegion::AutomapArea`). Searching reads the whole wide area, which is the most OCR
+//! the marker costs; once a line is found, the next frames read only a small box around it, and a miss goes back to
+//! searching the area. A pure state machine: it holds where the label was and the client size that was measured on, and
+//! decides what to read next. No I/O, no clock, no randomness.
+
+use crate::anchors::padded;
+use crate::layout::{REFERENCE_HEIGHT, ScreenRegion, screen_region_with};
+use crate::remote_config::{Ranges, Regions};
+use crate::vision::Region;
+
+/// How far around the remembered line the tracking box reaches, in pixels of the reference client: enough for the value
+/// ("925 / 925") to grow or shrink and for the line to move a few pixels, small beside the band.
+const TRACK_PAD: u32 = 24;
+
+/// What to read on the next frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrackRead {
+    /// The label is not known: read the whole search area.
+    Search(Region),
+    /// The label was last seen here: read this box first, the search area only on a miss.
+    Track(Region),
+}
+
+/// How many frames apart the automap's wide area is searched while its line is not found (NFR-03 CPU). The agent looks at
+/// the game once a second (`watch_screen::TICK`), so an automap opened between two searches shows within this many seconds;
+/// a frame that rests reads nothing for it. The HUD's band is searched every frame (`Tracker::new`).
+pub const AUTOMAP_SEARCH_EVERY: u32 = 2;
+
+/// How many frames apart the character list's marker area is searched while the marker is not found. A frame that is neither
+/// in game nor the list (a menu, a loading screen) costs one more read of the area every this many frames, none in between.
+pub const LIST_SEARCH_EVERY: u32 = 2;
+
+/// Where a label was last seen, and in a client of what size, with the area it is searched in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Tracker {
+    search: ScreenRegion,
+    seen: Option<(Region, u32, u32)>,
+    /// A search of the area happens at most once in this many frames while the label is not found (1: every frame).
+    every: u32,
+    /// How many of the next searches still rest, after a search that found nothing, and the client size it found it in.
+    resting: u32,
+    rest_size: (u32, u32),
+}
+
+impl Tracker {
+    /// A tracker that has seen nothing, searching `search` (a wide area such as `ScreenRegion::HudBand`) on every frame
+    /// while the label is not found.
+    pub fn new(search: ScreenRegion) -> Self {
+        Self::searching_every(search, 1)
+    }
+
+    /// A tracker that searches `search` at most once in `every` frames while the label is not found (`every` of 0 counts as
+    /// 1). A tracked box is read on every frame, and a find or a size change searches at once.
+    pub fn searching_every(search: ScreenRegion, every: u32) -> Self {
+        Self {
+            search,
+            seen: None,
+            every: every.max(1),
+            resting: 0,
+            rest_size: (0, 0),
+        }
+    }
+
+    /// Whether the search planned for a frame of `width` × `height` rests: true (and one rest used) when the last search
+    /// found nothing in a client of that size and fewer than `every` frames have passed. A client of another size searches
+    /// at once. Called only for a `TrackRead::Search` frame.
+    pub fn rests(&mut self, width: u32, height: u32) -> bool {
+        if self.resting == 0 {
+            return false;
+        }
+        if self.rest_size != (width, height) {
+            self.resting = 0;
+            return false;
+        }
+        self.resting -= 1;
+        true
+    }
+
+    /// The area to read on a frame of `width` × `height`. `None` when the size has no area. A label seen in a client of
+    /// another size is forgotten: its box does not apply.
+    pub fn next(&self, width: u32, height: u32) -> Option<TrackRead> {
+        self.next_padded(width, height, TRACK_PAD)
+    }
+
+    /// `next` with the tracking padding `track_pad` (`thresholds.trackPad`, pixels of the reference client) in place of the
+    /// built-in one. The agent's own range (`Ranges::TRACK_PAD`) clamps it here too, so the padding never leaves it whatever
+    /// the caller passes.
+    pub fn next_padded(&self, width: u32, height: u32, track_pad: u32) -> Option<TrackRead> {
+        self.next_with(width, height, track_pad, &Regions::default())
+    }
+
+    /// `next_padded` with the areas of the remote configuration: the search area is `screen_region_with` of the tracker's
+    /// region (`regions.hudBand`, `regions.automapArea`), which keeps the built-in one unless the configured area passes its
+    /// checks (RCF-05, RCF-09).
+    pub fn next_with(
+        &self,
+        width: u32,
+        height: u32,
+        track_pad: u32,
+        regions: &Regions,
+    ) -> Option<TrackRead> {
+        let area = screen_region_with(self.search, width, height, regions)?;
+        match self.seen {
+            Some((line, seen_width, seen_height))
+                if (seen_width, seen_height) == (width, height) =>
+            {
+                let track_pad = Ranges::TRACK_PAD.clamp(f64::from(track_pad));
+                let pad = (u64::from(track_pad) * u64::from(height) / u64::from(REFERENCE_HEIGHT))
+                    .max(1) as u32;
+                Some(TrackRead::Track(padded(line, pad, width, height)))
+            }
+            _ => Some(TrackRead::Search(area)),
+        }
+    }
+
+    /// The area this tracker searches when its box misses.
+    pub fn search_area(&self, width: u32, height: u32) -> Option<Region> {
+        self.search_area_with(width, height, &Regions::default())
+    }
+
+    /// `search_area` with the areas of the remote configuration (`next_with`).
+    pub fn search_area_with(&self, width: u32, height: u32, regions: &Regions) -> Option<Region> {
+        screen_region_with(self.search, width, height, regions)
+    }
+
+    /// Records what the frame showed: the label's line (to track it) or nothing (to search again).
+    pub fn record(&mut self, found: Option<Region>, width: u32, height: u32) {
+        self.record_every(found, width, height, self.every);
+    }
+
+    /// `record` with the search period `every` (`cadence.automapSearchEvery`, `cadence.listSearchEvery`) in place of the one
+    /// the tracker was made with. The agent's own ceiling (10) bounds it here too, and 0 counts as 1, whatever the caller
+    /// passes. A tracker made to search every frame (the HUD's band) passes 1 and keeps searching every frame; the floor of
+    /// 2 for the two wide areas is the clamp of `from_wire`, which no configuration passes.
+    pub fn record_every(&mut self, found: Option<Region>, width: u32, height: u32, every: u32) {
+        let every = every.clamp(1, Ranges::AUTOMAP_SEARCH_EVERY.max);
+        self.seen = found.map(|line| (line, width, height));
+        self.resting = if found.is_some() { 0 } else { every - 1 };
+        self.rest_size = (width, height);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TrackRead, Tracker};
+    use crate::layout::ScreenRegion;
+    use crate::vision::Region;
+
+    const LINE: Region = Region {
+        x: 430,
+        y: 860,
+        width: 150,
+        height: 20,
+    };
+
+    fn hud() -> Tracker {
+        Tracker::new(ScreenRegion::HudBand)
+    }
+
+    #[test]
+    fn a_new_tracker_searches_the_whole_band() {
+        let band = Region {
+            x: 0,
+            y: 810,
+            width: 1920,
+            height: 270,
+        };
+        assert_eq!(hud().next(1920, 1080), Some(TrackRead::Search(band)));
+        assert_eq!(hud().search_area(1920, 1080), Some(band));
+    }
+
+    #[test]
+    fn a_tracker_searches_the_area_it_was_made_for() {
+        let automap = Tracker::new(ScreenRegion::AutomapArea);
+        assert_eq!(
+            automap.next(1920, 1080),
+            Some(TrackRead::Search(
+                crate::layout::screen_region(ScreenRegion::AutomapArea, 1920, 1080).expect("area")
+            ))
+        );
+    }
+
+    #[test]
+    fn a_found_line_is_tracked_in_a_box_around_it() {
+        let mut tracker = hud();
+        tracker.record(Some(LINE), 1920, 1080);
+        // 24 px on the 1033 reference is 25 px at 1080.
+        assert_eq!(
+            tracker.next(1920, 1080),
+            Some(TrackRead::Track(Region {
+                x: 405,
+                y: 835,
+                width: 200,
+                height: 70
+            }))
+        );
+    }
+
+    #[test]
+    fn a_miss_goes_back_to_searching() {
+        let mut tracker = hud();
+        tracker.record(Some(LINE), 1920, 1080);
+        tracker.record(None, 1920, 1080);
+        assert!(matches!(
+            tracker.next(1920, 1080),
+            Some(TrackRead::Search(_))
+        ));
+    }
+
+    #[test]
+    fn a_line_seen_at_another_size_is_not_tracked() {
+        let mut tracker = hud();
+        tracker.record(Some(LINE), 1920, 1080);
+        assert!(matches!(
+            tracker.next(1920, 1056),
+            Some(TrackRead::Search(_))
+        ));
+        assert!(matches!(
+            tracker.next(1921, 1080),
+            Some(TrackRead::Search(_))
+        ));
+        assert!(matches!(
+            tracker.next(1920, 1079),
+            Some(TrackRead::Search(_))
+        ));
+    }
+
+    #[test]
+    fn the_box_stays_inside_the_client() {
+        let mut tracker = hud();
+        let corner = Region {
+            x: 0,
+            y: 1070,
+            width: 100,
+            height: 10,
+        };
+        tracker.record(Some(corner), 1920, 1080);
+        assert_eq!(
+            tracker.next(1920, 1080),
+            Some(TrackRead::Track(Region {
+                x: 0,
+                y: 1045,
+                width: 125,
+                height: 35
+            }))
+        );
+    }
+
+    #[test]
+    fn a_tracker_that_searches_every_frame_never_rests() {
+        let mut tracker = hud();
+        for _ in 0..3 {
+            tracker.record(None, 1920, 1080);
+            assert!(!tracker.rests(1920, 1080));
+        }
+    }
+
+    #[test]
+    fn a_tracker_that_searches_every_second_frame_rests_one_search_after_a_miss() {
+        let mut tracker = Tracker::searching_every(ScreenRegion::AutomapArea, 2);
+        assert!(!tracker.rests(1920, 1080), "nothing missed yet: search");
+        tracker.record(None, 1920, 1080);
+        assert!(tracker.rests(1920, 1080), "the next search rests");
+        assert!(
+            !tracker.rests(1920, 1080),
+            "and the one after it reads the area"
+        );
+        tracker.record(None, 1920, 1080);
+        assert!(tracker.rests(1920, 1080), "a new miss rests again");
+    }
+
+    #[test]
+    fn a_tracker_that_searches_every_third_frame_rests_two() {
+        let mut tracker = Tracker::searching_every(ScreenRegion::AutomapArea, 3);
+        tracker.record(None, 1920, 1080);
+        assert!(tracker.rests(1920, 1080));
+        assert!(tracker.rests(1920, 1080));
+        assert!(!tracker.rests(1920, 1080));
+    }
+
+    #[test]
+    fn a_find_ends_the_rest_and_a_zero_period_counts_as_one() {
+        let mut tracker = Tracker::searching_every(ScreenRegion::AutomapArea, 2);
+        tracker.record(None, 1920, 1080);
+        tracker.record(Some(LINE), 1920, 1080);
+        assert!(!tracker.rests(1920, 1080));
+        let mut every_frame = Tracker::searching_every(ScreenRegion::AutomapArea, 0);
+        every_frame.record(None, 1920, 1080);
+        assert!(!every_frame.rests(1920, 1080));
+    }
+
+    #[test]
+    fn a_client_of_another_size_searches_at_once() {
+        let mut tracker = Tracker::searching_every(ScreenRegion::AutomapArea, 2);
+        tracker.record(None, 1920, 1080);
+        assert!(!tracker.rests(1920, 1056));
+        assert!(!tracker.rests(1920, 1080), "the rest was dropped");
+    }
+
+    #[test]
+    fn the_automap_area_is_searched_every_second_frame() {
+        assert_eq!(super::AUTOMAP_SEARCH_EVERY, 2);
+    }
+
+    #[test]
+    fn the_list_marker_area_is_searched_every_second_frame() {
+        assert_eq!(super::LIST_SEARCH_EVERY, 2);
+        let tracker =
+            Tracker::searching_every(ScreenRegion::CreateNewArea, super::LIST_SEARCH_EVERY);
+        let area =
+            crate::layout::screen_region(ScreenRegion::CreateNewArea, 1920, 1080).expect("area");
+        assert_eq!(tracker.next(1920, 1080), Some(TrackRead::Search(area)));
+    }
+
+    /// ocr-protection (remote-config T23, rule 14): a search that finds nothing rests `every - 1` looks, so 600 looks make 300
+    /// searches at today's cadence of 2.
+    #[test]
+    fn six_hundred_looks_that_find_nothing_search_three_hundred_times_at_a_period_of_two() {
+        for (search, every) in [
+            (ScreenRegion::AutomapArea, super::AUTOMAP_SEARCH_EVERY),
+            (ScreenRegion::CreateNewArea, super::LIST_SEARCH_EVERY),
+        ] {
+            let mut tracker = Tracker::searching_every(search, every);
+            let mut searches = 0;
+            for _ in 0..600 {
+                // A rested look reads nothing and records nothing (`ScreenReader::tracked_lines`).
+                if !tracker.rests(1920, 1080) {
+                    searches += 1;
+                    tracker.record(None, 1920, 1080);
+                }
+            }
+            assert_eq!(searches, 300, "{search:?}");
+        }
+    }
+
+    /// remote-config T25: the search period given on a record replaces the one the tracker was made with.
+    #[test]
+    fn the_period_of_a_record_sets_how_many_looks_rest_and_is_bounded_at_ten() {
+        let rests_after = |every: u32| {
+            let mut tracker = Tracker::searching_every(ScreenRegion::AutomapArea, 2);
+            tracker.record_every(None, 1920, 1080, every);
+            (0..20).take_while(|_| tracker.rests(1920, 1080)).count()
+        };
+        assert_eq!(rests_after(0), 0);
+        assert_eq!(rests_after(1), 0);
+        assert_eq!(rests_after(2), 1);
+        assert_eq!(rests_after(10), 9);
+        assert_eq!(rests_after(11), 9, "never over the agent's own ceiling");
+        assert_eq!(rests_after(u32::MAX), 9);
+        let mut recorded = Tracker::searching_every(ScreenRegion::AutomapArea, 5);
+        recorded.record(None, 1920, 1080);
+        let mut same = Tracker::searching_every(ScreenRegion::AutomapArea, 5);
+        same.record_every(None, 1920, 1080, 5);
+        assert_eq!(recorded, same, "record is record_every at its own period");
+    }
+
+    #[test]
+    fn six_hundred_looks_that_find_nothing_search_sixty_times_at_a_period_of_ten() {
+        let mut tracker = Tracker::searching_every(ScreenRegion::CreateNewArea, 2);
+        let mut searches = 0;
+        for _ in 0..600 {
+            if !tracker.rests(1920, 1080) {
+                searches += 1;
+                tracker.record_every(None, 1920, 1080, 10);
+            }
+        }
+        assert_eq!(searches, 60);
+    }
+
+    #[test]
+    fn an_unsupported_size_reads_nothing() {
+        assert_eq!(hud().next(1280, 1024), None);
+        assert_eq!(hud().next(0, 0), None);
+        assert_eq!(hud().search_area(1280, 1024), None);
+    }
+}
+/// ocr-protection (remote-config T15, rule 14): the padding of the tracking box and the boxes it makes, as measured before
+/// `thresholds.trackPad` reaches this module. They pass on the code as it was and must pass with the default threaded in.
+#[cfg(test)]
+mod pin_track_pad {
+    use super::{TRACK_PAD, TrackRead, Tracker};
+    use crate::layout::ScreenRegion;
+    use crate::vision::Region;
+
+    const fn r(x: u32, y: u32, width: u32, height: u32) -> Region {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    #[test]
+    fn the_padding_is_24_pixels_of_the_reference_client() {
+        assert_eq!(TRACK_PAD, 24);
+    }
+
+    /// The pad is `24 * height / 1033` rounded down: 24 at 1033, 1045 and 1056, 25 at 1080.
+    #[test]
+    fn the_hud_tracking_box_at_each_client_height() {
+        let line = r(430, 860, 150, 20);
+        for (height, expected) in [
+            (1033, r(406, 836, 198, 68)),
+            (1045, r(406, 836, 198, 68)),
+            (1056, r(406, 836, 198, 68)),
+            (1080, r(405, 835, 200, 70)),
+        ] {
+            let mut tracker = Tracker::new(ScreenRegion::HudBand);
+            tracker.record(Some(line), 1920, height);
+            assert_eq!(
+                tracker.next(1920, height),
+                Some(TrackRead::Track(expected)),
+                "{height}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_automap_tracking_box_at_each_client_height() {
+        let line = r(1750, 52, 150, 16);
+        for (height, expected) in [
+            (1033, r(1726, 28, 194, 64)),
+            (1045, r(1726, 28, 194, 64)),
+            (1056, r(1726, 28, 194, 64)),
+            (1080, r(1725, 27, 195, 66)),
+        ] {
+            let mut tracker = Tracker::new(ScreenRegion::AutomapArea);
+            tracker.record(Some(line), 1920, height);
+            assert_eq!(
+                tracker.next(1920, height),
+                Some(TrackRead::Track(expected)),
+                "{height}"
+            );
+        }
+    }
+}
+
+/// remote-config T16: the tracking padding of `thresholds.trackPad` reaches `Tracker`, clamped to the agent's own range.
+#[cfg(test)]
+mod track_pad_threaded {
+    use super::{TRACK_PAD, TrackRead, Tracker};
+    use crate::layout::ScreenRegion;
+    use crate::vision::Region;
+
+    const fn r(x: u32, y: u32, width: u32, height: u32) -> Region {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    fn tracked(height: u32) -> Tracker {
+        let mut tracker = Tracker::new(ScreenRegion::HudBand);
+        tracker.record(Some(r(430, 860, 150, 20)), 1920, height);
+        tracker
+    }
+
+    #[test]
+    fn the_built_in_padding_gives_the_same_box_as_next_at_every_client_height() {
+        for height in [1033, 1045, 1056, 1080] {
+            let tracker = tracked(height);
+            assert_eq!(
+                tracker.next_padded(1920, height, TRACK_PAD),
+                tracker.next(1920, height),
+                "{height}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_padding_moves_the_box_inside_the_agents_range_and_never_outside_it() {
+        let tracker = tracked(1033);
+        let at = |pad| tracker.next_padded(1920, 1033, pad);
+        assert_eq!(at(8), Some(TrackRead::Track(r(422, 852, 166, 36))));
+        assert_eq!(at(48), Some(TrackRead::Track(r(382, 812, 246, 116))));
+        // Under the floor and over the ceiling the range holds, whatever the caller passes.
+        assert_eq!(at(0), at(8));
+        assert_eq!(at(7), at(8));
+        assert_eq!(at(49), at(48));
+        assert_eq!(at(u32::MAX), at(48));
+    }
+
+    #[test]
+    fn a_searching_tracker_ignores_the_padding() {
+        let tracker = Tracker::new(ScreenRegion::HudBand);
+        assert_eq!(
+            tracker.next_padded(1920, 1033, 48),
+            tracker.next(1920, 1033)
+        );
+    }
+
+    use crate::remote_config::{Area, Regions};
+
+    fn smaller_band() -> Regions {
+        Regions {
+            hud_band: Some(Area {
+                x: 0.0,
+                y: 0.8,
+                width: 0.5,
+                height: 0.15,
+            }),
+            ..Regions::default()
+        }
+    }
+
+    #[test]
+    fn no_configured_region_searches_and_tracks_as_before_at_every_client_height() {
+        for height in [1033, 1045, 1056, 1080] {
+            let searching = Tracker::new(ScreenRegion::HudBand);
+            assert_eq!(
+                searching.next_with(1920, height, TRACK_PAD, &Regions::default()),
+                searching.next(1920, height),
+                "{height}"
+            );
+            assert_eq!(
+                searching.search_area_with(1920, height, &Regions::default()),
+                searching.search_area(1920, height),
+                "{height}"
+            );
+            let tracker = tracked(height);
+            assert_eq!(
+                tracker.next_with(1920, height, TRACK_PAD, &Regions::default()),
+                tracker.next(1920, height),
+                "{height}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_configured_band_is_what_a_searching_tracker_reads_and_its_fallback() {
+        let regions = smaller_band();
+        let tracker = Tracker::new(ScreenRegion::HudBand);
+        let expected = r(0, 826, 960, 155);
+        assert_eq!(
+            tracker.next_with(1920, 1033, TRACK_PAD, &regions),
+            Some(TrackRead::Search(expected))
+        );
+        assert_eq!(
+            tracker.search_area_with(1920, 1033, &regions),
+            Some(expected)
+        );
+        // The default band stays what the other tracker kinds read: only the HUD's configured area moved.
+        let automap = Tracker::new(ScreenRegion::AutomapArea);
+        assert_eq!(
+            automap.next_with(1920, 1033, TRACK_PAD, &regions),
+            automap.next(1920, 1033)
+        );
+    }
+
+    #[test]
+    fn a_tracked_line_is_read_in_its_box_whatever_band_is_configured() {
+        let tracker = tracked(1033);
+        assert_eq!(
+            tracker.next_with(1920, 1033, TRACK_PAD, &smaller_band()),
+            tracker.next(1920, 1033)
+        );
+    }
+}

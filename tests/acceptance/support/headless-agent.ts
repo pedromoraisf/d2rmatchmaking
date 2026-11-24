@@ -3,7 +3,7 @@
 // builds it, later runs reuse the build), parses its stdout events and sends it `read` lines. The example never learns the
 // acceptance stack's internals: it talks to the API it is given, like any agent.
 import { spawn, type ChildProcess } from 'node:child_process';
-import { copyFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -98,9 +98,19 @@ function cargoEnv(): Record<string, string> {
 /** The drawn character screens (`xtask draw-fixture characters`): a picture and its sidecar with the text of each region. */
 export const CHARACTER_FIXTURE_DIR = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'characters');
 
-/** A character screen fixture's picture and its sidecar, by the fixture's name (`select-titles`, `in-game`…). */
+/** The drawn automap frames with a game name (`xtask draw-fixture automap-name`, game-name-reading): a picture and its lines. */
+export const AUTOMAP_NAME_FIXTURE_DIR = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'automap-name');
+
+/** The per-mode screens (`xtask draw-fixture screens`, screen-recognition): in-game and automap at window and full screen. */
+export const SCREEN_FIXTURE_DIR = path.join(repoRoot, 'apps', 'agent', 'fixtures', 'screens');
+
+/**
+ * A screen fixture's picture and its sidecar, by the fixture's name (`select-titles`, `in-game`, `in-game-window`…): a
+ * character screen when `characters/` has it, else a per-mode screen.
+ */
 export function characterFixture(name: string): { png: string; sidecar: string } {
-  const png = path.join(CHARACTER_FIXTURE_DIR, `${name}.png`);
+  const drawn = path.join(CHARACTER_FIXTURE_DIR, `${name}.png`);
+  const png = existsSync(drawn) ? drawn : path.join(SCREEN_FIXTURE_DIR, `${name}.png`);
   return { png, sidecar: `${png}.json` };
 }
 
@@ -173,6 +183,8 @@ export class HeadlessAgent {
     party?: boolean;
     consent?: boolean;
     agentVersion?: string;
+    /** More arguments for the example, after the ones above (remote-config: `--config-dir <dir>`). */
+    extraArgs?: readonly string[];
   }): HeadlessAgent {
     const versionArgs = options.agentVersion === undefined ? [] : ['--agent-version', options.agentVersion];
     const consentArgs = options.consent === false ? [] : ['--consent'];
@@ -190,6 +202,7 @@ export class HeadlessAgent {
         options.fixture,
         ...versionArgs,
         ...consentArgs,
+        ...(options.extraArgs ?? []),
       ],
       { cwd: repoRoot, env: cargoEnv(), detached: true, stdio: ['pipe', 'pipe', 'pipe'] },
     );
@@ -251,6 +264,13 @@ export class HeadlessAgent {
   /** Sends `consent on` or `consent off`: the player gives or withdraws capture consent in the agent's window (CHR-01). */
   consent(given: boolean): void {
     this.#child.stdin?.write(`consent ${given ? 'on' : 'off'}\n`);
+  }
+
+  /**
+   * Sends one raw input line: how the scripted game window behaves from now on (`capture print black`, `minimize on`…).
+   */
+  send(line: string): void {
+    this.#child.stdin?.write(`${line}\n`);
   }
 
   /** Sends one `hotkey` line: the example presses the agent's accept hotkey (RDY-07), as the global shortcut does. */

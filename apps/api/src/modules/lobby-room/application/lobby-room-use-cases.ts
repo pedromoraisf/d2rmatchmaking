@@ -2,6 +2,8 @@ import {
   D2R_DIFFICULTY,
   D2R_QUEUE_MODE,
   D2R_ROOM_ACTIVITY,
+  D2R_OBSERVATION_READ_NAMES,
+  D2R_OBSERVATION_READ_TEXT,
   D2R_ROOM_ID,
   D2R_ROOM_RUN,
 } from '@d2rmm/telemetry';
@@ -10,6 +12,11 @@ import {
   activeTraceparent,
   addActiveSpanEvent,
   annotateActiveSpan,
+  gameFacts,
+  journeyIds,
+  NO_SPAN_DETAIL,
+  runIdOf,
+  matchCharacterName,
   err,
   linkActiveSpan,
   ok,
@@ -22,11 +29,14 @@ import {
   type Outbox,
   type Result,
   type RoomStage,
+  type SpanDetail,
   type UnitOfWork,
 } from '../../../shared-kernel/index.ts';
+import { createKeyedLock } from './keyed-lock.ts';
 import { GameName } from '../domain/game-name.ts';
 import { LobbyRoom, type RoomChange, type RoomMember } from '../domain/lobby-room.ts';
 import { Observation, type ObservationType } from '../domain/observation.ts';
+import { isPlayerNameReading, isPlayerSighting } from '../domain/player-sighting.ts';
 import type {
   GameNameSequence,
   LobbyRoomRepository,
@@ -50,6 +60,8 @@ export interface LobbyRoomDeps {
   readonly traceContexts: RoomTraceContexts;
   readonly connectivity: MemberConnectivity;
   readonly characters: RoomCharacters;
+  /** Full-tier span fields (OBT-04); nothing is recorded when unset. */
+  readonly spanDetail?: SpanDetail;
   /** How long a member's agent may stay offline, or their site stream closed, before they leave the room (FR-32). */
   readonly dropToleranceMs: number;
 }
@@ -57,6 +69,8 @@ export interface LobbyRoomDeps {
 /** A member as the room panel shows it: the room's member with the character's class and level. */
 export interface RoomMemberSnapshot extends MatchMember {
   readonly confirmed: boolean;
+  /** The member's agent saw the member in another game for the current run (ARL-10). */
+  readonly elsewhere: boolean;
   readonly class: CharacterClassName | null;
   readonly level: number | null;
 }
@@ -106,6 +120,7 @@ export type RoomActionError = 'not-found' | 'forbidden' | 'conflict';
 
 function actionError(refusal: 'not-member' | 'not-host' | 'wrong-stage'): RoomActionError {
   switch (refusal) {
+    // Stryker disable next-line ConditionalExpression: equivalent — unreachable: roomAction refuses a non-member before any transition runs (pinned by the openNextRun stranger test)
     case 'not-member':
       return 'not-found';
     case 'not-host':
@@ -126,27 +141,6 @@ function toMatchMember(member: RoomMember): MatchMember {
   };
 }
 
-/** One promise chain per key: the work of a key runs one after the other (rooms are in one process, ADR 006). */
-function createKeyedLock() {
-  const tails = new Map<string, Promise<unknown>>();
-  return async function locked<T>(key: string, work: () => Promise<T>): Promise<T> {
-    const previous = tails.get(key) ?? Promise.resolve();
-    const run = previous.then(work, work);
-    const tail = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    tails.set(key, tail);
-    try {
-      return await run;
-    } finally {
-      if (tails.get(key) === tail) {
-        tails.delete(key);
-      }
-    }
-  };
-}
-
 /** The span attributes of a room: ids and bounded enums only, never a name (LBR-13). */
 function roomAttributes(room: LobbyRoom) {
   return {
@@ -155,6 +149,8 @@ function roomAttributes(room: LobbyRoom) {
     [D2R_DIFFICULTY]: room.difficulty,
     [D2R_ROOM_ACTIVITY]: room.activity,
     [D2R_QUEUE_MODE]: room.mode,
+    ...journeyIds({ runId: runIdOf(room.id, room.currentRun) }),
+    ...gameFacts({ gameName: room.gameName.value, stage: room.stage }),
   };
 }
 
@@ -172,7 +168,7 @@ function toAssignmentSnapshot(room: LobbyRoom): AssignmentSnapshot {
  * observation span is `lobby.record-observation` (AWS-35).
  */
 export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
-  const locked = createKeyedLock();
+  const { locked } = createKeyedLock();
 
   /** Writes the changed room and its events in one transaction. */
   async function persist(change: RoomChange): Promise<void> {
@@ -278,6 +274,33 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
   }
 
   /**
+   * The join order of the member of `room` whose character the read name stands for (SNM-02), `null` when it stands for
+   * none, `'ambiguous'` when it stands for more than one. Only members who queued with a character can match. The read
+   * name is a parameter of this function and goes no further.
+   */
+  async function matchedJoinOrder(room: LobbyRoom, read: string): Promise<number | 'ambiguous' | null> {
+    // One lookup for every member who queued with a character, not one for each (security review of #101).
+    const withCharacter = room.members.flatMap((member) =>
+      member.characterId === null
+        ? []
+        : [{ joinOrder: member.joinOrder, accountId: member.accountId, characterId: member.characterId }],
+    );
+    const names = await deps.characters.namesOf(withCharacter);
+    const named = withCharacter.flatMap((member, index) => {
+      const name = names[index];
+      return name === undefined || name === null ? [] : [{ joinOrder: member.joinOrder, name }];
+    });
+    const match = matchCharacterName(
+      read,
+      named.map((entry) => entry.name),
+    );
+    if (match.kind === 'ambiguous') {
+      return 'ambiguous';
+    }
+    return match.kind === 'one' ? (named[match.index]?.joinOrder ?? null) : null;
+  }
+
+  /**
    * Stores one observation of the agent's account for a room it belongs to, in this order: membership (403, nothing
    * stored) → unknown type (202, nothing stored) → idempotency key already stored for this agent (202, no change) →
    * insert and `observe` in one transaction (202).
@@ -292,15 +315,14 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
       { [D2R_ROOM_ID]: input.roomId },
       async (): Promise<Result<{ readonly stored: boolean }, RecordObservationError>> => {
         const accountId = await deps.agents.accountOfAgent(input.agentId);
-        const room = await deps.rooms.findById(input.roomId);
-        const isMember =
-          accountId !== null &&
-          room !== null &&
-          room.members.some((member) => member.accountId === accountId);
-        if (accountId === null || room === null || !isMember) {
+        if (accountId === null) {
           return err('forbidden');
         }
-        annotateActiveSpan(roomAttributes(room));
+        const room = await deps.rooms.findById(input.roomId);
+        if (room === null || !room.members.some((member) => member.accountId === accountId)) {
+          return err('forbidden');
+        }
+        annotateActiveSpan({ ...roomAttributes(room), ...journeyIds({ accountId, agentId: input.agentId }) });
         // The span links to the match that opened the room, for a repeated or UNKNOWN observation too (RTL-03, RTL-04).
         const traceparent = await deps.traceContexts.find(room.id);
         if (traceparent !== null) {
@@ -310,8 +332,35 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
         if (body.type === 'UNKNOWN') {
           return ok({ stored: false });
         }
+        // What the agent read: the full tier only (OBT-04). A sighting is a name; any other value is text.
+        (deps.spanDetail ?? NO_SPAN_DETAIL).annotate(
+          isPlayerSighting(body.type)
+            ? { [D2R_OBSERVATION_READ_NAMES]: body.value }
+            : { [D2R_OBSERVATION_READ_TEXT]: body.value },
+        );
+        // A chat sighting carries one character name as the screen read it. It is checked, matched to a member of this room
+        // and dropped: only the member's join order is stored, and nothing about the name reaches a span or a log (SNM-04).
+        if (isPlayerSighting(body.type) && !isPlayerNameReading(body.value)) {
+          return err('invalid-observation');
+        }
         if (await deps.observations.exists(input.agentId, body.idempotencyKey)) {
-          return ok({ stored: false });
+          // A replay of a sighting answers as a first one does: the answer never tells a match from a miss (SNM-03).
+          return ok({ stored: isPlayerSighting(body.type) });
+        }
+        let value = body.value;
+        if (isPlayerSighting(body.type)) {
+          const joinOrder = await matchedJoinOrder(room, body.value);
+          annotateActiveSpan({
+            'd2r.observation.type': body.type,
+            'd2r.observation.match':
+              joinOrder === null ? 'none' : joinOrder === 'ambiguous' ? joinOrder : 'matched',
+          });
+          if (joinOrder === null || joinOrder === 'ambiguous') {
+            // The same answer as a match: `stored` of a sighting carries nothing, or a peer could search the members' names
+            // through it (security review of #101, SNM-03).
+            return ok({ stored: true });
+          }
+          value = String(joinOrder);
         }
         const made = Observation.of({
           agentId: input.agentId,
@@ -320,7 +369,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
           accountId,
           type: body.type,
           run: body.run,
-          value: body.value,
+          value,
           confidence: body.confidence,
           capturedAt: body.capturedAt,
         });
@@ -474,6 +523,7 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
       members.push({
         ...toMatchMember(member),
         confirmed: member.confirmed,
+        elsewhere: member.elsewhere,
         class: facts?.characterClass ?? null,
         level: facts?.level ?? null,
       });
@@ -514,7 +564,9 @@ export function createLobbyRoomUseCases(deps: LobbyRoomDeps) {
         return null;
       }
       const room = await deps.rooms.findNewestByAccount(accountId);
-      if (room === null) {
+      // A room that ended (expired or closed) is no longer assigned: an agent whose stream was down when the end was sent
+      // reads this on reconnect and drops the room (ARL-01, ARL-02). Returning the dead room kept it held for ever.
+      if (room === null || room.stage === 'closed' || room.stage === 'expired') {
         return null;
       }
       if (room.stage === 'formed' && room.hostAccountId === accountId) {

@@ -34,12 +34,15 @@
     "titleGuardian": "Guardian",
     "createNew": "Create New",
     "life": "Life:",
+    "mana": "Mana:",
     "difficultyLabel": "Difficulty:",
     "selectDifficulty": "Select Difficulty",
     "difficultyNormal": "Normal",
     "difficultyNightmare": "Nightmare",
     "difficultyHell": "Hell",
     "tabOnline": "Online",
-    "tabOffline": "Offline"
+    "tabOffline": "Offline",
+    "joinedGame": "joined our world",
+    "leftGame": "left our world"
   }
 }

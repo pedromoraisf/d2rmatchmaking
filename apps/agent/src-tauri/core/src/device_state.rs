@@ -2,19 +2,31 @@
 //! wake the loops, the dropped-observation count and the hub. The rules run under a short lock. The effects a rule returns
 //! are applied here, to the token store, the view and the update loop. No lock is held across an await.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::num::NonZeroU64;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use chrono::{DateTime, Utc};
+use d2rmm_agent_domain::chat::ChatTracker;
+use d2rmm_agent_domain::hotkey::HotkeyChoice;
+use d2rmm_agent_domain::language::LanguagePack;
 use d2rmm_agent_domain::paired_device::{DeviceEffect, PairedDevice};
+use d2rmm_agent_domain::post_bucket::PostBucket;
+use d2rmm_agent_domain::remote_config::{Effective, Phrases};
 use d2rmm_agent_domain::room_assignment::{Assignment, RoomAssignment};
 use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
+use crate::elsewhere::Watch;
 use crate::hub::Hub;
-use crate::messages::{ReadyCheckOpen, Screen};
+use crate::messages::{CaptureReport, ReadyCheckOpen, Screen};
 use crate::party::PartyProgress;
 use crate::ports::{ApiError, StateSink, TokenStore};
-use crate::view::{PairingView, RoomView, UpdateView};
+use crate::remote_config::ConfigFetch;
+use crate::view::{HotkeyFailure, HotkeyPress, PairingView, RoomView, UpdateView};
+
+/// How many chat sightings the agent posts in a minute (server-name-match).
+const CHAT_POSTS_PER_MINUTE: usize = 20;
 
 /// What the loops share about the device: the aggregate, the room and the signals that wake the loops.
 pub struct DeviceState {
@@ -31,12 +43,34 @@ pub struct DeviceState {
     pub assignment: watch::Sender<RoomAssignment>,
     /// The screen the last frame showed (CHR-04). The heartbeat reports it and beats at once when it changes.
     pub screen: watch::Sender<Screen>,
+    /// The configuration the loops read at each look (RCF-08): the built-in defaults until a fetch applies a newer one.
+    pub config: watch::Sender<Effective>,
+    /// How the last fetch of the configuration ended, for the window and the headless agent (RCF-08, RCF-11).
+    pub config_fetch: watch::Sender<ConfigFetch>,
+    /// What the capture is doing, for the heartbeat (CAP-07). It does not wake the heartbeat: it rides the next beat.
+    capture_report: Mutex<CaptureReport>,
     /// Observations dropped after their retries ran out or were overtaken (AD-051).
     observations_dropped: AtomicU64,
     /// What the Party step has seen for the held run (AGN-05). It follows the assignment and is forgotten with it.
     party: Mutex<PartyProgress>,
+    /// The chat lines the last frame showed (GNR-07): a line that stays on screen is counted once. Never sent or logged.
+    chat: Mutex<ChatTracker>,
+    /// The language pack built from the configured chat phrases, kept until the phrases change (the chat step).
+    chat_language: Mutex<Option<ChatLanguage>>,
+    /// The cap on chat sightings posted (server-name-match): 20 a minute.
+    chat_posts: Mutex<PostBucket>,
     /// The ready check the account is in, while its time has not run out (RDY-07). The hotkey answers it.
     ready_check: Mutex<Option<HeldReadyCheck>>,
+    /// The run the API last accepted an observation for (ARL-03): its room and run number. It counts only while the held
+    /// assignment names the same run.
+    confirmed_run: Mutex<Option<(String, NonZeroU64)>>,
+    /// Whether the Party panel showed another game's name on two looks in a row for the held run (ARL-08). Counts and flags only.
+    elsewhere: Mutex<Watch>,
+    /// `true` from the look that finds the screen out of the game until a look finds it in the game again: the Party look
+    /// kept for the run describes the game, so the window stops showing it meanwhile.
+    party_look_left_behind: AtomicBool,
+    /// The accept hotkey the agent registers (RDY-07, AST-01); the app sets it from its local file at start.
+    hotkey: Mutex<HotkeyChoice>,
 }
 
 /// A held ready check and the monotonic instant its time runs out: the time left came from the server (RDY-11).
@@ -57,9 +91,19 @@ impl DeviceState {
             update_now: Notify::new(),
             assignment: watch::channel(RoomAssignment::empty()).0,
             screen: watch::channel(Screen::Unknown).0,
+            config: watch::channel(Effective::built_in()).0,
+            config_fetch: watch::channel(ConfigFetch::default()).0,
+            capture_report: Mutex::new(CaptureReport::default()),
             observations_dropped: AtomicU64::new(0),
             party: Mutex::new(PartyProgress::default()),
+            chat: Mutex::new(ChatTracker::default()),
+            chat_language: Mutex::new(None),
+            chat_posts: Mutex::new(PostBucket::per_minute(CHAT_POSTS_PER_MINUTE)),
             ready_check: Mutex::new(None),
+            confirmed_run: Mutex::new(None),
+            elsewhere: Mutex::new(Watch::default()),
+            party_look_left_behind: AtomicBool::new(false),
+            hotkey: Mutex::new(HotkeyChoice::default_accept()),
         }
     }
 
@@ -118,8 +162,29 @@ impl DeviceState {
         }
     }
 
+    /// Records what the capture is doing (the method of the last usable frame and its read rate) for the next heartbeat.
+    pub fn set_capture_report(&self, report: CaptureReport) {
+        *self
+            .capture_report
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = report;
+    }
+
+    /// What the heartbeat reports of the capture (CAP-07).
+    pub fn capture_report(&self) -> CaptureReport {
+        *self
+            .capture_report
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// Records the screen the last frame showed. Only a change wakes the heartbeat (CHR-05).
     pub fn set_screen(&self, screen: Screen) {
+        if matches!(screen, Screen::InGame | Screen::AutomapOpen) {
+            self.party_look_left_behind.store(false, Ordering::SeqCst);
+        } else if matches!(*self.screen.borrow(), Screen::InGame | Screen::AutomapOpen) {
+            self.party_look_left_behind.store(true, Ordering::SeqCst);
+        }
         self.screen.send_if_modified(|current| {
             if *current == screen {
                 false
@@ -128,6 +193,42 @@ impl DeviceState {
                 true
             }
         });
+    }
+
+    /// Whether the Party look kept for the run still describes the screen: `false` once the screen left the game (the
+    /// diagnostics must follow the state, not the last good look), until the game shows again.
+    pub fn party_look_describes_screen(&self) -> bool {
+        !self.party_look_left_behind.load(Ordering::SeqCst)
+    }
+
+    /// The accept hotkey the agent registers now.
+    pub fn hotkey(&self) -> HotkeyChoice {
+        *lock(&self.hotkey)
+    }
+
+    /// Holds the accept hotkey and shows it in the window (AST-01).
+    pub fn set_hotkey(&self, choice: HotkeyChoice) {
+        *lock(&self.hotkey) = choice;
+        self.hub.set_hotkey(&choice);
+    }
+
+    /// Shows why the OS refused the hotkey the agent wants, or (`None`) that it holds it now (RDY-07). A refusal is one span
+    /// event with a fixed reason word, never the OS error text (AGS-09); a retry that fails the same way records nothing more.
+    pub fn set_hotkey_unavailable(&self, reason: Option<HotkeyFailure>) {
+        if self.hub.set_hotkey_unavailable(reason)
+            && let Some(reason) = reason
+        {
+            tracing::warn!(reason = reason.as_str(), "hotkey.unavailable");
+        }
+    }
+
+    /// Records a hotkey press the OS delivered and shows it in the window. A press that matched no registered combination
+    /// is also one span event with a fixed word and nothing else.
+    pub fn record_hotkey_press(&self, press: HotkeyPress) {
+        if press == HotkeyPress::Unmatched {
+            tracing::info!("hotkey.unmatched");
+        }
+        self.hub.set_last_press(press);
     }
 
     /// Whether a token is held.
@@ -153,6 +254,9 @@ impl DeviceState {
     /// older one.
     pub fn replace_assignment(&self, assignment: Option<Assignment>) {
         lock(&self.party).follow(assignment.as_ref());
+        if assignment.is_none() {
+            lock(&self.elsewhere).forget();
+        }
         self.assignment.send_modify(|slot| match assignment {
             Some(assignment) => {
                 slot.receive(assignment);
@@ -166,20 +270,81 @@ impl DeviceState {
         apply(&mut lock(&self.party))
     }
 
+    /// Runs `apply` on the elsewhere watch of the held run (ARL-08). Publish the room after a change with `publish_room`.
+    pub fn with_elsewhere<T>(&self, apply: impl FnOnce(&mut Watch) -> T) -> T {
+        apply(&mut lock(&self.elsewhere))
+    }
+
+    /// Whether the API accepted the observation of the run `assignment` names (ARL-03).
+    pub fn run_confirmed(&self, assignment: &Assignment) -> bool {
+        lock(&self.confirmed_run)
+            .as_ref()
+            .is_some_and(|(room, run)| room == assignment.room.as_str() && *run == assignment.run)
+    }
+
+    /// Runs `apply` on the chat tracker (the chat step, GNR-07).
+    pub fn with_chat<T>(&self, apply: impl FnOnce(&mut ChatTracker) -> T) -> T {
+        apply(&mut lock(&self.chat))
+    }
+
+    /// The pack `build` makes from `base` and `phrases`, built once and reused while the phrases (and the base pack) are the
+    /// same; a change of either builds it again.
+    pub fn chat_language(
+        &self,
+        base: &Arc<LanguagePack>,
+        phrases: &Phrases,
+        build: impl FnOnce() -> LanguagePack,
+    ) -> Arc<LanguagePack> {
+        let mut cached = lock(&self.chat_language);
+        if let Some(held) = cached.as_ref()
+            && Arc::ptr_eq(&held.base, base)
+            && held.phrases == *phrases
+        {
+            return Arc::clone(&held.pack);
+        }
+        let pack = Arc::new(build());
+        *cached = Some(ChatLanguage {
+            base: Arc::clone(base),
+            phrases: phrases.clone(),
+            pack: Arc::clone(&pack),
+        });
+        pack
+    }
+
+    /// Takes a place under the chat post's cap at `now`: `false` when the minute's places are spent.
+    pub fn take_chat_post(&self, now: DateTime<Utc>) -> bool {
+        lock(&self.chat_posts).take(now)
+    }
+
     /// Shows the held room with the Party progress: the name, the reveal hint (AGN-04) and the match (AGN-03). Publishes only
     /// a change, so a reading that changes nothing sends nothing to the window.
     pub fn publish_room(&self) {
         let room = self.assignment.borrow().current().map(|assignment| {
             let progress = lock(&self.party);
+            let confirmed = lock(&self.confirmed_run)
+                .as_ref()
+                .is_some_and(|(room, run)| {
+                    room == assignment.room.as_str() && *run == assignment.run
+                });
             RoomView {
                 game_name: assignment.expected_game_name.as_str().to_string(),
                 needs_reveal: progress.needs_reveal(),
                 matched: progress.matched(),
+                confirmed,
+                elsewhere: confirmed
+                    && lock(&self.elsewhere).is_elsewhere(assignment.room.as_str(), assignment.run),
             }
         });
         if self.hub.snapshot().room != room {
             self.hub.set_room(room);
         }
+    }
+
+    /// The API accepted the observation of this run (ARL-03): the window says the presence is confirmed until the run changes
+    /// or the room ends. Holds the run, not the name, and publishes the room.
+    pub fn confirm_run(&self, room: &str, run: NonZeroU64) {
+        *lock(&self.confirmed_run) = Some((room.to_string(), run));
+        self.publish_room();
     }
 
     /// A 401 on any request: the token goes, the room goes, and the pairing loop shows a new code (AGS-08).
@@ -315,10 +480,17 @@ fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     value.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// The pack of one set of chat phrases over one base pack.
+struct ChatLanguage {
+    base: Arc<LanguagePack>,
+    phrases: Phrases,
+    pack: Arc<LanguagePack>,
+}
+
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU64;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
@@ -327,9 +499,49 @@ mod tests {
     use crate::fakes::{MemoryTokens, NullSink};
     use crate::ports::{ApiError, TokenStore};
     use crate::secret::Secret;
-    use crate::view::{PairingView, RoomView, UpdateView};
+    use crate::view::{HotkeyFailure, HotkeyPress, PairingView, RoomView, UpdateView};
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
+
+    /// remote-config: the pack of the configured chat phrases is built once for the same phrases, and again after a change.
+    #[test]
+    fn the_chat_pack_is_built_once_per_phrases() {
+        use d2rmm_agent_domain::language::LanguagePack;
+        use d2rmm_agent_domain::remote_config::{Phrases, Words};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let (device, _tokens) = paired();
+        let base = Arc::new(LanguagePack::english());
+        let builds = AtomicUsize::new(0);
+        let mut phrases = Phrases {
+            en: Words {
+                joined_game: Some("entered".to_string()),
+                ..Words::default()
+            },
+            ..Phrases::default()
+        };
+        let get = |phrases: &Phrases| {
+            device.chat_language(&base, phrases, || {
+                builds.fetch_add(1, Ordering::SeqCst);
+                base.with_phrases(phrases)
+            })
+        };
+        let first = get(&phrases);
+        for _ in 0..10 {
+            assert!(
+                Arc::ptr_eq(&first, &get(&phrases)),
+                "the same pack is reused"
+            );
+        }
+        assert_eq!(builds.load(Ordering::SeqCst), 1);
+
+        phrases.en.joined_game = Some("arrived".to_string());
+        let second = get(&phrases);
+        assert!(!Arc::ptr_eq(&first, &second));
+        assert_eq!(builds.load(Ordering::SeqCst), 2);
+        assert!(Arc::ptr_eq(&second, &get(&phrases)));
+        assert_eq!(builds.load(Ordering::SeqCst), 2);
+    }
 
     /// A paired device and a token store that holds its token, with every port faked in memory.
     fn paired() -> (DeviceState, MemoryTokens) {
@@ -351,6 +563,76 @@ mod tests {
         }
     }
 
+    /// Every event recorded while it is the default subscriber, as `message slot=value`.
+    #[derive(Default)]
+    struct Events(Mutex<Vec<String>>);
+
+    struct Line(String);
+
+    impl tracing::field::Visit for Line {
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            self.0.push_str(&format!(" {}={value}", field.name()));
+        }
+
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            if field.name() == "message" {
+                self.0.insert_str(0, &format!("{value:?}"));
+            } else {
+                self.0.push_str(&format!(" {}={value:?}", field.name()));
+            }
+        }
+    }
+
+    impl tracing::Subscriber for Events {
+        fn enabled(&self, _metadata: &tracing::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, _attrs: &tracing::span::Attributes<'_>) -> tracing::Id {
+            tracing::Id::from_u64(1)
+        }
+
+        fn record(&self, _span: &tracing::Id, _values: &tracing::span::Record<'_>) {}
+
+        fn record_follows_from(&self, _span: &tracing::Id, _follows: &tracing::Id) {}
+
+        fn event(&self, event: &tracing::Event<'_>) {
+            let mut line = Line(String::new());
+            event.record(&mut line);
+            self.0.lock().expect("events").push(line.0);
+        }
+
+        fn enter(&self, _span: &tracing::Id) {}
+
+        fn exit(&self, _span: &tracing::Id) {}
+    }
+
+    #[test]
+    fn a_refused_hotkey_is_one_event_with_its_reason_and_a_retry_that_fails_again_adds_none() {
+        let (device, _tokens) = paired();
+        let events = Arc::new(Events::default());
+        crate::test_interest::always();
+        let guard = tracing::subscriber::set_default(Arc::clone(&events));
+        tracing::callsite::rebuild_interest_cache();
+
+        device.set_hotkey_unavailable(Some(HotkeyFailure::Refused));
+        device.set_hotkey_unavailable(Some(HotkeyFailure::Refused));
+        device.set_hotkey_unavailable(Some(HotkeyFailure::NoManager));
+        device.set_hotkey_unavailable(None);
+        device.record_hotkey_press(HotkeyPress::Accept);
+        device.record_hotkey_press(HotkeyPress::Unmatched);
+        drop(guard);
+
+        assert_eq!(
+            *events.0.lock().expect("events"),
+            [
+                "hotkey.unavailable reason=refused",
+                "hotkey.unavailable reason=no-manager",
+                "hotkey.unmatched"
+            ]
+        );
+    }
+
     #[test]
     fn unauthorized_applies_forget_clear_drop_ask() {
         let (device, tokens) = paired();
@@ -359,6 +641,8 @@ mod tests {
             game_name: "mmbaalh-12".to_string(),
             needs_reveal: false,
             matched: false,
+            confirmed: false,
+            elsewhere: false,
         }));
         let epoch = device.epoch();
 

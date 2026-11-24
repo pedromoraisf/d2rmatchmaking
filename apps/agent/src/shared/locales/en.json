@@ -19,6 +19,8 @@
   },
   "room": {
     "waiting": "Room {{gameName}} — waiting for the game",
+    "confirmed": "Room {{gameName}} — presence confirmed",
+    "elsewhere": "You are in another game (not {{gameName}})",
     "revealHint": "Open the Party panel (P) and click the eye to show the game name."
   },
   "update": {
@@ -36,11 +38,29 @@
     "withdrawn": "Capture is off. The agent reads nothing.",
     "notSaved": "Could not save your choice. Try again."
   },
+  "telemetry": {
+    "heading": "Diagnostics",
+    "switch": "Send diagnostics",
+    "noticeProduction": "Diagnostics help the maintainers follow a problem. They carry ids, the generated game name, the screen the agent recognised, how the read went and timings. They never carry names or text read from the game, and never an image.",
+    "noticeFull": "This test build sends detailed diagnostics for debugging: also the character names and the text the agent read from the game window. This detail exists in staging and preview builds only. Images are never sent.",
+    "effect": "The change applies at once. Heartbeats and everything matchmaking needs are sent either way.",
+    "on": "Diagnostics are on.",
+    "off": "Diagnostics are off. The agent sends none.",
+    "notSaved": "Could not save your choice. Try again.",
+    "unreadable": "Could not read your diagnostics setting. The switch is shown as on; turn it off if you do not want to send them."
+  },
   "readyCheck": {
-    "hotkey": "A ready check is open: press Ctrl+Shift+A to accept it."
+    "hotkey": "A ready check is open: press {{key}} to accept it.",
+    "unavailable": "The accept hotkey ({{key}}) could not be registered: another program may be using it. Choose another combination in the Hotkeys section of this window. (reason: {{reason}})"
   },
   "diagnostics": {
+    "hotkeyPress": {
+      "none": "Last hotkey press: none since the agent started",
+      "accept": "Last hotkey press: the accept key",
+      "unmatched": "Last hotkey press: a key that matches no hotkey of the agent"
+    },
     "heading": "Diagnostics",
+    "config": "Configuration: version {{version}}",
     "screen": {
       "unknown": "Screen: not recognised",
       "characterSelect": "Screen: Character selection",
@@ -51,7 +71,20 @@
     "cards": "Cards read: {{read}}, settled: {{settled}}",
     "popup": "Popup options found: {{found}}",
     "rejected": "Card {{slot}} not settled: {{reason}}",
-    "post": "Last send: {{outcome}}",
+    "post": {
+      "not-sent": "Last send: nothing sent yet",
+      "ok": "Last send: sent",
+      "unauthorized": "Last send: refused, not authorised",
+      "upgrade-required": "Last send: update required",
+      "rate-limited": "Last send: too many requests, will retry",
+      "gone": "Last send: no longer available",
+      "pending": "Last send: waiting for pairing",
+      "server": "Last send: server error",
+      "network": "Last send: could not reach the server",
+      "invalid": "Last send: refused as invalid",
+      "check-ended": "Last send: the ready check ended",
+      "other": "Last send: {{outcome}}"
+    },
     "window": "Window (with borders): {{width}}×{{height}}",
     "content": {
       "blank": "Frame content: blank (brightness {{brightness}})",
@@ -75,6 +108,30 @@
         "far": "Party field, closest reading: far",
         "same": "Party field, closest reading: same after normalising"
       }
+    },
+    "capture": {
+      "method": {
+        "printWindow": "Capture method: Window print",
+        "graphicsCapture": "Capture method: Graphics capture",
+        "screenCrop": "Capture method: Screen crop",
+        "none": "Capture method: None"
+      },
+      "rate": "Usable frames: {{percent}}%",
+      "nothing": "The capture shows nothing: no capture method gave a usable frame"
+    }
+  },
+  "hotkeys": {
+    "heading": "Hotkeys",
+    "accept": "Accept a ready check",
+    "save": "Save",
+    "saved": "Hotkey saved.",
+    "refused": {
+      "no-modifier": "Use Ctrl or Alt with the key.",
+      "needs-ctrl-or-alt": "Use Ctrl or Alt with the key; Shift alone is not enough.",
+      "reserved": "That combination is already used by Windows or every program (such as Ctrl+C, Alt+F4 or the Windows key). Pick another.",
+      "confirming-key": "Enter, Tab, Space, Escape and Backspace cannot be hotkeys.",
+      "unsupported-key": "Use a letter, a digit or F1 to F12 (for example Ctrl+Shift+F).",
+      "not-saved": "Could not save the hotkey. Try again."
     }
   }
 }

@@ -1,8 +1,10 @@
 // The frame of every page (SHL-02, SHL-03, SHL-05, SHL-06): a sticky header with the brand, the sections that exist, the
 // agent's state and the account (or the sign-in controls); a main column; a status column with the agent panel and the
 // agent download (AWS-17, AWS-38); and the footer with the non-affiliation notice.
-import type { ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { currentTier, subscribeTier } from '../shared/telemetry-tier.ts';
+import { CODE_SIGNING_PATH } from './signing-policy.ts';
 
 export const AGENT_DOWNLOAD_URL =
   'https://github.com/pedromoraisf/d2rmatchmaking/releases/latest/download/D2RMatchMaking-setup.exe';
@@ -16,12 +18,26 @@ export interface LayoutProps {
   account?: ReactNode;
   /** The status column's agent panel; null when there is none to show. */
   status?: ReactNode;
+  /** Whether the latest installer is code-signed, read once in main.tsx; the SmartScreen note shows only when it is not (AGR-09). */
+  installerSigned?: boolean;
 }
 
-export function Layout({ children, agent = null, account = null, status = null }: LayoutProps) {
+export function Layout({
+  children,
+  agent = null,
+  account = null,
+  status = null,
+  installerSigned = false,
+}: LayoutProps) {
   const { t } = useTranslation();
+  const tier = useSyncExternalStore(subscribeTier, currentTier);
   return (
     <>
+      {tier === 'full' ? (
+        <p className="recording-notice" role="note">
+          {t('app.recordingNotice')}
+        </p>
+      ) : null}
       <header className="top">
         <div className="top-in">
           <div className="brand">
@@ -50,13 +66,16 @@ export function Layout({ children, agent = null, account = null, status = null }
           <section className="panel">
             <p>
               <a href={AGENT_DOWNLOAD_URL}>{t('app.downloadAgent')}</a>{' '}
-              <span className="muted">{t('app.smartScreenNote')}</span>
+              {installerSigned ? null : <span className="muted">{t('app.smartScreenNote')}</span>}
             </p>
           </section>
         </aside>
       </div>
       <footer className="foot">
         <p>{t('app.notice')}</p>
+        <p>
+          <a href={CODE_SIGNING_PATH}>{t('app.codeSigningLink')}</a>
+        </p>
       </footer>
     </>
   );

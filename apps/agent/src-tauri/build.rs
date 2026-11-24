@@ -1,4 +1,4 @@
-// Generates the permissions of the app's commands (allow-get-new-code, allow-get-consent, allow-set-consent) and the capability schema checks (AGS-01, AGS-04).
+// Generates the permissions of the app's commands (allow-get-new-code, allow-get-consent, allow-set-consent, allow-set-hotkey, allow-get-diagnostics, allow-set-diagnostics) and the capability schema checks (AGS-01, AGS-04).
 // Every command registered in `generate_handler!` must be listed here and allowed in capabilities/main.json.
 //
 // The API base (`D2RMM_API_BASE`) is read with `option_env!` in config.rs. A build without it compiles but cannot start, and
@@ -8,7 +8,14 @@
 fn main() {
     println!("cargo:rerun-if-env-changed=D2RMM_API_BASE");
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
-        tauri_build::AppManifest::new().commands(&["get_new_code", "get_consent", "set_consent"]),
+        tauri_build::AppManifest::new().commands(&[
+            "get_new_code",
+            "get_consent",
+            "set_consent",
+            "set_hotkey",
+            "get_diagnostics",
+            "set_diagnostics",
+        ]),
     ))
     .expect("failed to run tauri-build");
 }

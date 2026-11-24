@@ -17,10 +17,11 @@ import {
 import { penaltyUntil } from '../domain/ready-check/penalty.ts';
 import type { QueueTicket } from '../domain/queue-ticket/queue-ticket.ts';
 import {
+  annotateActiveSpan,
   err,
+  journeyIds,
   ok,
   withRecordingSpan,
-  type Cancel,
   type Clock,
   type EventBus,
   type IdGenerator,
@@ -30,6 +31,7 @@ import {
   type Scheduler,
   type UnitOfWork,
 } from '../../../shared-kernel/index.ts';
+import { createDeadlineRegistry } from './deadline-registry.ts';
 import { matchFormedEvent } from './match-formed.ts';
 import type { QueueNotifier } from './queue-notifier.ts';
 import type { PenaltyStore, QueueMetrics, QueueStore, ReadyCheckStore } from './ports.ts';
@@ -64,6 +66,8 @@ export interface ReadyCheckFlow extends ReadyCheckOpener {
   }): Promise<Result<void, ReadyCheckAnswerRefusal>>;
   /** The account's open check as its members see it, or null when the account is in no open check (RDY-11). */
   openFor(accountId: string): Promise<ReadyCheckChangedPayload | null>;
+  /** How many open checks still wait for their deadline: zero once every check has ended (read only). */
+  pendingDeadlines(): number;
 }
 
 /** The state of an open check as the members' streams carry it: the marks, the accepted and the deadline (RDY-01, RDY-02). */
@@ -85,8 +89,8 @@ export function changedPayloadOf(check: ReadyCheck, now: Date): ReadyCheckChange
 }
 
 export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
-  /** The pending deadline of each open check, cancelled when the check ends before it. */
-  const deadlines = new Map<string, Cancel>();
+  /** The pending deadline of each open check, cancelled and dropped when the check ends. */
+  const deadlines = createDeadlineRegistry();
 
   /** The tickets of the accepted members go back to the queue with their join instants (RDY-04, RDY-05). */
   async function returnToQueue(tickets: readonly QueueTicket[], now: Date): Promise<void> {
@@ -104,8 +108,7 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
   /** Ends the check with its outcome: the match is written (accepted), or the penalties and the re-entry are (otherwise). */
   async function settle(check: ReadyCheck, outcome: ReadyCheckOutcome, now: Date): Promise<void> {
     await deps.checks.put(check);
-    deadlines.get(check.id)?.();
-    deadlines.delete(check.id);
+    deadlines.release(check.id);
     if (outcome === 'accepted') {
       const matchId = deps.ids.next();
       await deps.uow.run(async (tx) => {
@@ -144,7 +147,9 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
     if (ended === check || outcome === null) {
       return;
     }
-    await withRecordingSpan('matchmaking.ready-check.resolve', {}, () => settle(ended, outcome, now));
+    await withRecordingSpan('matchmaking.ready-check.resolve', journeyIds({ readyCheckId: check.id }), () =>
+      settle(ended, outcome, now),
+    );
   }
 
   return {
@@ -154,6 +159,7 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
         { [D2R_QUEUE_MODE]: group.mode, [D2R_DIFFICULTY]: group.difficulty },
         async () => {
           const check = openReadyCheck(deps.ids.next(), group, now);
+          annotateActiveSpan(journeyIds({ readyCheckId: check.id }));
           await deps.checks.put(check);
           await deps.checks.pruneEndedBefore(new Date(now.getTime() - ENDED_CHECK_KEEP_MS));
           await deps.bus.publish({
@@ -163,10 +169,12 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
           const cancel = deps.scheduler.at(check.deadline, () => {
             deps.exclusive(() => expireCheck(check.id)).catch(deps.onError);
           });
-          deadlines.set(check.id, cancel);
+          deadlines.hold(check.id, cancel);
         },
       );
     },
+
+    pendingDeadlines: () => deadlines.pending(),
 
     async openFor(accountId: string): Promise<ReadyCheckChangedPayload | null> {
       const check = await deps.checks.openOf(accountId);
@@ -179,7 +187,7 @@ export function createReadyCheckFlow(deps: ReadyCheckFlowDeps): ReadyCheckFlow {
     answer(input) {
       return withRecordingSpan(
         'matchmaking.ready-check.answer',
-        {},
+        journeyIds({ readyCheckId: input.checkId, accountId: input.accountId }),
         async (): Promise<Result<void, ReadyCheckAnswerRefusal>> => {
           const check = await deps.checks.find(input.checkId);
           if (check === undefined) {

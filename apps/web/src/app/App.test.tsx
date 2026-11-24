@@ -6,7 +6,7 @@ import type { SiteStreamHandlers, StreamOpener } from '../shared/stream.ts';
 import { createApiClient, type Fetcher } from '../shared/api-client.ts';
 import { jsonResponse, routeFetch } from '../test/fake-api.ts';
 import { renderInLanguage } from '../test/render.tsx';
-import { App } from './App.tsx';
+import { AGENT_PRESENCE_REREAD_MS, App } from './App.tsx';
 
 afterEach(cleanup);
 
@@ -15,7 +15,12 @@ function currentStage(): string | null {
   return document.querySelector('.stepper [aria-current="step"]')?.textContent ?? null;
 }
 
-const config = { stagingEndpoints: true, minAgentVersion: '0.0.1', bnetSignIn: false };
+const config = {
+  stagingEndpoints: true,
+  minAgentVersion: '0.0.1',
+  bnetSignIn: false,
+  telemetryTier: 'production',
+};
 const player = { accountId: 'acc-1', displayName: 'PlayerOne' };
 const pairedAgent = {
   status: 'paired',
@@ -132,6 +137,28 @@ describe('App', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Something went wrong. Try again.');
   });
 
+  it('passes the signed-installer setting to every frame: loading, and the loaded site (AGR-09)', async () => {
+    renderInLanguage(
+      <App client={createApiClient(() => new Promise<Response>(() => undefined))} installerSigned />,
+    );
+    expect(screen.getByRole('link', { name: 'Download the agent' })).toBeTruthy();
+    expect(screen.queryByText(/SmartScreen/)).toBeNull();
+    cleanup();
+
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(401),
+    });
+    renderInLanguage(<App client={createApiClient(fetch)} installerSigned />);
+    expect(await screen.findByText('Sign in with a test account')).toBeTruthy();
+    expect(screen.queryByText(/SmartScreen/)).toBeNull();
+    cleanup();
+
+    renderInLanguage(<App client={createApiClient(fetch)} />);
+    expect(await screen.findByText('Sign in with a test account')).toBeTruthy();
+    expect(screen.getByText(/SmartScreen/)).toBeTruthy();
+  });
+
   it('shows the signed-out site with the sign-in form when /v1/me answers 401', async () => {
     const { fetch } = routeFetch({
       'GET /api/v1/config': () => jsonResponse(200, config),
@@ -217,6 +244,135 @@ describe('App', () => {
     expect(screen.getByText('Agent online')).toBeTruthy();
     expect(screen.getByText('Game open')).toBeTruthy();
     expect(screen.getByText('Screen: Automap open')).toBeTruthy();
+  });
+
+  it('reads the agent again when the stream reconnects, so a lost offline event never stays (ARL-06)', async () => {
+    let reply: unknown = { ...pairedAgent, online: true, gameRunning: true };
+    const { fetch } = routeFetch({
+      'GET /api/v1/config': () => jsonResponse(200, config),
+      'GET /api/v1/me': () => jsonResponse(200, player),
+      'GET /api/v1/agents/me': () => jsonResponse(200, reply),
+      'GET /api/v1/me/room': () => jsonResponse(404),
+    });
+    const stream = fakeStream();
+    renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+    expect(await screen.findByText('Agent online')).toBeTruthy();
+
+    reply = { ...pairedAgent, online: false };
+    await streamOpens(stream);
+
+    expect(await screen.findByText('Agent offline')).toBeTruthy();
+  });
+
+  it('reads an online agent again on a timer, so an offline event the stream lost shows within the bound (ARL-06)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let reply: unknown = { ...pairedAgent, online: true };
+      const { fetch } = routeFetch({
+        'GET /api/v1/config': () => jsonResponse(200, config),
+        'GET /api/v1/me': () => jsonResponse(200, player),
+        'GET /api/v1/agents/me': () => jsonResponse(200, reply),
+        'GET /api/v1/me/room': () => jsonResponse(404),
+      });
+      const stream = fakeStream();
+      renderInLanguage(<App client={createApiClient(fetch)} openStream={stream.openStream} />);
+      expect(await screen.findByText('Agent online')).toBeTruthy();
+
+      reply = { ...pairedAgent, online: false };
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(AGENT_PRESENCE_REREAD_MS + 100);
+      });
+
+      expect(await screen.findByText('Agent offline')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  describe('reading an online agent again (SEG-05)', () => {
+    const setVisibility = (state: 'visible' | 'hidden') => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+    };
+
+    /** Renders the site with an agent shown online and counts the reads of `GET /v1/agents/me`. */
+    async function onlineSite(): Promise<{ reads: () => number }> {
+      let reads = 0;
+      const { fetch } = routeFetch({
+        'GET /api/v1/config': () => jsonResponse(200, config),
+        'GET /api/v1/me': () => jsonResponse(200, player),
+        'GET /api/v1/agents/me': () => {
+          reads += 1;
+          return jsonResponse(200, { ...pairedAgent, online: true });
+        },
+        'GET /api/v1/me/room': () => jsonResponse(404),
+      });
+      renderInLanguage(<App client={createApiClient(fetch)} openStream={fakeStream().openStream} />);
+      expect(await screen.findByText('Agent online')).toBeTruthy();
+      const afterLoad = reads;
+      return { reads: () => reads - afterLoad };
+    }
+
+    afterEach(() => {
+      setVisibility('visible');
+      vi.useRealTimers();
+    });
+
+    it('is 12 times an hour, the rate the load journey reads at', () => {
+      expect(3_600_000 / AGENT_PRESENCE_REREAD_MS).toBe(12);
+    });
+
+    it('reads at most twice in ten minutes while the page is in view', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { reads } = await onlineSite();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10 * 60_000);
+      });
+
+      expect(reads()).toBeGreaterThanOrEqual(1);
+      expect(reads()).toBeLessThanOrEqual(2);
+    });
+
+    it('reads nothing while the page is hidden', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { reads } = await onlineSite();
+      setVisibility('hidden');
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10 * 60_000);
+      });
+
+      expect(reads()).toBe(0);
+    });
+
+    it('reads once when the page comes back into view', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { reads } = await onlineSite();
+      setVisibility('hidden');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(AGENT_PRESENCE_REREAD_MS + 100);
+      });
+      expect(reads()).toBe(0);
+
+      setVisibility('visible');
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      expect(reads()).toBe(1);
+    });
+
+    it('does not read when the page is only hidden again', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { reads } = await onlineSite();
+      setVisibility('hidden');
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(reads()).toBe(0);
+    });
   });
 
   it('lists a character the agent registers without a reload, on the characters.updated event', async () => {

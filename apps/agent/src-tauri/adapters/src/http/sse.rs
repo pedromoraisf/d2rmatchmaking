@@ -7,10 +7,12 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use d2rmm_agent_core::messages::{ReadyCheckEnd, ReadyCheckOpen};
+use d2rmm_agent_core::ports::{RoomEnd, RoomEndReason};
+use d2rmm_agent_domain::room_assignment::RoomId;
 
 use crate::contracts::generated::{
     Assignment, ReadyCheckResolvedEventData, ReadyCheckStartedEventData, RoomAssignedEventData,
-    RoomRunOpenedEventData,
+    RoomRunOpenedEventData, RoomStageChangedEventData, RoomStageChangedEventDataStage,
 };
 
 /// The stream event the agent acts on first: the room assignment.
@@ -18,6 +20,8 @@ pub const ROOM_ASSIGNED: &str = "room.assigned";
 /// The host opened the next run (LBR-06): the same assignment shape with the new run and game name. The agent holds it as
 /// its assignment, so the Party step reads for the new name from the next frame on.
 pub const ROOM_RUN_OPENED: &str = "room.run_opened";
+/// A room changed stage: `expired` (LBR-05) and `closed` end the assignment the agent holds for it.
+pub const ROOM_STAGE_CHANGED: &str = "room.stage_changed";
 /// A ready check opened for the account (RDY-01): the hotkey answers it until it ends.
 pub const READY_CHECK_STARTED: &str = "ready_check.started";
 /// A ready check ended (RDY-03 … RDY-05): the hotkey stops answering it.
@@ -34,6 +38,8 @@ pub enum StreamEffect {
     SetAssignment(Assignment),
     ReadyCheckStarted(ReadyCheckOpen),
     ReadyCheckResolved(ReadyCheckEnd),
+    /// The room with this id expired or closed: the core drops the assignment if it holds that room.
+    RoomEnded(RoomEnd),
     Ignore,
 }
 
@@ -51,8 +57,28 @@ pub fn handle(name: &str, data: &str) -> StreamEffect {
             .map_or(StreamEffect::Ignore, StreamEffect::ReadyCheckStarted),
         READY_CHECK_RESOLVED => ready_check_resolved_from(data)
             .map_or(StreamEffect::Ignore, StreamEffect::ReadyCheckResolved),
+        ROOM_STAGE_CHANGED => {
+            room_ended_from(data).map_or(StreamEffect::Ignore, StreamEffect::RoomEnded)
+        }
         _ => StreamEffect::Ignore,
     }
+}
+
+/// The room of a stage change to `expired` or `closed`; any other stage, or data of another shape, gives `None`. The data
+/// is the contract's generated type (UPK-01, ADR 009), so a change of the event's schema changes this parse.
+fn room_ended_from(data: &str) -> Option<RoomEnd> {
+    let event: RoomStageChangedEventData = serde_json::from_str(data).ok()?;
+    let reason = match event.stage {
+        RoomStageChangedEventDataStage::Expired => RoomEndReason::Expired,
+        RoomStageChangedEventDataStage::Closed => RoomEndReason::Closed,
+        _ => return None,
+    };
+    let room_id = String::from(event.room_id);
+    Uuid::parse_str(&room_id).ok()?;
+    Some(RoomEnd {
+        room: RoomId::new(room_id),
+        reason,
+    })
 }
 
 /// The open check of `GET /v1/ready-checks/me` (RDY-11): the same view the started event carries, so it parses the same way.
@@ -222,7 +248,8 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        MAX_EVENT_BYTES, SseParser, StreamEffect, handle, ready_check_open_from_body,
+        MAX_EVENT_BYTES, READY_CHECK_RESOLVED, READY_CHECK_STARTED, ROOM_ASSIGNED, ROOM_RUN_OPENED,
+        ROOM_STAGE_CHANGED, SseParser, StreamEffect, handle, ready_check_open_from_body,
         valid_game_name, valid_last_event_id, valid_ready_check_id,
     };
 
@@ -425,5 +452,203 @@ mod tests {
         assert!(valid_ready_check_id("7d9f2c1e-0000-4000-8000-000000000001"));
         assert!(!valid_ready_check_id(""));
         assert!(!valid_ready_check_id("rc_1"));
+    }
+
+    /// The API's copy for an agent leaves the member list empty (stream-egress SEG-03): the agent reads none of it, and an
+    /// agent from before the change, which still wants the key, reads `[]` as it reads a full list. Both shapes are held.
+    #[test]
+    fn an_assignment_event_holds_with_its_members_or_with_an_empty_list() {
+        let lean = r#"{"roomId":"7d9f2c1e-0000-4000-8000-000000000001","run":2,"expectedGameName":"mmbaalh-13","members":[]}"#;
+        for name in ["room.assigned", "room.run_opened"] {
+            for data in [ASSIGNED, lean] {
+                assert!(
+                    matches!(handle(name, data), StreamEffect::SetAssignment(_)),
+                    "{name} must hold {data}"
+                );
+            }
+        }
+        let StreamEffect::SetAssignment(assignment) = handle("room.assigned", lean) else {
+            panic!("the lean event holds");
+        };
+        assert_eq!(assignment.expected_game_name.as_str(), "mmbaalh-13");
+        assert_eq!(assignment.run.get(), 2);
+    }
+
+    #[test]
+    fn a_ready_check_event_holds_with_its_members_or_with_an_empty_list() {
+        let lean = r#"{"id":"rc-1","mode":"pvp","difficulty":"hell","deadline":"2026-11-10T12:01:00.000Z","now":"2026-11-10T12:00:00.000Z","members":[]}"#;
+        for data in [READY_CHECK, lean] {
+            let StreamEffect::ReadyCheckStarted(check) = handle("ready_check.started", data) else {
+                panic!("a ready_check.started holds: {data}");
+            };
+            assert_eq!(check.id, "rc-1");
+            assert_eq!(check.remaining, Duration::from_secs(60));
+        }
+    }
+
+    /// The server sends data, never commands (AGT-04): an event named like an action, or carrying an action field, is
+    /// ignored, and a known event with an extra field acts exactly as the same event without it.
+    #[test]
+    fn command_shaped_events_change_nothing() {
+        let hostile = r#"{"command":"calc.exe","url":"https://example.invalid","key":"Enter","roomId":"7d9f2c1e-0000-4000-8000-000000000001"}"#;
+        for name in [
+            "command",
+            "exec",
+            "run",
+            "open_url",
+            "press_key",
+            "agent.command",
+            "room.command",
+            "ROOM.ASSIGNED",
+            "room.assigned ",
+            "",
+        ] {
+            assert!(
+                matches!(handle(name, hostile), StreamEffect::Ignore),
+                "{name:?} must be ignored"
+            );
+        }
+        for name in [
+            ROOM_STAGE_CHANGED,
+            READY_CHECK_STARTED,
+            READY_CHECK_RESOLVED,
+        ] {
+            assert!(
+                matches!(handle(name, hostile), StreamEffect::Ignore),
+                "{name} with data of another shape must be ignored"
+            );
+        }
+    }
+
+    #[test]
+    fn an_extra_field_on_a_known_event_adds_no_effect() {
+        let plain = handle("room.assigned", ASSIGNED);
+        let with_extra = ASSIGNED.replacen('{', r#"{"command":"calc.exe","#, 1);
+
+        match (plain, handle("room.assigned", &with_extra)) {
+            (StreamEffect::SetAssignment(plain), StreamEffect::SetAssignment(extra)) => {
+                assert_eq!(format!("{plain:?}"), format!("{extra:?}"));
+            }
+            (StreamEffect::SetAssignment(_), StreamEffect::Ignore) => {}
+            _ => {
+                panic!("a known event must give an assignment, or be ignored with the extra field")
+            }
+        }
+    }
+
+    #[test]
+    fn malformed_data_is_ignored_for_every_known_event() {
+        for name in [
+            ROOM_ASSIGNED,
+            ROOM_RUN_OPENED,
+            ROOM_STAGE_CHANGED,
+            READY_CHECK_STARTED,
+            READY_CHECK_RESOLVED,
+        ] {
+            for data in ["", "nope", "null", "[]", "42", r#""text""#, "{", "{}"] {
+                assert!(
+                    matches!(handle(name, data), StreamEffect::Ignore),
+                    "{name} with {data:?} must be ignored"
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod room_end_tests {
+    use super::{StreamEffect, handle};
+
+    const ROOM: &str = "7d9f2c1e-0000-4000-8000-000000000001";
+
+    fn stage(room: &str, stage: &str) -> String {
+        format!(r#"{{"roomId":"{room}","stage":"{stage}","members":[]}}"#)
+    }
+
+    fn ended_room(data: &str) -> Option<String> {
+        match handle("room.stage_changed", data) {
+            StreamEffect::RoomEnded(end) => Some(end.room.as_str().to_string()),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn an_expired_or_closed_stage_ends_the_room() {
+        assert_eq!(ended_room(&stage(ROOM, "expired")), Some(ROOM.to_string()));
+        assert_eq!(ended_room(&stage(ROOM, "closed")), Some(ROOM.to_string()));
+    }
+
+    /// The API sends the agent only the room and the stage (stream-egress SEG-01).
+    fn lean_stage(room: &str, stage: &str) -> String {
+        format!(r#"{{"roomId":"{room}","stage":"{stage}"}}"#)
+    }
+
+    #[test]
+    fn the_lean_stage_change_without_members_ends_the_room() {
+        use d2rmm_agent_core::ports::RoomEndReason;
+        for (stage_name, expected) in [
+            ("expired", RoomEndReason::Expired),
+            ("closed", RoomEndReason::Closed),
+        ] {
+            match handle("room.stage_changed", &lean_stage(ROOM, stage_name)) {
+                StreamEffect::RoomEnded(end) => {
+                    assert_eq!(end.room.as_str(), ROOM);
+                    assert_eq!(end.reason, expected);
+                }
+                _ => panic!("{stage_name} ends the room with no member list"),
+            }
+        }
+        for live in ["formed", "awaiting_host", "created", "active"] {
+            assert_eq!(ended_room(&lean_stage(ROOM, live)), None, "{live}");
+        }
+    }
+
+    #[test]
+    fn a_stage_change_that_still_carries_members_ends_the_room_too() {
+        let with_members = format!(
+            r#"{{"roomId":"{ROOM}","stage":"expired","members":[{{"accountId":"a","characterId":null,"joinOrder":1,"role":"host"}}]}}"#
+        );
+        assert_eq!(ended_room(&with_members), Some(ROOM.to_string()));
+    }
+
+    #[test]
+    fn each_ended_stage_carries_its_reason() {
+        use d2rmm_agent_core::ports::RoomEndReason;
+        for (stage_name, expected) in [
+            ("expired", RoomEndReason::Expired),
+            ("closed", RoomEndReason::Closed),
+        ] {
+            match handle("room.stage_changed", &stage(ROOM, stage_name)) {
+                StreamEffect::RoomEnded(end) => assert_eq!(end.reason, expected),
+                _ => panic!("{stage_name} ends the room"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_live_stage_does_not_end_the_room() {
+        for live in ["formed", "awaiting_host", "created", "active"] {
+            assert_eq!(ended_room(&stage(ROOM, live)), None, "{live}");
+        }
+    }
+
+    #[test]
+    fn a_stage_event_of_another_shape_is_ignored() {
+        assert_eq!(ended_room(r#"{"stage":"expired"}"#), None);
+        assert_eq!(ended_room(&stage("not-a-uuid", "expired")), None);
+        assert_eq!(ended_room("nope"), None);
+    }
+
+    #[test]
+    fn an_unknown_stage_is_ignored() {
+        assert_eq!(ended_room(&stage(ROOM, "paused")), None);
+        assert_eq!(ended_room(&lean_stage(ROOM, "paused")), None);
+    }
+
+    #[test]
+    fn a_missing_members_list_ends_the_room_since_the_agents_copy_is_lean() {
+        // The agent's stage event is the room and the stage only (stream-egress SEG-01): no member list is the normal shape.
+        let no_members = format!(r#"{{"roomId":"{ROOM}","stage":"expired"}}"#);
+        assert_eq!(ended_room(&no_members), Some(ROOM.to_string()));
     }
 }

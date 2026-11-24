@@ -1,6 +1,6 @@
 // Site root: reads the configuration, the signed-in player, the agent and the room, then keeps them current from the
 // stream. Every stream open and every action re-reads what it may have changed.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type {
   AgentView,
   CharacterView,
@@ -21,7 +21,8 @@ import { ReadyCheckOverlay } from '../features/matchmaking/ReadyCheckOverlay.tsx
 import { SearchingPanel } from '../features/matchmaking/SearchingPanel.tsx';
 import { StartTestMatchButton } from '../features/lobby-room/StartTestMatchButton.tsx';
 import { type ApiClient, createApiClient } from '../shared/api-client.ts';
-import { tracingFetcher } from '../shared/telemetry.ts';
+import { setSiteJourney, tracingFetcher } from '../shared/telemetry.ts';
+import { currentTier, subscribeTier } from '../shared/telemetry-tier.ts';
 import { openSiteStream, type StreamOpener } from '../shared/stream.ts';
 import { Layout } from './Layout.tsx';
 import { readWhenAwake, type WakeOptions } from './wake-retry.ts';
@@ -33,6 +34,8 @@ export interface AppProps {
   /** Test seam for the wait on a sleeping server (DLP-07). */
   sleep?: (ms: number) => Promise<void>;
   openStream?: StreamOpener;
+  /** Whether the latest installer is code-signed (AGR-09), read once in main.tsx and passed to every frame. */
+  installerSigned?: boolean;
 }
 
 interface Ready {
@@ -52,6 +55,13 @@ interface Ready {
 type Boot = { status: 'loading' } | { status: 'waking' } | { status: 'failed' } | Ready;
 
 const defaultClient = createApiClient(tracingFetcher((url, init) => fetch(url, init)));
+/**
+ * How often an agent shown online is read again: 12 times an hour (stream-egress SEG-05). The API tells the site once when
+ * an agent goes quiet, within a second of its 45 s limit, so this read is only the safety net for an event that was lost.
+ * The load journey reads at the same rate (`PRESENCE_EVERY_SECONDS`, scripts/load/lib/journey-state.mjs).
+ */
+export const AGENT_PRESENCE_REREAD_MS = 300_000;
+
 const defaultOpenStream: StreamOpener = (handlers) => openSiteStream(handlers);
 
 // A 401 on /v1/me is the signed-out view, not a failure (AWS-03, AWS-04).
@@ -98,10 +108,35 @@ async function loadBoot(client: ApiClient, wake: WakeOptions): Promise<Boot> {
   };
 }
 
-export function App({ client = defaultClient, openStream = defaultOpenStream, sleep }: AppProps) {
+export function App({
+  client = defaultClient,
+  openStream = defaultOpenStream,
+  sleep,
+  installerSigned = false,
+}: AppProps) {
   const { t } = useTranslation();
   const [boot, setBoot] = useState<Boot>({ status: 'loading' });
   const signedIn = boot.status === 'ready' && boot.session !== null;
+
+  // The ids of this player's journey go on the site's spans from now on (OBT-07); the BattleTag only in the full tier.
+  const tier = useSyncExternalStore(subscribeTier, currentTier);
+  const journeyAccount = boot.status === 'ready' ? (boot.session?.accountId ?? null) : null;
+  const journeyName = boot.status === 'ready' ? (boot.session?.displayName ?? null) : null;
+  const journeyRoom = boot.status === 'ready' ? (boot.room?.roomId ?? null) : null;
+  const journeyTicket = boot.status === 'ready' ? (boot.queue?.id ?? null) : null;
+  const journeyCheck = boot.status === 'ready' ? (boot.readyCheck?.id ?? null) : null;
+  useEffect(() => {
+    setSiteJourney(
+      {
+        accountId: journeyAccount ?? undefined,
+        battletag: journeyName ?? undefined,
+        roomId: journeyRoom ?? undefined,
+        ticketId: journeyTicket ?? undefined,
+        readyCheckId: journeyCheck ?? undefined,
+      },
+      tier,
+    );
+  }, [journeyAccount, journeyName, journeyRoom, journeyTicket, journeyCheck, tier]);
 
   // The Battle.net callback's failure flag is read once, on the first render, and then removed from the address bar.
   const [signInFailed] = useState(() => signInFailedIn(window.location.search));
@@ -229,7 +264,10 @@ export function App({ client = defaultClient, openStream = defaultOpenStream, sl
         }
         if (
           event.type === 'room.assigned' ||
-          (event.type === 'room.member_changed' && event.data.change !== 'confirmed')
+          (event.type === 'room.member_changed' &&
+            event.data.change !== 'confirmed' &&
+            event.data.change !== 'elsewhere' &&
+            event.data.change !== 'returned')
         ) {
           void refreshRoomMarks(event.data.roomId);
         }
@@ -237,23 +275,60 @@ export function App({ client = defaultClient, openStream = defaultOpenStream, sl
     });
   }, [signedIn, openStream, refreshSite, refreshCharacters, refreshRoomMarks]);
 
+  // The agent is read again while it shows online (ARL-06, SEG-05). The API marks an agent offline 45 s after its last
+  // heartbeat and says so once, as a transient event that is never replayed; a browser keeps a half-dead event stream open
+  // without noticing. A lost event would leave "online" on screen until the next page load. The read gives the API's own
+  // answer (computed from the last heartbeat). It runs every AGENT_PRESENCE_REREAD_MS while the page is in view, never while
+  // it is hidden, and once when the page comes back into view, so a tab that slept does not show a stale agent. A stream
+  // reconnect needs no read here: every open reaches `onOpen`, and `refreshSite` reads the agent again (shared/stream.ts).
+  const agentShownOnline = signedIn && boot.agent?.status === 'paired' && boot.agent.online;
+  useEffect(() => {
+    if (!agentShownOnline) {
+      return undefined;
+    }
+    const read = () => {
+      const seen = streamEvents.current;
+      void client.myAgent().then((agent) => {
+        // An event that arrived while the read ran is newer than the answer.
+        if (agent.ok && streamEvents.current === seen) {
+          setBoot((current) => (current.status === 'ready' ? { ...current, agent: agent.value } : current));
+        }
+      });
+    };
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'hidden') {
+        read();
+      }
+    }, AGENT_PRESENCE_REREAD_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        read();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [agentShownOnline, client]);
+
   if (boot.status === 'loading') {
     return (
-      <Layout>
+      <Layout installerSigned={installerSigned}>
         <p>{t('app.loading')}</p>
       </Layout>
     );
   }
   if (boot.status === 'waking') {
     return (
-      <Layout>
+      <Layout installerSigned={installerSigned}>
         <p role="status">{t('app.waking')}</p>
       </Layout>
     );
   }
   if (boot.status === 'failed') {
     return (
-      <Layout>
+      <Layout installerSigned={installerSigned}>
         <p role="alert">{t('app.error')}</p>
       </Layout>
     );
@@ -266,6 +341,7 @@ export function App({ client = defaultClient, openStream = defaultOpenStream, sl
   const showPairing = session !== null && (agent?.status === 'none' || pairedNotice);
   return (
     <Layout
+      installerSigned={installerSigned}
       agent={session !== null ? <AgentPill agent={agent} /> : null}
       account={
         <SignInPanel

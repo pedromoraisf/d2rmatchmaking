@@ -1,6 +1,7 @@
-import { cleanup, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderInLanguage } from '../test/render.tsx';
+import { setTier } from '../shared/telemetry-tier.ts';
 import { AGENT_DOWNLOAD_URL, Layout } from './Layout.tsx';
 
 afterEach(cleanup);
@@ -39,6 +40,18 @@ describe('Layout', () => {
       'O instalador ainda não tem assinatura de código, por isso o Windows SmartScreen pode avisar antes de executá-lo.',
     );
     expect(link.parentElement?.contains(note)).toBe(true);
+  });
+
+  it('shows no SmartScreen note once the installer is signed, and keeps the download link', () => {
+    renderInLanguage(<Layout installerSigned>{null}</Layout>, ['en-US']);
+    expect(screen.getByRole('link', { name: 'Download the agent' })).toBeTruthy();
+    expect(screen.queryByText(/SmartScreen/)).toBeNull();
+  });
+
+  it('shows no SmartScreen note in pt-BR either once the installer is signed', () => {
+    renderInLanguage(<Layout installerSigned>{null}</Layout>, ['pt-BR']);
+    expect(screen.getByRole('link', { name: 'Baixar o agente' })).toBeTruthy();
+    expect(screen.queryByText(/SmartScreen/)).toBeNull();
   });
 
   it('shows the notice and the download button in pt-BR', () => {
@@ -87,5 +100,37 @@ describe('Layout', () => {
     expect(within(banner).getByText(agentState)).toBeTruthy();
     expect(within(banner).getByText(accountSlot)).toBeTruthy();
     expect(within(screen.getByRole('main')).getByText(content)).toBeTruthy();
+  });
+});
+
+describe('the recording notice (OBT-12)', () => {
+  afterEach(() => {
+    setTier('production');
+  });
+
+  it('shows nothing in the production tier', () => {
+    renderInLanguage(<Layout>{null}</Layout>);
+    expect(screen.queryByRole('note')).toBeNull();
+  });
+
+  it('says in English that everything is recorded in the full tier', () => {
+    setTier('full');
+    renderInLanguage(<Layout>{null}</Layout>, ['en-US']);
+    expect(screen.getByRole('note').textContent).toContain('recorded for debugging');
+  });
+
+  it('says it in pt-BR', () => {
+    setTier('full');
+    renderInLanguage(<Layout>{null}</Layout>, ['pt-BR']);
+    expect(screen.getByRole('note').textContent).toContain('gravado para depuração');
+  });
+
+  it('appears when the tier arrives after the first render', () => {
+    renderInLanguage(<Layout>{null}</Layout>);
+    expect(screen.queryByRole('note')).toBeNull();
+    act(() => {
+      setTier('full');
+    });
+    expect(screen.getByRole('note')).toBeTruthy();
   });
 });

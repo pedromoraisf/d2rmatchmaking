@@ -28,6 +28,18 @@ const SOURCE_GLOBS: Readonly<Record<Layer, readonly string[]>> = {
   application: ['src/modules/*/application/**/*.ts'],
 };
 
+/**
+ * Test-support code kept out of the mutation scope (ADR 038): the in-memory fakes live in `testing/` folders and a
+ * survivor there says nothing about the product. One list feeds both the Stryker `mutate` negations (`layerConfig`) and
+ * the `--changed` file filter (`planLayer`), which reads patterns literally and so cannot take a `!` glob.
+ */
+export const EXCLUDED_GLOBS: readonly string[] = ['src/**/*.test.ts', 'src/**/testing/**'];
+
+/** True for a path (relative to the API root) in test-support code: a test file or a file under a `testing/` folder. */
+export function isExcluded(file: string): boolean {
+  return file.endsWith('.test.ts') || file.split('/').includes('testing');
+}
+
 const BREAK_THRESHOLDS: Readonly<Record<Layer, { high: number; low: number; break: number }>> = {
   domain: { high: 90, low: 80, break: 80 },
   application: { high: 85, low: 70, break: 70 },
@@ -37,7 +49,7 @@ const BREAK_THRESHOLDS: Readonly<Record<Layer, { high: number; low: number; brea
 export function layerConfig(layer: Layer): LayerConfig {
   const reportDir = `../../reports/mutation/api-${layer}`;
   return {
-    mutate: [...SOURCE_GLOBS[layer], '!src/**/*.test.ts'],
+    mutate: [...SOURCE_GLOBS[layer], ...EXCLUDED_GLOBS.map((glob) => `!${glob}`)],
     thresholds: BREAK_THRESHOLDS[layer],
     jsonReporter: { fileName: `${reportDir}/mutation.json` },
     htmlReporter: { fileName: `${reportDir}/mutation.html` },
@@ -62,7 +74,7 @@ export async function planLayer(
   const found = new Set<string>();
   for (const pattern of SOURCE_GLOBS[layer]) {
     for await (const file of glob(pattern, { cwd: apiRoot })) {
-      if (!file.endsWith('.test.ts') && (changed === undefined || changed.has(file))) {
+      if (!isExcluded(file) && (changed === undefined || changed.has(file))) {
         found.add(file);
       }
     }

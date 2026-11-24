@@ -3,7 +3,7 @@
 import cookie from '@fastify/cookie';
 import swagger from '@fastify/swagger';
 import { ConfigResponse } from '@d2rmm/contracts';
-import { APP_METER_NAME } from '@d2rmm/telemetry';
+import { APP_METER_NAME, type TelemetryTier } from '@d2rmm/telemetry';
 import Fastify, { type FastifyInstance } from 'fastify';
 import {
   jsonSchemaTransform,
@@ -24,7 +24,9 @@ import { PostgresObservationRepository } from '../modules/lobby-room/adapters/po
 import { PostgresRoomTraceContexts } from '../modules/lobby-room/adapters/postgres/postgres-room-trace-contexts.ts';
 import type { LobbyDatabase } from '../modules/lobby-room/adapters/postgres/schema.ts';
 import { OtelRoomMetrics } from '../modules/lobby-room/adapters/telemetry/otel-room-metrics.ts';
+import { spanDetailFor } from './span-detail.ts';
 import { createLobbyRoomUseCases } from '../modules/lobby-room/index.ts';
+import { openRoomForMatch } from './match-formed.ts';
 import { matchmakingRoutes } from '../modules/matchmaking/adapters/http/routes.ts';
 import { queueRoutes } from '../modules/matchmaking/adapters/http/queue-routes.ts';
 import { readyCheckRoutes } from '../modules/matchmaking/adapters/http/ready-check-routes.ts';
@@ -36,6 +38,7 @@ import type { MatchmakingDatabase } from '../modules/matchmaking/adapters/postgr
 import { JOIN_LIMIT } from '../modules/matchmaking/domain/queue-limits.ts';
 import { OtelQueueMetrics } from '../modules/matchmaking/adapters/telemetry/otel-queue-metrics.ts';
 import { createMatchmakingUseCases, createQueueUseCases } from '../modules/matchmaking/index.ts';
+import { MemoryAgentConfigSource } from '../modules/agents/adapters/memory/memory-agent-config-source.ts';
 import { MemoryAgentTokenCache } from '../modules/agents/adapters/memory/memory-agent-token-cache.ts';
 import { MemoryPresenceStore } from '../modules/agents/adapters/memory/memory-presence-store.ts';
 import { MemoryRateLimitStore } from '../modules/agents/adapters/memory/memory-rate-limit-store.ts';
@@ -43,6 +46,8 @@ import { PostgresAgentRepository } from '../modules/agents/adapters/postgres/pos
 import { PostgresPairingCodeRepository } from '../modules/agents/adapters/postgres/postgres-pairing-code-repository.ts';
 import type { AgentsDatabase } from '../modules/agents/adapters/postgres/schema.ts';
 import { createAgentsUseCases } from '../modules/agents/application/agents-use-cases.ts';
+import { loadAgentConfig } from '../modules/agents/adapters/file/agent-config-file.ts';
+import type { ServedAgentConfig } from '../modules/agents/domain/agent-config.ts';
 import type { IdentityPort } from '../modules/identity/index.ts';
 import { characterRoutes } from '../modules/identity/adapters/http/character-routes.ts';
 import { identityRoutes } from '../modules/identity/adapters/http/routes.ts';
@@ -62,10 +67,12 @@ import { answerError } from '../platform/http/answer-error.ts';
 import { registerRequestMetrics } from '../platform/http/request-metrics.ts';
 import { registerOutboxLag } from '../platform/outbox-lag.ts';
 import { createGuards } from '../platform/http/guards.ts';
+import { createObservationLimit } from '../platform/http/observation-limit.ts';
 import { Forwarder } from '../platform/http/relay-forwarder.ts';
 import { RelayBudget } from '../platform/http/relay-budget.ts';
 import { RelayLimiter } from '../platform/http/relay-limiter.ts';
 import { telemetryRelayPlugin } from '../platform/http/telemetry-relay.ts';
+import { BackgroundWork } from '../platform/background-work.ts';
 import { OutboxRelay } from '../platform/outbox-relay.ts';
 import type { PlatformDatabase } from '../platform/postgres/database.ts';
 import { PostgresOutbox } from '../platform/postgres/outbox.ts';
@@ -145,6 +152,8 @@ export function appLoggerOptions(sink?: Writable) {
 export interface AppConfig {
   readonly stagingEndpoints: boolean;
   readonly minAgentVersion: string;
+  /** The telemetry detail tier from `D2RMM_ENV` (main/config.ts), answered to the site; `production` when unset (OBT-01). */
+  readonly telemetryTier?: TelemetryTier | undefined;
   readonly siteOrigin: string;
   readonly trustProxyHops: number;
   /** The commit of the running build, answered by `/healthz` (DLP-04); `unknown` when the environment names none. */
@@ -168,6 +177,11 @@ export interface AppDeps {
   readonly onDeadLetter?: (outboxId: string, eventType: string) => void;
   /** Where the telemetry relay forwards (OBS-15). Defaults to no endpoint: every forward is dropped. */
   readonly telemetryBackend?: TelemetryBackend;
+  /**
+   * The validated remote configuration the API serves to agents (RCF-12), read once at start by the composition root.
+   * Defaults to the committed file, so a test app serves the same document as production.
+   */
+  readonly agentConfig?: ServedAgentConfig;
 }
 
 /** The OTLP backend the relay forwards to, from the `OTEL_EXPORTER_OTLP_*` settings (main/config.ts). */
@@ -187,11 +201,15 @@ export interface BuiltApp {
   readonly hub: StreamHub;
   /** The pending site-closed drops (QUE-14). The test controls cancel them on reset. */
   readonly siteClosedTimers: { clear(): void };
+  /** The scheduled database jobs. The test controls pause them for the length of a reset. */
+  readonly background: BackgroundWork;
   /** The in-memory stores of the process (ADR 006): the only state outside Postgres. */
   readonly stores: {
     readonly presence: MemoryPresenceStore;
     readonly rateLimits: MemoryRateLimitStore;
     readonly tokenCache: MemoryAgentTokenCache;
+    /** The served remote configuration; a staging test control replaces it (RCF-05, RCF-06). */
+    readonly agentConfig: MemoryAgentConfigSource;
     readonly queue: MemoryQueueStore;
     /** The joins attempted per account (QUE-18): a scenario starts with no attempt counted. */
     readonly joins: MemoryJoinLimitStore;
@@ -228,6 +246,8 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     presence: new MemoryPresenceStore(),
     rateLimits: new MemoryRateLimitStore(),
     tokenCache: new MemoryAgentTokenCache(),
+    // The committed document, read once at start by the composition root (RCF-12); a test app reads it here.
+    agentConfig: new MemoryAgentConfigSource(deps.agentConfig ?? loadAgentConfig()),
   };
   const hasher = new Sha256SecretHasher();
   // Battle.net is reached only when both client settings are configured; the routes answer 404 otherwise (IDB-06).
@@ -241,7 +261,9 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
           fetch: (url, init) => fetch(url, init),
         });
 
+  const spanDetail = spanDetailFor(config.telemetryTier);
   const identity = createIdentityUseCases({
+    spanDetail,
     accounts: new PostgresAccountRepository(db as unknown as Kysely<IdentityDatabase>, clock),
     sessions: new PostgresSessionRepository(db as unknown as Kysely<IdentityDatabase>),
     hasher,
@@ -252,6 +274,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     stagingEndpoints: config.stagingEndpoints,
   });
   const characters = createCharacterUseCases({
+    spanDetail,
     characters: new PostgresCharacterRepository(db as unknown as Kysely<IdentityDatabase>),
     uow,
     outbox,
@@ -269,6 +292,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     bus,
     cache: stores.tokenCache,
     presence: stores.presence,
+    configSource: stores.agentConfig,
   });
 
   const identityPort: IdentityPort = {
@@ -294,6 +318,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   const siteClosedAt = new Map<string, Date>();
   // The Lobby Room opens one room per `MatchFormed` it consumes (AWS-19, idempotent by match id).
   const lobby = createLobbyRoomUseCases({
+    spanDetail,
     rooms: new PostgresLobbyRoomRepository(db as unknown as Kysely<LobbyDatabase>, clock),
     observations: new PostgresObservationRepository(db as unknown as Kysely<LobbyDatabase>, clock),
     sequence: new PostgresGameNameSequence(db as unknown as Kysely<LobbyDatabase>),
@@ -314,20 +339,14 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
         const facts = await characters.characterOf(accountId, characterId);
         return facts === null ? null : { characterClass: facts.characterClass, level: facts.level };
       },
+      namesOf: characters.characterNamesOf,
     },
     dropToleranceMs: (config.roomDropToleranceSeconds ?? DEFAULT_DROP_TOLERANCE_SECONDS) * 1000,
   });
   const matchmaking = createMatchmakingUseCases({ ids, uow, outbox });
   bus.subscribe('MatchFormed', async (event) => {
     if (event.event.type === 'MatchFormed') {
-      const opened = await lobby.onMatchFormed(event.event.payload);
-      if (!opened.ok) {
-        // A formed match without a room leaves its players waiting: never drop it silently.
-        app.log.error(
-          { matchId: event.event.payload.matchId, reason: opened.error },
-          'a match was formed but no room could be opened for it',
-        );
-      }
+      await openRoomForMatch(lobby, event.event.payload, app.log);
     }
   });
   const hub = new StreamHub({
@@ -393,6 +412,8 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   });
   // A site stream that stays closed for 30 seconds takes the ticket out of the queue; a reconnect in time keeps it (QUE-14).
   const siteClosedClocks = new Map<string, Cancel>();
+  // Every scheduled job that writes to the database, so the acceptance reset can stop them before it truncates.
+  const background = new BackgroundWork();
   // Cancels every pending 30-second drop: the test controls' reset calls it so no timer of a scenario fires in the next.
   const siteClosedTimers = {
     clear(): void {
@@ -408,17 +429,21 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     const cancel = scheduler.at(new Date(clock.now().getTime() + SITE_CLOSED_DROP_MS), () => {
       siteClosedClocks.delete(accountId);
       if (!hub.hasSiteStream(accountId)) {
-        queue.dropTicket({ accountId, reason: 'site-closed' }).catch(() => {
-          app.log.error('dropping a queue ticket after the site closed failed');
-        });
+        background.run(() =>
+          queue.dropTicket({ accountId, reason: 'site-closed' }).catch(() => {
+            app.log.error('dropping a queue ticket after the site closed failed');
+          }),
+        );
       }
     });
     siteClosedClocks.set(accountId, cancel);
   });
   const stopMatcher = scheduler.every(MATCHER_EVERY_MS, () => {
-    void queue.runMatcher().catch(() => {
-      app.log.error('queue matcher run failed; it runs again in one second');
-    });
+    background.run(() =>
+      queue.runMatcher().catch(() => {
+        app.log.error('queue matcher run failed; it runs again in one second');
+      }),
+    );
   });
 
   // Rooms expire 3 minutes after they wait for the host, and members who stayed away for the tolerance leave (LBR-05, LBR-08).
@@ -430,21 +455,28 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
       return;
     }
     roomSweepRunning = true;
-    void lobby
-      .expireRooms()
-      .then(() => lobby.dropAbsentMembers())
-      .catch(() => {
-        app.log.error('room sweep failed; it runs again in one second');
-      })
-      .finally(() => {
-        roomSweepRunning = false;
-      });
+    const started = background.run(() =>
+      lobby
+        .expireRooms()
+        .then(() => lobby.dropAbsentMembers())
+        .catch(() => {
+          app.log.error('room sweep failed; it runs again in one second');
+        })
+        .finally(() => {
+          roomSweepRunning = false;
+        }),
+    );
+    if (!started) {
+      roomSweepRunning = false;
+    }
   });
 
   const stopSweep = scheduler.every(SWEEP_EVERY_MS, () => {
-    void agents.sweep().catch(() => {
-      app.log.error('agents sweep failed; it runs again in one second');
-    });
+    background.run(() =>
+      agents.sweep().catch(() => {
+        app.log.error('agents sweep failed; it runs again in one second');
+      }),
+    );
   });
 
   registerRequestMetrics(app, metrics.getMeter(APP_METER_NAME));
@@ -452,8 +484,11 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.setErrorHandler(answerError);
+  // Keys of the per-account route limit older than their window are dropped every 30 s, so the cap never fills with idle accounts.
+  const stopRouteLimitSweep = guards.watchRouteLimits(scheduler);
   app.addHook('onClose', () => {
     stopSweep();
+    stopRouteLimitSweep();
     stopMatcher();
     stopRoomSweep();
     siteClosedTimers.clear();
@@ -489,6 +524,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     stagingEndpoints: config.stagingEndpoints,
     minAgentVersion: config.minAgentVersion,
     bnetSignIn: config.bnet !== undefined,
+    telemetryTier: config.telemetryTier ?? 'production',
   }));
   identityRoutes(app, {
     useCases: identity,
@@ -500,7 +536,14 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   });
   characterRoutes(app, { useCases: characters, agents: agentsPort, guards });
   agentsRoutes(app, { useCases: agents, guards });
-  lobbyRoomRoutes(app, { useCases: lobby, guards });
+  // Observations are limited for each agent and each room; the limiter is swept for as long as the app lives.
+  const observationLimit = createObservationLimit({ clock });
+  const stopObservationSweep = observationLimit.watch(scheduler);
+  app.addHook('onClose', (_instance, done) => {
+    stopObservationSweep();
+    done();
+  });
+  lobbyRoomRoutes(app, { useCases: lobby, guards: { ...guards, limitObservations: observationLimit.guard } });
   matchmakingRoutes(app, { useCases: matchmaking, guards, stagingEndpoints: config.stagingEndpoints });
   queueRoutes(app, { useCases: queue, guards });
   readyCheckRoutes(app, { useCases: queue, guards });
@@ -512,6 +555,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     bus,
     hub,
     siteClosedTimers,
+    background,
     stores: { ...stores, queue: queueStore, joins: joinLimits, readyChecks },
   };
 }

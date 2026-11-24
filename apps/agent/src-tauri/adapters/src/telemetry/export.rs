@@ -10,6 +10,7 @@ use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::trace::{Span, SpanData, SpanExporter, SpanProcessor};
 
 use super::queue::BoundedQueue;
+use super::switch::DiagnosticsSwitch;
 use super::{ERROR_LOG_WINDOW, LogGate};
 
 /// How often the export task drains the queue (design § Agent exporter).
@@ -29,18 +30,23 @@ fn lock(queue: &SpanQueue) -> MutexGuard<'_, BoundedQueue<SpanData>> {
 #[derive(Debug)]
 pub struct DropOldestProcessor {
     queue: SpanQueue,
+    switch: DiagnosticsSwitch,
 }
 
 impl DropOldestProcessor {
-    pub fn new(queue: SpanQueue) -> Self {
-        Self { queue }
+    pub fn new(queue: SpanQueue, switch: DiagnosticsSwitch) -> Self {
+        Self { queue, switch }
     }
 }
 
 impl SpanProcessor for DropOldestProcessor {
     fn on_start(&self, _span: &mut Span, _context: &Context) {}
 
+    /// While the player's switch is off the span is dropped here, so nothing is queued for the relay (OBT-16).
     fn on_end(&self, span: SpanData) {
+        if !self.switch.is_on() {
+            return;
+        }
         let _dropped = lock(&self.queue).push(span);
     }
 
@@ -56,8 +62,16 @@ impl SpanProcessor for DropOldestProcessor {
 /// Drains the queue every `interval` and exports each batch of at most `EXPORT_BATCH` spans. A failed export drops its
 /// batch and is reported through `report` at most once a minute. Nothing stops the loop: an unreachable or slow relay
 /// costs the batch, never the loop (OBS-38).
-pub async fn export_loop<E, R>(queue: SpanQueue, exporter: E, interval: Duration, mut report: R)
-where
+///
+/// While the player's switch is off the loop discards what is queued and never calls the exporter, so no request reaches the
+/// relay (OBT-16); turning it back on resumes the export at the next tick.
+pub async fn export_loop<E, R>(
+    queue: SpanQueue,
+    exporter: E,
+    switch: DiagnosticsSwitch,
+    interval: Duration,
+    mut report: R,
+) where
     E: SpanExporter,
     R: FnMut(&str) + Send,
 {
@@ -66,14 +80,24 @@ where
     loop {
         ticks.tick().await;
         let batch = lock(&queue).drain(EXPORT_BATCH);
-        if batch.is_empty() {
-            continue;
-        }
         let now = tokio::time::Instant::now().into_std();
-        if exporter.export(batch).await.is_err() && gate.allow(now) {
+        if export_if_on(&exporter, &switch, batch).await.is_err() && gate.allow(now) {
             report("the span export failed");
         }
     }
+}
+
+/// Exports one batch unless the switch is off at this very moment. The switch is read here, right before the call, and not
+/// when the batch was drained, so a batch drained just before the player turned diagnostics off is discarded, not sent (OBT-16).
+async fn export_if_on<E: SpanExporter>(
+    exporter: &E,
+    switch: &DiagnosticsSwitch,
+    batch: Vec<SpanData>,
+) -> OTelSdkResult {
+    if batch.is_empty() || !switch.is_on() {
+        return Ok(());
+    }
+    exporter.export(batch).await
 }
 
 #[cfg(test)]
@@ -90,8 +114,11 @@ mod tests {
     use opentelemetry_sdk::error::{OTelSdkError, OTelSdkResult};
     use opentelemetry_sdk::trace::{SpanData, SpanEvents, SpanExporter, SpanLinks, SpanProcessor};
 
-    use super::{DropOldestProcessor, EXPORT_BATCH, EXPORT_INTERVAL, SpanQueue, export_loop};
+    use super::{
+        DropOldestProcessor, EXPORT_BATCH, EXPORT_INTERVAL, SpanQueue, export_if_on, export_loop,
+    };
     use crate::telemetry::queue::{BoundedQueue, SPAN_QUEUE_CAPACITY};
+    use crate::telemetry::switch::DiagnosticsSwitch;
 
     fn span(number: usize) -> SpanData {
         let context = SpanContext::new(
@@ -171,7 +198,7 @@ mod tests {
     #[test]
     fn on_end_queues_the_span_without_exporting_it() {
         let queue = queue();
-        let processor = DropOldestProcessor::new(Arc::clone(&queue));
+        let processor = DropOldestProcessor::new(Arc::clone(&queue), DiagnosticsSwitch::on());
 
         processor.on_end(span(0));
 
@@ -182,11 +209,12 @@ mod tests {
     async fn a_slow_relay_never_delays_a_caller() {
         let queue = queue();
         let calls = Arc::new(AtomicUsize::new(0));
-        let processor = DropOldestProcessor::new(Arc::clone(&queue));
+        let processor = DropOldestProcessor::new(Arc::clone(&queue), DiagnosticsSwitch::on());
         processor.on_end(span(0));
         tokio::spawn(export_loop(
             Arc::clone(&queue),
             Slow(Arc::clone(&calls)),
+            DiagnosticsSwitch::on(),
             EXPORT_INTERVAL,
             |_| {},
         ));
@@ -213,11 +241,12 @@ mod tests {
         let queue = queue();
         let calls = Arc::new(AtomicUsize::new(0));
         let reports = Arc::new(Mutex::new(Vec::<String>::new()));
-        let processor = DropOldestProcessor::new(Arc::clone(&queue));
+        let processor = DropOldestProcessor::new(Arc::clone(&queue), DiagnosticsSwitch::on());
         let sink = Arc::clone(&reports);
         tokio::spawn(export_loop(
             Arc::clone(&queue),
             Unreachable(Arc::clone(&calls)),
+            DiagnosticsSwitch::on(),
             EXPORT_INTERVAL,
             move |message| sink.lock().expect("the reports").push(message.to_string()),
         ));
@@ -251,6 +280,7 @@ mod tests {
         tokio::spawn(export_loop(
             Arc::clone(&queue),
             sizes.clone(),
+            DiagnosticsSwitch::on(),
             EXPORT_INTERVAL,
             |_| {},
         ));
@@ -261,6 +291,82 @@ mod tests {
             *sizes.0.lock().expect("the sizes"),
             vec![256, 44],
             "a full batch, then the rest five seconds later"
+        );
+    }
+
+    #[test]
+    fn while_the_switch_is_off_on_end_queues_nothing() {
+        let queue = queue();
+        let switch = DiagnosticsSwitch::new(false);
+        let processor = DropOldestProcessor::new(Arc::clone(&queue), switch.clone());
+
+        processor.on_end(span(0));
+        assert_eq!(queue.lock().expect("the queue").len(), 0);
+
+        switch.set(true);
+        processor.on_end(span(1));
+        assert_eq!(
+            queue.lock().expect("the queue").len(),
+            1,
+            "turned on again, spans queue at once"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_batch_drained_before_the_toggle_is_not_sent() {
+        let exporter = Recording::default();
+        let switch = DiagnosticsSwitch::on();
+        let batch = vec![span(0), span(1)];
+
+        // The batch is in hand and the player turns diagnostics off before the call.
+        switch.set(false);
+        export_if_on(&exporter, &switch, batch)
+            .await
+            .expect("nothing to fail");
+        assert!(exporter.0.lock().expect("the sizes").is_empty());
+
+        switch.set(true);
+        export_if_on(&exporter, &switch, vec![span(2)])
+            .await
+            .expect("sent");
+        assert_eq!(*exporter.0.lock().expect("the sizes"), vec![1]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn while_the_switch_is_off_the_exporter_is_never_called() {
+        let queue = queue();
+        let calls = Arc::new(AtomicUsize::new(0));
+        {
+            let mut queued = queue.lock().expect("the queue");
+            for number in 0..10 {
+                queued.push(span(number));
+            }
+        }
+        let switch = DiagnosticsSwitch::new(false);
+        tokio::spawn(export_loop(
+            Arc::clone(&queue),
+            Unreachable(Arc::clone(&calls)),
+            switch.clone(),
+            EXPORT_INTERVAL,
+            |_| {},
+        ));
+
+        tokio::time::sleep(EXPORT_INTERVAL * 4).await;
+
+        assert_eq!(calls.load(Ordering::SeqCst), 0, "no export, no request");
+        assert_eq!(
+            queue.lock().expect("the queue").len(),
+            0,
+            "what was queued before the switch went off is discarded"
+        );
+
+        switch.set(true);
+        queue.lock().expect("the queue").push(span(99));
+        tokio::time::sleep(EXPORT_INTERVAL + Duration::from_secs(1)).await;
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "turned on again, the export resumes without a restart"
         );
     }
 }

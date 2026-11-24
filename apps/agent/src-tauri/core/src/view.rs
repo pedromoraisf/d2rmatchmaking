@@ -38,6 +38,19 @@ pub struct RoomView {
     pub needs_reveal: bool,
     /// The Party panel showed the expected game name in this run, so the room's observation is sent (AGN-03).
     pub matched: bool,
+    /// The API accepted the observation for this run (ARL-03). Sent only when true; the window then says "presence
+    /// confirmed" instead of "waiting for the game". A new run or a dropped room clears it (ARL-04).
+    #[serde(skip_serializing_if = "is_false")]
+    pub confirmed: bool,
+    /// The Party panel showed another game's name on two looks in a row after the presence was confirmed (ARL-08). Sent only
+    /// when true; the window then says "You are in another game". The name is never in the view. The held name read again
+    /// clears it, and so does a new run or a dropped room.
+    #[serde(skip_serializing_if = "is_false")]
+    pub elsewhere: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// One card slot that held text but settled no card, and the short code of the field that refused it.
@@ -107,6 +120,49 @@ pub struct CaptureView {
     pub window_height: Option<u32>,
     /// The last Party look of the held run; `None` before one was made, or without a held room.
     pub party: Option<PartyLookView>,
+    /// The capture method of the last usable frame, as its fixed word (`print-window`, `graphics-capture`,
+    /// `screen-crop`), or `none` (CAP-07).
+    pub method: &'static str,
+    /// The usable share of the last looks, a whole percent (CAP-07).
+    pub read_rate_percent: u8,
+    /// Why there is no frame to read, as a fixed code: `nothing` when the game runs and no method gave a usable frame
+    /// (CAP-02). Absent while there is a frame, or while nothing is captured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<&'static str>,
+}
+
+/// Why the OS does not hold the hotkey the agent wants: a closed set of codes, never the OS error text (AGS-09).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HotkeyFailure {
+    /// The hotkey manager could not be created, so nothing can register.
+    NoManager,
+    /// The OS refused the registration (another program holds the combination, or the OS said no).
+    Refused,
+    /// The combination maps to no OS key.
+    Unmapped,
+    /// The registration could not be queued on the main thread.
+    Dispatch,
+}
+
+impl HotkeyFailure {
+    /// The reason as the span event and the window spell it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NoManager => "no-manager",
+            Self::Refused => "refused",
+            Self::Unmapped => "unmapped",
+            Self::Dispatch => "dispatch",
+        }
+    }
+}
+
+/// The last hotkey event the agent received from the OS: which combination it was, or that it matched none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HotkeyPress {
+    Accept,
+    Unmatched,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -118,11 +174,27 @@ pub struct AgentView {
     pub update: UpdateView,
     /// A ready check is open for the account: the window shows the hotkey that accepts it (RDY-07).
     pub ready_check_open: bool,
+    /// The keys that accept a ready check, such as `Ctrl+Shift+A` (RDY-07, AST-01).
+    pub hotkey: String,
+    /// Why the OS did not let the agent register the hotkey while it wants it (field test of 2026-11-21). A closed set of
+    /// codes, no OS text; absent while the hotkey is registered or not wanted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hotkey_unavailable: Option<HotkeyFailure>,
+    /// The last hotkey press the agent received, which proves the OS delivers presses at all; absent until the first one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_press: Option<HotkeyPress>,
     /// The last look at the game window, once the agent has looked at one.
     pub diagnostics: Option<DiagnosticsView>,
     /// What the capture showed in the last look; absent until the first frame.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capture: Option<CaptureView>,
+    /// The version of the remote configuration the agent runs, `0` for the built-in defaults (RCF-08). Left out while it is `0`.
+    #[serde(skip_serializing_if = "is_built_in_version")]
+    pub config_version: u32,
+}
+
+fn is_built_in_version(version: &u32) -> bool {
+    *version == 0
 }
 
 #[cfg(test)]
@@ -130,7 +202,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        AgentView, Connectivity, DiagnosticsView, PairingView, RejectedSlot, RoomView, UpdateView,
+        AgentView, Connectivity, DiagnosticsView, HotkeyFailure, HotkeyPress, PairingView,
+        RejectedSlot, RoomView, UpdateView,
     };
 
     #[test]
@@ -145,11 +218,17 @@ mod tests {
                 game_name: "mmbaalh-12".to_string(),
                 needs_reveal: true,
                 matched: false,
+                confirmed: false,
+                elsewhere: false,
             }),
             update: UpdateView::Idle,
             ready_check_open: true,
+            hotkey: "Ctrl+Shift+A".to_string(),
+            hotkey_unavailable: None,
+            last_press: None,
             diagnostics: None,
             capture: None,
+            config_version: 0,
         };
 
         assert_eq!(
@@ -160,8 +239,49 @@ mod tests {
                 "room": { "gameName": "mmbaalh-12", "needsReveal": true, "matched": false },
                 "update": "idle",
                 "readyCheckOpen": true,
+                "hotkey": "Ctrl+Shift+A",
                 "diagnostics": null,
             })
+        );
+    }
+
+    #[test]
+    fn a_confirmed_room_serialises_its_flag_and_an_unconfirmed_one_omits_it() {
+        let room = |confirmed| RoomView {
+            game_name: "mmbaalh-12".to_string(),
+            needs_reveal: false,
+            matched: true,
+            confirmed,
+            elsewhere: false,
+        };
+
+        assert_eq!(
+            serde_json::to_value(room(true)).expect("the room serializes"),
+            json!({ "gameName": "mmbaalh-12", "needsReveal": false, "matched": true, "confirmed": true })
+        );
+        assert_eq!(
+            serde_json::to_value(room(false)).expect("the room serializes"),
+            json!({ "gameName": "mmbaalh-12", "needsReveal": false, "matched": true })
+        );
+    }
+
+    #[test]
+    fn an_elsewhere_room_serialises_its_flag_and_never_a_name() {
+        let room = |elsewhere| RoomView {
+            game_name: "mmbaalh-12".to_string(),
+            needs_reveal: false,
+            matched: true,
+            confirmed: true,
+            elsewhere,
+        };
+
+        assert_eq!(
+            serde_json::to_value(room(true)).expect("the room serializes"),
+            json!({ "gameName": "mmbaalh-12", "needsReveal": false, "matched": true, "confirmed": true, "elsewhere": true })
+        );
+        assert_eq!(
+            serde_json::to_value(room(false)).expect("the room serializes"),
+            json!({ "gameName": "mmbaalh-12", "needsReveal": false, "matched": true, "confirmed": true })
         );
     }
 
@@ -173,8 +293,12 @@ mod tests {
             room: None,
             update: UpdateView::Required,
             ready_check_open: false,
+            hotkey: "Ctrl+Shift+A".to_string(),
+            hotkey_unavailable: Some(HotkeyFailure::NoManager),
+            last_press: Some(HotkeyPress::Unmatched),
             diagnostics: None,
             capture: None,
+            config_version: 0,
         };
 
         assert_eq!(
@@ -185,6 +309,9 @@ mod tests {
                 "room": null,
                 "update": "required",
                 "readyCheckOpen": false,
+                "hotkey": "Ctrl+Shift+A",
+                "hotkeyUnavailable": "no-manager",
+                "lastPress": "unmatched",
                 "diagnostics": null,
             })
         );
@@ -238,6 +365,9 @@ mod tests {
                     diff: Some("sub(l>9)@9".to_string()),
                 }),
             }),
+            method: "graphics-capture",
+            read_rate_percent: 97,
+            reason: None,
         };
 
         assert_eq!(
@@ -253,7 +383,31 @@ mod tests {
                     "matched": false,
                     "detail": { "source": "label", "variants": 3, "diff": "sub(l>9)@9" },
                 },
+                "method": "graphics-capture",
+                "readRatePercent": 97,
             })
         );
+    }
+
+    #[test]
+    fn the_configuration_version_is_left_out_while_built_in_and_shown_once_it_is_not() {
+        let mut view = AgentView {
+            pairing: PairingView::Requesting,
+            connectivity: Connectivity::Connected,
+            room: None,
+            update: UpdateView::Idle,
+            ready_check_open: false,
+            hotkey: "Ctrl+Shift+A".to_string(),
+            diagnostics: None,
+            capture: None,
+            hotkey_unavailable: None,
+            last_press: None,
+            config_version: 0,
+        };
+        let built_in = serde_json::to_value(&view).expect("the view serializes");
+        assert!(built_in.get("configVersion").is_none());
+        view.config_version = 5;
+        let configured = serde_json::to_value(&view).expect("the view serializes");
+        assert_eq!(configured["configVersion"], 5);
     }
 }

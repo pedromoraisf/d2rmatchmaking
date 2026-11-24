@@ -29,10 +29,62 @@ const WINDOWS_FEATURE_ALLOW_LIST = [
   'Win32_Graphics_Gdi',
   'Win32_Storage_Xps',
   'Win32_UI_WindowsAndMessaging',
+  // The Windows Graphics Capture of the game window (capture-cascade CAP-01, CAP-04; maintainer exception O1, 2026-11-20).
+  // The capture item, one Direct3D 11 device that copies one texture to the CPU, and the window's visible bounds: no
+  // feature here reaches process memory, input, hooks or process handles.
+  'Graphics', // SizeInt32, the capture item's size
+  'Graphics_Capture', // GraphicsCaptureItem, Direct3D11CaptureFramePool, GraphicsCaptureSession
+  'Graphics_DirectX', // DirectXPixelFormat of the frame pool (B8G8R8A8)
+  'Graphics_DirectX_Direct3D11', // IDirect3DDevice, the WinRT view of the device the frame pool needs
+  'Win32_Graphics_Direct3D', // D3D_DRIVER_TYPE_HARDWARE, to create the device
+  'Win32_Graphics_Direct3D11', // the device, its context and the staging texture that copies one frame
+  'Win32_Graphics_Dxgi', // IDXGIDevice, to make the WinRT device from the D3D device
+  'Win32_Graphics_Dxgi_Common', // D3D11_TEXTURE2D_DESC is gated behind it
+  'Win32_Graphics_Dwm', // DwmGetWindowAttribute(EXTENDED_FRAME_BOUNDS): where the client sits in the frame
+  'Win32_System_WinRT', // RoInitialize, the capture thread's apartment
+  'Win32_System_WinRT_Direct3D11', // CreateDirect3D11DeviceFromDXGIDevice, IDirect3DDxgiInterfaceAccess
+  'Win32_System_WinRT_Graphics_Capture', // IGraphicsCaptureItemInterop::CreateForWindow, from the game window's handle
 ];
 
-// The only three files that may allow unsafe_code, each with the windows:: paths it may name.
+// The only four files that may allow unsafe_code, each with the windows:: paths it may name.
 const UNSAFE_ADAPTERS = {
+  // The Windows Graphics Capture of the game window (capture-cascade O1): the item is made from the game window's own
+  // handle, one frame is copied through a staging texture, and the client rectangle is located in the window frame.
+  'src/adapters/graphics_capture.rs': [
+    'Graphics::Capture',
+    'Graphics::DirectX',
+    'HMODULE',
+    'HWND',
+    'POINT',
+    'RECT',
+    'E_FAIL',
+    'D3D_DRIVER_TYPE_HARDWARE',
+    'D3D11CreateDevice',
+    'D3D11_CPU_ACCESS_READ',
+    'D3D11_CREATE_DEVICE_BGRA_SUPPORT',
+    'D3D11_MAP_READ',
+    'D3D11_MAPPED_SUBRESOURCE',
+    'D3D11_SDK_VERSION',
+    'D3D11_TEXTURE2D_DESC',
+    'D3D11_USAGE_STAGING',
+    'ID3D11Device',
+    'ID3D11DeviceContext',
+    'ID3D11Texture2D',
+    'DWMWA_EXTENDED_FRAME_BOUNDS',
+    'DwmGetWindowAttribute',
+    'IDXGIDevice',
+    'ClientToScreen',
+    'GetClientRect',
+    'CreateDirect3D11DeviceFromDXGIDevice',
+    'IDirect3DDxgiInterfaceAccess',
+    'IGraphicsCaptureItemInterop',
+    'RO_INIT_MULTITHREADED',
+    'RoInitialize',
+    'core::Interface',
+    'core::factory',
+    'core::Result',
+    'core::Error',
+  ],
   'src/adapters/window_capture.rs': [
     'HWND',
     'LPARAM',
@@ -136,7 +188,7 @@ const windowsFeatureViolations = (base) => {
 const unsafeLocationViolations = (base) =>
   rustFiles(base)
     .filter(({ rel, text }) => /allow\(\s*unsafe_code\s*\)/.test(text) && !(rel in UNSAFE_ADAPTERS))
-    .map(({ rel }) => `${rel} allows unsafe_code outside the three adapters`);
+    .map(({ rel }) => `${rel} allows unsafe_code outside the four adapters`);
 
 const adapterPathViolations = (base) =>
   Object.entries(UNSAFE_ADAPTERS).flatMap(([rel, allowed]) => {
@@ -146,6 +198,61 @@ const adapterPathViolations = (base) =>
       .filter((windowsPath) => !isAllowedWindowsPath(windowsPath, allowed))
       .map((windowsPath) => `${rel} references windows::${windowsPath}, which is not on its allow-list`);
   });
+
+// ADR 010, AGENTS.md rule 5: the agent sends no input to any window and reads no key state. No file names a function that
+// sends or reads input, and none allows the clippy ban on them (FR-28's typing helper was withdrawn on 2026-11-22).
+const INPUT_NAMES =
+  /\b(?:SendInput|GetAsyncKeyState|GetKeyState|GetKeyboardState|SetKeyboardState|SetCursorPos|keybd_event|mouse_event|KeyboardAndMouse|(?:SendMessage|PostMessage|SendNotifyMessage|SendMessageTimeout|PostThreadMessage)[AW]?)\b/;
+
+// Comments out, string-aware: a `//` or `/*` inside a string or char literal hides nothing, and a quote inside a comment
+// opens nothing. Newlines are kept so line anchors still work.
+const CHAR_LITERAL = /^'(?:\\[^']+|[^\\'])'/;
+const withoutComments = (text) => {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const rest = text.slice(i);
+    const raw = /^b?r(#*)"/.exec(rest);
+    const char = CHAR_LITERAL.exec(rest);
+    if (raw) {
+      const close = text.indexOf(`"${raw[1]}`, i + raw[0].length);
+      const end = close === -1 ? text.length : close + 1 + raw[1].length;
+      out += text.slice(i, end);
+      i = end;
+    } else if (text[i] === '"') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1;
+      out += text.slice(i, j + 1);
+      i = j + 1;
+    } else if (char) {
+      out += char[0];
+      i += char[0].length;
+    } else if (rest.startsWith('//')) {
+      const eol = text.indexOf('\n', i);
+      i = eol === -1 ? text.length : eol;
+    } else if (rest.startsWith('/*')) {
+      const close = text.indexOf('*/', i + 2);
+      const end = close === -1 ? text.length : close + 2;
+      out += text.slice(i, end).replace(/[^\n]/g, '');
+      i = end;
+    } else {
+      out += text[i];
+      i += 1;
+    }
+  }
+  return out;
+};
+
+const inputViolations = (base) =>
+  rustFiles(base)
+    .filter(({ text }) => INPUT_NAMES.test(withoutComments(text)))
+    .map(({ rel }) => `${rel} names an input function, and no file may`);
+
+// No file allows the clippy ban on the input functions (clippy.toml disallows them everywhere).
+const clippyAllowViolations = (base) =>
+  rustFiles(base)
+    .filter(({ text }) => /allow\(\s*clippy::disallowed_methods\s*\)/.test(text))
+    .map(({ rel }) => `${rel} allows clippy::disallowed_methods, and no file may`);
 
 const instrumentViolations = (base) =>
   rustFiles(base).flatMap(({ rel, text }) =>
@@ -164,13 +271,229 @@ const fixtureReadViolations = (base) =>
     return /"fixture-read"/.test(defaults) ? [`${rel} enables fixture-read by default`] : [];
   });
 
+// Trust rules (agent-trust, NFR-04, NFR-06). The token, the stream the agent accepts and what it sends are pinned so a
+// change that widens one fails here and needs a reviewer's eye.
+
+// Non-test source of a Rust file: the unit tests of a file sit in a `#[cfg(test)]` module at its end, and the crates' own
+// `tests/` and `extra-tests/` folders are test code.
+// The cut is the `#[cfg(test)]` that opens a module (`mod`), not the first one: a `#[cfg(test)] use` above real code would
+// otherwise hide everything below it.
+const nonTestText = (text) => text.split(/^#\[cfg\(test\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\b/m)[0];
+const isTestFile = (rel) => /(^|\/)(tests|extra-tests|examples)\//.test(rel);
+
+// The files that may call `Secret::expose` (AGT-03): the wrapper, the token store, the API client and the relay client.
+const EXPOSE_ALLOW_LIST = [
+  'core/src/secret.rs',
+  'src/adapters/token_store.rs',
+  'adapters/src/http/api_client.rs',
+  'adapters/src/telemetry/relay_client.rs',
+];
+const LOG_EVENT = /\b(?:tracing::)?(?:trace|debug|info|warn|error|event)!\s*\(/;
+// Macros that print or build text. Beside `expose()` the printing ones are never right; `format!` is right only to build the
+// `Bearer` header value, so a `format!` whose own arguments call `expose()` is refused unless it is that one.
+const PRINT_MACRO = /\b(?:println|eprintln|dbg)!\s*\(/;
+
+/** The text of every `format!(...)` call, up to its closing parenthesis. */
+const formatCalls = (code) =>
+  [...code.matchAll(/\bformat!\s*\(/g)].map((match) => {
+    let depth = 1;
+    let end = match.index + match[0].length;
+    while (end < code.length && depth > 0) {
+      if (code[end] === '(') depth += 1;
+      if (code[end] === ')') depth -= 1;
+      end += 1;
+    }
+    return code.slice(match.index, end);
+  });
+const BEARER_FORMAT = /^format!\s*\(\s*"Bearer \{\}"\s*,\s*[\w.]+\.expose\(\)\s*\)$/;
+
+const secretExposureViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => !isTestFile(rel))
+    .flatMap(({ rel, text }) => {
+      const code = nonTestText(text);
+      if (!/\.expose\s*\(/.test(code) && !/\bexpose\s*\(/.test(code.replace(/pub fn expose/g, ''))) return [];
+      if (!EXPOSE_ALLOW_LIST.includes(rel)) return [`${rel} calls expose() and is not on the allow-list`];
+      return [
+        ...(LOG_EVENT.test(code) ? [`${rel} calls expose() and logs an event`] : []),
+        ...(PRINT_MACRO.test(code)
+          ? [`${rel} calls expose() and prints with println!, eprintln! or dbg!`]
+          : []),
+        ...(formatCalls(code).some((call) => /expose\s*\(/.test(call) && !BEARER_FORMAT.test(call))
+          ? [`${rel} calls expose() inside a format! that is not the Bearer header`]
+          : []),
+      ];
+    });
+
+// The variants of the two types a stream event turns into (AGT-04). A new variant is a new thing the server can make the
+// agent do, so it fails until a reviewer lists it here.
+const STREAM_VARIANTS = [
+  {
+    file: 'core/src/ports.rs',
+    type: 'StreamItem',
+    variants: ['RoomAssigned', 'ReadyCheckStarted', 'ReadyCheckResolved', 'RoomEnded', 'Ended'],
+  },
+  {
+    file: 'adapters/src/http/sse.rs',
+    type: 'StreamEffect',
+    variants: ['SetAssignment', 'ReadyCheckStarted', 'ReadyCheckResolved', 'RoomEnded', 'Ignore'],
+  },
+];
+
+const enumVariants = (text, name) => {
+  const body = text.match(new RegExp(`pub enum ${name}\\s*\\{([\\s\\S]*?)\\n\\}`))?.[1];
+  if (body === undefined) return undefined;
+  return body
+    .split('\n')
+    .filter((line) => /^ {4}[A-Z]/.test(line))
+    .map((line) => line.trim().match(/^[A-Za-z0-9]+/)[0]);
+};
+
+const streamVariantViolations = (base) =>
+  STREAM_VARIANTS.flatMap(({ file, type, variants }) => {
+    const found = enumVariants(crateFile(base, file) ?? '', type);
+    if (found === undefined) return [`${file} has no enum ${type}`];
+    const extra = found.filter((name) => !variants.includes(name));
+    const missing = variants.filter((name) => !found.includes(name));
+    return [
+      ...extra.map((name) => `${file}: ${type}::${name} is not on the reviewed list`),
+      ...missing.map((name) => `${file}: ${type}::${name} is on the list and gone`),
+    ];
+  });
+
+// What the HTTP adapters may send (AGT-05): contract bodies only. No frame or pixel type, no raw body, no multipart.
+const FRAME_TYPES = /\b(?:Rgba|FrameSource|FrameReader|FrameReading|PanelReading)\b/;
+const RAW_UPLOAD = /multipart|octet-stream|\bimage\/|\.body\s*\(|Part::/;
+
+// The span exporter's client sends the protobuf batch with one `.body(...)`: the only raw body allowed, in that one file.
+const RELAY_CLIENT = 'adapters/src/telemetry/relay_client.rs';
+// The chat post (server-name-match) hands the HTTP adapter a name and nothing else: it names no frame type and sends no raw body.
+const CHAT_POST = 'core/src/chat_post.rs';
+const RAW_BODY = /\.body\s*\(/g;
+
+const outgoingDataViolations = (base) => {
+  const files = rustFiles(base).filter(
+    ({ rel }) =>
+      (rel.startsWith('adapters/src/http/') || rel === RELAY_CLIENT || rel === CHAT_POST) && !isTestFile(rel),
+  );
+  const manifest = crateFile(base, 'adapters/Cargo.toml') ?? '';
+  return [
+    ...files.flatMap(({ rel, text }) => {
+      const code = nonTestText(text);
+      return [
+        ...(FRAME_TYPES.test(code) ? [`${rel} names a frame or pixel type`] : []),
+        ...((rel === RELAY_CLIENT ? code.replace(RAW_BODY, '') : code).match(RAW_UPLOAD)
+          ? [`${rel} sends a raw body, a multipart part or an image`]
+          : []),
+        ...(rel === RELAY_CLIENT && (code.match(RAW_BODY) ?? []).length > 1
+          ? [`${rel} sends more than the one protobuf batch body`]
+          : []),
+      ];
+    }),
+    ...(/reqwest[^\n]*multipart/.test(manifest) ? ['adapters/Cargo.toml enables reqwest multipart'] : []),
+  ];
+};
+
+// The chat post and the HTTP adapters that carry its body put no name in a span, an event or a counter (SNM-04, ADR 036): no
+// tracing call of `chat_post.rs` or of `adapters/src/http/**` names the player's name or the observation that holds it. Spans and events carry fixed words only.
+const TRACING_CALL =
+  /\b(?:tracing::)?(?:info_span|debug_span|trace_span|warn_span|error_span|span|info|debug|trace|warn|error|event)!\s*\(([^;]*?)\)\s*;/gs;
+const NAME_IN_TELEMETRY = /\bname\b|\bnames?\(\)|\bobservation\b|\bheld\b|\bevent\s*\.\s*1/;
+
+const chatPostTelemetryViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => (rel === CHAT_POST || rel.startsWith('adapters/src/http/')) && !isTestFile(rel))
+    .flatMap(({ rel, text }) =>
+      [...codeOnly(nonTestText(text)).matchAll(TRACING_CALL)]
+        .filter((call) => NAME_IN_TELEMETRY.test(call[1]))
+        .map(() => `${rel} puts the name or the observation in a span, an event or a counter`),
+    );
+
+// The diagnostics switch (observability-tiers OBT-17): only the span processor and the export loop read it. The settings store and
+// the composition roots build it; the gateway, the heartbeat, the observations and the rest of the adapters and core never name it.
+const DIAGNOSTICS_SWITCH_ALLOW_LIST = [
+  'adapters/src/telemetry/switch.rs',
+  'adapters/src/telemetry/export.rs',
+  'adapters/src/telemetry/mod.rs',
+  'adapters/examples/headless.rs',
+  'src/app.rs',
+];
+const DIAGNOSTICS_SWITCH = /\b(?:DiagnosticsSwitch|FileDiagnosticsStore|diagnostics_store_in)\b/;
+const diagnosticsSwitchViolations = (base) =>
+  rustFiles(base)
+    .filter(({ rel }) => !DIAGNOSTICS_SWITCH_ALLOW_LIST.includes(rel))
+    .filter(({ text }) => DIAGNOSTICS_SWITCH.test(codeOnly(text)))
+    .map(
+      ({ rel }) =>
+        `${rel} names the diagnostics switch and is not the span processor, the export loop or a composition root`,
+    );
+
+// Capture scope (ADR 010, capture-cascade CAP-04): the capture adapters see the game window and nothing else. No monitor, no
+// desktop or screen device context, no duplication of the output. The allowed `IGraphicsCaptureItemInterop` and
+// `Graphics::Capture` imports reach these through method calls, so the rule matches calls and uses, not import paths.
+const CAPTURE_ADAPTERS = ['src/adapters/graphics_capture.rs', 'src/adapters/window_capture.rs'];
+const BANNED_CAPTURE_CALLS = [
+  'CreateForMonitor',
+  'TryCreateFromDisplayId',
+  'DuplicateOutput',
+  'GetDesktopWindow',
+  'GetWindowDC',
+  'MonitorFromWindow',
+  'BitBlt',
+];
+// `GetDC(None)`, `GetDC(Some(None))`-style nulls, `GetDC(HWND(0))`, `GetDC(HWND::default())`, `GetDC(null)`: the screen's DC.
+const SCREEN_DC =
+  /\bGetDC\s*\(\s*(?:Some\s*\(\s*)?(?:None|0\b|(?:std::|core::)?(?:ptr::)?null(?:_mut)?\s*\(\s*\)|HWND\s*\(\s*(?:0\b[^)]*|[\w:]*null(?:_mut)?\s*\(\s*\))\)|HWND::default\s*\(\s*\))/;
+
+// Source text without comments and string literals, so a doc line that names a call is not one.
+const codeOnly = (text) =>
+  text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '')
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""');
+
+// The rule runs over every `.rs` file under `src-tauri` (the app crate's `src/`, `build.rs` and `examples/`, and the adapters,
+// core, domain and xtask crates with their `examples/` and `tests/`): a call in any other file would go unseen. Paths stay
+// relative to `src-tauri`, so the allowances below name `src/adapters/...` exactly. The
+// window-scoped forms (`CreateForWindow`, `GetDC` on a window) are allowed only in the two capture adapters. The OCR engine's
+// `TryCreateFromLanguage` is not a capture item and is allowed only in its own adapter.
+const OCR_ADAPTER = 'src/adapters/windows_ocr.rs';
+const OCR_CONSTRUCTORS = ['TryCreateFromLanguage', 'TryCreateFromUserProfileLanguages'];
+// Screen device contexts by name: `GetDCEx` and `CreateDCW` reach the screen or any display, whatever their arguments.
+const SCREEN_DC_BY_NAME = ['GetDCEx', 'CreateDCW', 'CreateDCA'];
+
+const captureScopeViolations = (base) =>
+  rustFiles(base).flatMap(({ rel, text }) => {
+    const inAdapter = CAPTURE_ADAPTERS.includes(rel);
+    const code = codeOnly(text);
+    return [
+      ...[...BANNED_CAPTURE_CALLS, ...SCREEN_DC_BY_NAME]
+        .filter((name) => new RegExp(`\\b${name}\\b`).test(code))
+        .map((name) => `${rel} uses ${name}, which reaches beyond the game window`),
+      ...(SCREEN_DC.test(code) ? [`${rel} calls GetDC on the screen, not on the game window`] : []),
+      ...(!inAdapter && /\bGetDC\b/.test(code)
+        ? [`${rel} calls GetDC outside the two capture adapters`]
+        : []),
+      ...[...code.matchAll(/\b(CreateFor\w+|TryCreateFrom\w+)\b/g)]
+        .map((match) => match[1])
+        .filter((name) => !(OCR_CONSTRUCTORS.includes(name) && rel === OCR_ADAPTER))
+        .filter((name) => !(name === 'CreateForWindow' && inAdapter))
+        .filter((name, index, all) => all.indexOf(name) === index)
+        .map((name) =>
+          name === 'CreateForWindow'
+            ? `${rel} uses CreateForWindow outside the two capture adapters`
+            : `${rel} uses ${name}; CreateForWindow is the only capture item constructor`,
+        ),
+    ];
+  });
+
 const fixtureBase = (name) => path.join(root, 'scripts/test/fixtures/agent-rules', name);
 
 test('windows features stay on the allow-list', () => {
   assert.deepEqual(windowsFeatureViolations(root), []);
 });
 
-test('unsafe is allowed only in the three adapters', () => {
+test('unsafe is allowed only in the four adapters', () => {
   assert.deepEqual(unsafeLocationViolations(root), []);
 });
 
@@ -214,6 +537,59 @@ test('release-agent.yml builds no example and enables no all-features', () => {
   }
 });
 
+test('no file names an input function or allows the clippy ban on them', () => {
+  assert.deepEqual(inputViolations(root), []);
+  assert.deepEqual(clippyAllowViolations(root), []);
+});
+
+test('the input rule rejects an input function in any file and a clippy allow in any file', () => {
+  assert.match(
+    inputViolations(fixtureBase('input-names')).join('\n'),
+    /src\/adapters\/window_capture\.rs names an input function, and no file may/,
+  );
+  assert.match(
+    clippyAllowViolations(fixtureBase('input-names')).join('\n'),
+    /src\/adapters\/window_capture\.rs allows clippy::disallowed_methods, and no file may/,
+  );
+});
+
+test('a double slash inside a string literal hides no code from the input rule', () => {
+  assert.equal(
+    withoutComments('let a = "x // y"; // z\nlet b = 1; /* c */').trim(),
+    'let a = "x // y"; \nlet b = 1;',
+  );
+});
+
+test('every other way to send input or move the cursor is an input name', () => {
+  const names = [
+    'SendMessageA',
+    'SendMessageW',
+    'PostMessageA',
+    'PostMessageW',
+    'SendNotifyMessageA',
+    'SendNotifyMessageW',
+    'SendMessageTimeoutA',
+    'SendMessageTimeoutW',
+    'PostThreadMessageA',
+    'PostThreadMessageW',
+    'SetCursorPos',
+    'SetKeyboardState',
+    'keybd_event',
+    'mouse_event',
+    'GetKeyState',
+    'GetKeyboardState',
+    'GetAsyncKeyState',
+    'SendInput',
+  ];
+  for (const name of names) {
+    assert.ok(INPUT_NAMES.test(`let _ = ${name};`), `${name} is an input name`);
+  }
+  assert.match(
+    inputViolations(fixtureBase('input-names-variants')).join('\n'),
+    /window_capture\.rs names an input function/,
+  );
+});
+
 test('the windows feature rule rejects a feature off the list', () => {
   assert.match(
     windowsFeatureViolations(fixtureBase('windows-feature')).join('\n'),
@@ -224,7 +600,7 @@ test('the windows feature rule rejects a feature off the list', () => {
 test('the unsafe location rule rejects an allow outside the adapters', () => {
   assert.match(
     unsafeLocationViolations(fixtureBase('unsafe-outside-adapters')).join('\n'),
-    /src\/adapters\/http\.rs allows unsafe_code outside the three adapters/,
+    /src\/adapters\/http\.rs allows unsafe_code outside the four adapters/,
   );
 });
 
@@ -244,6 +620,155 @@ test('the window capture rule rejects input, hook and blit calls', () => {
       `${name} must fail the window capture allow-list`,
     );
   }
+});
+
+test('the capture adapters reach no monitor, no desktop DC and no constructor but CreateForWindow', () => {
+  assert.deepEqual(captureScopeViolations(root), []);
+});
+
+test('the capture scope rule rejects every monitor and desktop call (ADR 010, CAP-04)', () => {
+  for (const name of BANNED_CAPTURE_CALLS) {
+    assert.match(
+      captureScopeViolations(fixtureBase(`capture-scope-${name}`)).join('\n'),
+      new RegExp(`graphics_capture\\.rs uses ${name}, which reaches beyond the game window`),
+      `${name} must fail the capture scope rule`,
+    );
+  }
+});
+
+test('the capture scope rule rejects a screen device context and any other item constructor (CAP-04)', () => {
+  for (const fixture of ['capture-scope-GetDC-None', 'capture-scope-GetDC-HWND0']) {
+    assert.match(
+      captureScopeViolations(fixtureBase(fixture)).join('\n'),
+      /window_capture\.rs calls GetDC on the screen, not on the game window/,
+      fixture,
+    );
+  }
+  assert.match(
+    captureScopeViolations(fixtureBase('capture-scope-CreateForOther')).join('\n'),
+    /graphics_capture\.rs uses CreateForSomething; CreateForWindow is the only capture item constructor/,
+  );
+});
+
+test('the capture scope rule runs over every app-crate file, not only the two adapters (CAP-04)', () => {
+  const violations = captureScopeViolations(fixtureBase('capture-scope-other-file')).join('\n');
+  assert.match(
+    violations,
+    /src\/other\.rs uses TryCreateFromDisplayId, which reaches beyond the game window/,
+  );
+  assert.match(violations, /src\/other\.rs uses GetDCEx, which reaches beyond the game window/);
+  assert.match(violations, /src\/other\.rs calls GetDC outside the two capture adapters/);
+  assert.match(violations, /src\/other\.rs uses CreateForWindow outside the two capture adapters/);
+});
+
+test('the capture scope rule also scans build scripts and the other agent crates (CAP-04)', () => {
+  const violations = captureScopeViolations(fixtureBase('capture-scope-other-crates')).join('\n');
+  assert.match(violations, /^build\.rs uses GetDCEx, which reaches beyond the game window$/m);
+  assert.match(violations, /^core\/src\/x\.rs uses GetDCEx, which reaches beyond the game window$/m);
+});
+
+test('the capture scope rule accepts CreateForWindow and GetDC on the game window (CAP-04)', () => {
+  assert.deepEqual(captureScopeViolations(fixtureBase('capture-scope-accepted')), []);
+});
+
+test('only the wrapper, the token store and the two clients call expose, and none logs an event', () => {
+  assert.deepEqual(secretExposureViolations(root), []);
+});
+
+test('the expose rule rejects a call outside the allow-list', () => {
+  assert.match(
+    secretExposureViolations(fixtureBase('expose-outside')).join('\n'),
+    /core\/src\/leak\.rs calls expose\(\) and is not on the allow-list/,
+  );
+});
+
+test('the expose rule rejects a log event beside a call on the allow-list', () => {
+  assert.match(
+    secretExposureViolations(fixtureBase('expose-logged')).join('\n'),
+    /adapters\/src\/http\/api_client\.rs calls expose\(\) and logs an event/,
+  );
+});
+
+test('a stream event turns into one of the reviewed data variants only', () => {
+  assert.deepEqual(streamVariantViolations(root), []);
+});
+
+test('the stream variant rule rejects a new variant', () => {
+  assert.match(
+    streamVariantViolations(fixtureBase('stream-new-variant')).join('\n'),
+    /StreamItem::RunCommand is not on the reviewed list/,
+  );
+});
+
+test('the HTTP adapters send contract bodies only: no frame, no raw body, no multipart', () => {
+  assert.deepEqual(outgoingDataViolations(root), []);
+});
+
+test('the chat post names no frame type, sends no raw body and puts no name in telemetry', () => {
+  assert.deepEqual(outgoingDataViolations(root), []);
+  assert.deepEqual(chatPostTelemetryViolations(root), []);
+});
+
+test('the chat post rules reject a frame type, a raw body and a name in a span or an event', () => {
+  const base = fixtureBase('chat-post-leak');
+  const violations = outgoingDataViolations(base).join('\n');
+  assert.match(violations, /core\/src\/chat_post\.rs names a frame or pixel type/);
+  assert.match(violations, /core\/src\/chat_post\.rs sends a raw body, a multipart part or an image/);
+  const telemetry = chatPostTelemetryViolations(base);
+  assert.equal(telemetry.length, 3, telemetry.join('\n'));
+  assert.match(telemetry.join('\n'), /core\/src\/chat_post\.rs puts the name or the observation in a span/);
+});
+
+test('the name-in-telemetry rule also rejects a name in a span or an event of the HTTP adapters', () => {
+  const telemetry = chatPostTelemetryViolations(fixtureBase('adapters-http-leak'));
+  assert.equal(telemetry.length, 2, telemetry.join('\n'));
+  assert.match(
+    telemetry.join('\n'),
+    /adapters\/src\/http\/leak\.rs puts the name or the observation in a span/,
+  );
+});
+
+test('the outgoing data rule rejects a frame type and a raw body', () => {
+  const violations = outgoingDataViolations(fixtureBase('outgoing-frame')).join('\n');
+  assert.match(violations, /names a frame or pixel type/);
+  assert.match(violations, /sends a raw body, a multipart part or an image/);
+});
+
+test('the expose rule rejects a print macro and a format! that is not the Bearer header', () => {
+  for (const [fixture, message] of [
+    ['expose-println', /calls expose\(\) and prints/],
+    ['expose-eprintln', /calls expose\(\) and prints/],
+    ['expose-dbg', /calls expose\(\) and prints/],
+    ['expose-format', /inside a format! that is not the Bearer header/],
+  ]) {
+    assert.match(secretExposureViolations(fixtureBase(fixture)).join('\n'), message, fixture);
+  }
+});
+
+test('the test-module cut starts at a module, so an early cfg(test) use hides nothing', () => {
+  assert.match(
+    secretExposureViolations(fixtureBase('expose-after-cfg-use')).join('\n'),
+    /core\/src\/early\.rs calls expose\(\) and is not on the allow-list/,
+  );
+  assert.equal(nonTestText('fn a() {}\n#[cfg(test)]\nmod tests {\n fn b() {}\n}\n').includes('fn b'), false);
+  assert.equal(nonTestText('#[cfg(test)]\nuse x::y;\nfn real() {}\n').includes('fn real'), true);
+});
+
+test('the outgoing data rule covers the span exporter client too', () => {
+  const violations = outgoingDataViolations(fixtureBase('outgoing-relay')).join('\n');
+  assert.match(violations, /relay_client\.rs names a frame or pixel type/);
+  assert.match(violations, /relay_client\.rs sends more than the one protobuf batch body/);
+  assert.match(violations, /relay_client\.rs sends a raw body, a multipart part or an image/);
+});
+
+test('the diagnostics switch is read only by the span processor and the export loop (OBT-17)', () => {
+  assert.deepEqual(diagnosticsSwitchViolations(root), []);
+});
+
+test('the diagnostics switch rule rejects a reference from the HTTP adapters or core', () => {
+  const violations = diagnosticsSwitchViolations(fixtureBase('diagnostics-switch-leak')).join('\n');
+  assert.match(violations, /adapters\/src\/http\/heartbeat\.rs names the diagnostics switch/);
+  assert.match(violations, /core\/src\/gate\.rs names the diagnostics switch/);
 });
 
 test('the instrument rule rejects arguments without skip_all', () => {
@@ -319,15 +844,20 @@ test('tauri.conf.json keeps the hardened shell', () => {
   );
 });
 
-test('the window gets exactly listen, unlisten, get_new_code, get_consent and set_consent', () => {
+test('the window gets exactly listen, unlisten, get_new_code, get_consent, set_consent, set_hotkey, get_diagnostics and set_diagnostics', () => {
   const capability = readJson(`${agentTauri}/capabilities/main.json`);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(
     [...capability.permissions].sort(),
     [
       'allow-get-consent',
+      // The player's "send diagnostics" switch (OBT-14, OBT-15): read and save only; it carries no span and no secret.
+      'allow-get-diagnostics',
       'allow-get-new-code',
       'allow-set-consent',
+      'allow-set-diagnostics',
+      // The window saves the player's accept-hotkey choice (AST-01); the command sends nothing to the game.
+      'allow-set-hotkey',
       'core:event:allow-listen',
       'core:event:allow-unlisten',
     ],
@@ -479,7 +1009,9 @@ test('mutation covers the core rule modules', () => {
     'adapters/src/telemetry/queue.rs',
     'adapters/src/telemetry/relay_client.rs',
     'adapters/src/telemetry/sanitize.rs',
+    'core/src/automap_name.rs',
     'core/src/beat.rs',
+    'core/src/chat_step.rs',
     'core/src/check_update.rs',
     'core/src/follow_stream.rs',
     'core/src/pair.rs',
@@ -527,6 +1059,7 @@ const REQUIRED_DISALLOWED_METHODS = [
   'windows::Win32::System::Diagnostics::Debug::ReadProcessMemory',
   'windows::Win32::System::Diagnostics::Debug::WriteProcessMemory',
   'windows::Win32::UI::Input::KeyboardAndMouse::SendInput',
+  'windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState',
   // Input to other windows and screen-hook calls the capture never needs (ADR 010, AGS-20).
   'windows::Win32::UI::WindowsAndMessaging::PostMessageW',
   'windows::Win32::UI::WindowsAndMessaging::SendMessageW',

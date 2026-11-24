@@ -70,7 +70,44 @@ function loadSection(report) {
     head,
     ...extra,
     table(['Players', 'Errors', 'p95', 'Bytes per player-hour / budget', 'Rooms'], rows),
-  ].join('\n\n');
+    byEventSection(load),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/** The bytes of each event type at the 100-player step, largest first, with its share (SEG-08); null with no breakdown. */
+function byEventSection(load) {
+  const step = load.steps.find((s) => s.players === 100 && s.bytesByEvent) ?? null;
+  if (step === null) return null;
+  const rows = [];
+  for (const stream of ['site', 'agent']) {
+    for (const [name, bytes] of Object.entries(step.bytesByEvent[stream] ?? {})) {
+      if (bytes > 0) rows.push([stream, name, bytes]);
+    }
+  }
+  rows.push(['other', 'HTTP bodies, headers and framing', step.bytesByEvent.other]);
+  rows.sort((x, y) => y[2] - x[2]);
+  const total = rows.reduce((sum, row) => sum + row[2], 0);
+  const lines = rows.map(([stream, name, bytes]) => [
+    stream,
+    name,
+    bytes,
+    total > 0 ? `${Math.round((bytes / total) * 1000) / 10} %` : 'n/a',
+  ]);
+  const cadence =
+    typeof step.matchesPerPlayerHour === 'number'
+      ? `The journey plays ${step.matchesPerPlayerHour} matches per player-hour${
+          typeof step.bytesPerMatch === 'number' ? `, so a match costs ${step.bytesPerMatch} bytes` : ''
+        }.`
+      : null;
+  return [
+    'Bytes per player-hour by event type at 100 players:',
+    table(['Stream', 'Event', 'Bytes per player-hour', 'Share'], lines),
+    cadence,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function acceptanceSection(report) {
@@ -108,6 +145,14 @@ function trendSection(report) {
     lines.push(
       `Load: max players ${signed(l.maxConcurrentPlayers)}, p95 at 100 players ${signed(l.p95Ms, 2)} ms, bytes per player-hour ${signed(l.bytesPerPlayerHour)}.`,
     );
+    if (l.bytesByEvent) {
+      const changed = Object.entries(l.bytesByEvent);
+      lines.push(
+        changed.length === 0
+          ? 'Bytes per player-hour by event type: no change.'
+          : `Bytes per player-hour by event type: ${changed.map(([name, change]) => `${name} ${signed(change)}`).join(', ')}.`,
+      );
+    }
   }
   return lines.join('\n\n');
 }

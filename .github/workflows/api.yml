@@ -3,11 +3,13 @@
 # migrates its own database before its Render service deploys the exact commit. This file holds triggers and inputs only.
 # It runs beside deploy-api.yml and preview-api.yml until they are removed (DLP-09): until the maintainer sets the
 # repository variable API_STAGES_LIVE to true, it builds and stops, so two workflows never deploy the same push.
+# A push to a phase branch (phase/**) deploys staging without that variable: during a phase, staging follows the phase
+# branch (the Render service is pointed at it), and deploy-api.yml only ever deploys main.
 name: api
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'phase/**']
     paths:
       - 'apps/api/**'
       - 'packages/**'
@@ -28,8 +30,9 @@ permissions:
   pull-requests: read
 
 concurrency:
-  # Nothing here is cancelled: a run may be migrating a database or deploying.
-  group: api-${{ github.event_name }}-${{ github.ref }}
+  # Nothing here is cancelled: a run may be migrating a database or deploying. Every push shares one group, because main
+  # and the phase branches deploy the same staging service and database: one staging deploy at a time.
+  group: api-${{ github.event_name == 'push' && 'staging' || format('{0}-{1}', github.event_name, github.ref) }}
   cancel-in-progress: false
 
 jobs:
@@ -44,7 +47,7 @@ jobs:
   deploy:
     name: deploy
     needs: [build]
-    if: github.event_name == 'push' && vars.API_STAGES_LIVE == 'true'
+    if: github.event_name == 'push' && (vars.API_STAGES_LIVE == 'true' || startsWith(github.ref, 'refs/heads/phase/'))
     uses: ./.github/workflows/stage-deploy.yml
     with:
       app: api

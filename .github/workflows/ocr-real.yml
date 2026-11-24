@@ -14,6 +14,13 @@ on:
 permissions:
   contents: read
 
+# A new push (or an update-branch) to a pull request cancels the run on the superseded SHA, so it stops holding Windows
+# runners (ocr-real and the ocr-variations shards are in this workflow). The newest SHA still runs the full check: this
+# does not relax the sensor.
+concurrency:
+  group: ocr-real-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ocr-real:
     name: ocr-real
@@ -76,15 +83,21 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/real-prints"
 
   # The robustness measure (apps/agent/ocr-lab/README.md): hundreds of in-memory variations of each real screenshot, read with the
-  # production reading and counted per transform family as correct, refused or wrong. It is held to the quality ratchet
-  # (context ocr, .quality-baseline.json): more wrong reads or fewer correct ones than the baseline fail the job. No variation is
-  # written to disk; only the counts (ocr-variations.json) are uploaded.
-  ocr-variations:
-    name: ocr-variations
+  # production reading and counted per transform family as correct, refused or wrong. 19 prints at 5 to 16 minutes each do not fit
+  # one job's 120 minutes, so the prints are split over 8 shards (`ocr-check --variations --shard i/8`, round-robin over the sorted
+  # list), one Windows job each, and the job `ocr-variations` merges the partial counts and holds the totals to the quality
+  # ratchet. A print whose variations take more than 20 minutes (the per-print budget) fails its shard: slow reading code still
+  # fails. No variation is written to disk; only the counts (ocr-variations.json) are uploaded.
+  ocr-variations-shard:
+    name: ocr-variations-shard (${{ matrix.shard }}/8)
     # Fork pull requests never receive the secret.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     defaults:
       run:
         shell: bash
@@ -128,28 +141,79 @@ jobs:
       - name: Read the variations with Windows OCR
         if: steps.zip.outputs.present == 'true'
         run: |
-          apps/agent/src-tauri/target/release/examples/ocr-check.exe --variations --summary "$RUNNER_TEMP/ocr-variations.md" --json "$RUNNER_TEMP/ocr-variations.json" "$RUNNER_TEMP/real-prints"
-      # The supported totals of the run against the baseline; the other sources are absent here, which the collect tolerates.
-      - name: Hold the variations to the quality ratchet
+          apps/agent/src-tauri/target/release/examples/ocr-check.exe --variations --shard ${{ matrix.shard }}/8 --summary "$RUNNER_TEMP/ocr-variations.md" --json "$RUNNER_TEMP/ocr-variations.json" "$RUNNER_TEMP/real-prints"
+      # The per-print budget: 20 minutes for the variations of one print (PRINT_BUDGET_MINUTES in the script).
+      - name: Hold each print to the 20-minute budget
         if: steps.zip.outputs.present == 'true'
         run: |
-          mkdir -p reports
-          cp "$RUNNER_TEMP/ocr-variations.json" reports/ocr-variations.json
-          node scripts/quality-collect.mjs
-          node scripts/quality-ratchet.mjs --context ocr
+          node scripts/agent/ocr-variations-shards.mjs budget --json "$RUNNER_TEMP/ocr-variations.json" --minutes 20
       - name: Add the counts to the job summary
         if: steps.zip.outputs.present == 'true' && always()
         run: |
           if [ -f "$RUNNER_TEMP/ocr-variations.md" ]; then cat "$RUNNER_TEMP/ocr-variations.md" >> "$GITHUB_STEP_SUMMARY"; fi
-      # Only the counts file: never the extracted screenshots, never a variation.
+      # Only the counts file of the shard: never the extracted screenshots, never a variation.
       - name: Upload the counts
         if: steps.zip.outputs.present == 'true' && always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ocr-variations
+          name: ocr-variations-shard-${{ matrix.shard }}
           path: ${{ runner.temp }}/ocr-variations.json
           if-no-files-found: ignore
           retention-days: 14
       - name: Delete the extracted screenshots
         if: always()
         run: rm -rf "$RUNNER_TEMP/real-prints"
+
+  # The required check. It merges the 8 partial counts into the file an unsharded run would have written and holds it to the
+  # quality ratchet (context ocr, .quality-baseline.json): more wrong reads or fewer correct ones than the baseline fail the
+  # job. It fails when a shard failed, was cancelled or uploaded nothing, and when a print is counted twice or not at all.
+  # It never sees the secret or a screenshot, only the counts.
+  ocr-variations:
+    name: ocr-variations
+    needs: ocr-variations-shard
+    # Always runs for a same-repository pull request, so a failed shard fails this check instead of skipping it.
+    if: ${{ always() && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Every shard succeeded
+        env:
+          SHARDS: ${{ needs.ocr-variations-shard.result }}
+        run: |
+          if [ "$SHARDS" != "success" ]; then echo "The shards ended as '$SHARDS', not 'success'."; exit 1; fi
+      - id: zip
+        name: Is the encrypted zip in the repository?
+        run: |
+          if [ -f apps/agent/ocr-lab/real-prints.zip ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "No apps/agent/ocr-lab/real-prints.zip yet; nothing to measure."; fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        if: steps.zip.outputs.present == 'true'
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: steps.zip.outputs.present == 'true'
+        with:
+          pattern: ocr-variations-shard-*
+          path: ${{ runner.temp }}/shards
+      - name: Merge the shards
+        if: steps.zip.outputs.present == 'true'
+        run: |
+          mkdir -p reports
+          node scripts/agent/ocr-variations-shards.mjs merge --dir "$RUNNER_TEMP/shards" --count 8 --out reports/ocr-variations.json
+      # The supported totals of the merged run against the baseline; the other sources are absent here, which the collect tolerates.
+      - name: Hold the variations to the quality ratchet
+        if: steps.zip.outputs.present == 'true'
+        run: |
+          node scripts/quality-collect.mjs
+          node scripts/quality-ratchet.mjs --context ocr
+      # Only the merged counts file: never a screenshot, never a variation.
+      - name: Upload the counts
+        if: steps.zip.outputs.present == 'true' && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ocr-variations
+          path: reports/ocr-variations.json
+          if-no-files-found: ignore
+          retention-days: 14

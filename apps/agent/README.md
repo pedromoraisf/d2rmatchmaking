@@ -29,6 +29,13 @@ days). It is a test build: unsigned, with no updater artifacts, and it talks to 
   `%LOCALAPPDATA%\D2RMatchMaking` and the registry key
   `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\D2RMatchMaking`.
 
+## Hotkey
+
+While a ready check is open, **Ctrl+Shift+A** accepts it. The key is changeable in the agent window. The agent sends nothing
+to the game: no keystroke, no clipboard, no mouse event (ADR 010). To enter the game name in Diablo II: Resurrected, copy
+it with the site's copy button and paste it in the game with the game's own Ctrl+V. (An earlier version had a hotkey that
+typed the name; the maintainer withdrew it on 2026-11-22.)
+
 ## The Party panel check (maintainer, Windows)
 
 The Windows OCR reading of the Party panel and the selection screen is checked on the maintainer's own screenshots. They

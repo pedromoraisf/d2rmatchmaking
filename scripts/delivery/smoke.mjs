@@ -58,12 +58,12 @@ export async function healthzAccepts(response, expectedSha) {
 }
 
 /**
- * The checks of one app. `site`: the page answers 200 with an HTML body, then the API behind its proxy answers
- * `/api/healthz` ok. `api`: `/healthz` answers the deployed SHA. Returns a list of failure messages (empty = pass).
+ * The checks of one app. `site`: the page and the code signing policy page answer 200 with an HTML body, then the API behind its proxy answers
+ * `/api/healthz` ok. `api`: `/healthz` answers the deployed SHA. `agent`: `/healthz` answers ok, whatever the build. Returns a list of failure messages (empty = pass).
  */
 async function describe(result) {
   if (result.response === undefined) return 'no answer';
-  let body = '';
+  let body;
   try {
     body = (await result.response.text()).slice(0, 200).replace(/\s+/g, ' ');
   } catch {
@@ -92,6 +92,15 @@ export async function smokeChecks(app, url, sha, io) {
       accept: async (r) => r.status === 200 && /text\/html/.test(r.headers.get('content-type') ?? ''),
     });
     if (!page.ok) failures.push(`the page ${base}/ did not answer 200 HTML (${await describe(page)})`);
+    // The code signing policy is a path of the single-page site (agent-release AGR-08): Pages must serve index.html for it.
+    const policy = await wakeAndRead(`${base}/code-signing`, {
+      ...asks,
+      accept: async (r) => r.status === 200 && /text\/html/.test(r.headers.get('content-type') ?? ''),
+    });
+    if (!policy.ok)
+      failures.push(
+        `the code signing policy ${base}/code-signing did not answer 200 HTML (${await describe(policy)})`,
+      );
     const api = await wakeAndRead(`${base}/api/healthz`, { ...asks, accept: (r) => healthzAccepts(r) });
     if (!api.ok)
       failures.push(
@@ -101,6 +110,17 @@ export async function smokeChecks(app, url, sha, io) {
     const health = await wakeAndRead(`${base}/healthz`, { ...asks, accept: (r) => healthzAccepts(r, sha) });
     if (!health.ok)
       failures.push(`${base}/healthz did not answer ok with version ${sha} (${await describe(health)})`);
+  } else if (app === 'agent') {
+    // The agent release needs the API awake for its online self-check; any build answers, so the SHA is not compared.
+    if (base === '') {
+      failures.push('the API base URL is empty, so there is no API to wake');
+    } else {
+      const health = await wakeAndRead(`${base}/healthz`, { ...asks, accept: (r) => healthzAccepts(r) });
+      if (!health.ok)
+        failures.push(
+          `${base}/healthz did not answer ok within ${WAKE_BUDGET_MS / 1000} s (${await describe(health)})`,
+        );
+    }
   } else {
     failures.push(`no smoke checks for app "${app}"`);
   }

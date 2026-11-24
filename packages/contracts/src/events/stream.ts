@@ -4,13 +4,22 @@ import { z } from 'zod';
 import { Assignment } from '../http/lobby.ts';
 import { Id, Member, RoomStage, Screen } from '../http/common.ts';
 import { QueueLeft, QueueTicketView } from '../http/queues.ts';
-import { ReadyCheckResolved, ReadyCheckView } from '../http/ready-checks.ts';
+import { ReadyCheckMember, ReadyCheckResolved, ReadyCheckView } from '../http/ready-checks.ts';
 
 export const RoomAssignedEvent = z.object({
   type: z.literal('room.assigned'),
   data: Assignment,
 });
 export type RoomAssignedEvent = z.infer<typeof RoomAssignedEvent>;
+
+// The agent's copy of an assignment: the member list is empty. The agent reads the room, the run and the game name and
+// nothing of the members (stream-egress SEG-03). The key stays, as `[]`, so an agent from before this change, whose parser
+// still requires it, holds the event; an agent now accepts a full list too.
+export const AgentRoomAssignedEvent = z.object({
+  type: z.literal('room.assigned'),
+  data: Assignment.extend({ members: z.array(Member).max(0) }),
+});
+export type AgentRoomAssignedEvent = z.infer<typeof AgentRoomAssignedEvent>;
 
 export const RoomStageChangedEvent = z.object({
   type: z.literal('room.stage_changed'),
@@ -22,6 +31,17 @@ export const RoomStageChangedEvent = z.object({
 });
 export type RoomStageChangedEvent = z.infer<typeof RoomStageChangedEvent>;
 
+// The agent's copy of a stage change carries the room and the stage only: the agent holds a room until it ends and reads
+// nothing of its members, so the member list stays off its stream (stream-egress SEG-01).
+export const AgentRoomStageChangedEvent = z.object({
+  type: z.literal('room.stage_changed'),
+  data: z.object({
+    roomId: Id,
+    stage: RoomStage,
+  }),
+});
+export type AgentRoomStageChangedEvent = z.infer<typeof AgentRoomStageChangedEvent>;
+
 // The host opened the next run (LBR-06): the same assignment shape with the new run and name. The agent replaces the
 // name it reads for; the site refetches its room.
 export const RoomRunOpenedEvent = z.object({
@@ -30,12 +50,19 @@ export const RoomRunOpenedEvent = z.object({
 });
 export type RoomRunOpenedEvent = z.infer<typeof RoomRunOpenedEvent>;
 
-// A member confirmed, left, or the host changed (LBR-04, LBR-07, LBR-08): the members after the change.
+// The agent's copy of a new run: the member list is empty, as in `AgentRoomAssignedEvent` (stream-egress SEG-03).
+export const AgentRoomRunOpenedEvent = z.object({
+  type: z.literal('room.run_opened'),
+  data: Assignment.extend({ members: z.array(Member).max(0) }),
+});
+export type AgentRoomRunOpenedEvent = z.infer<typeof AgentRoomRunOpenedEvent>;
+
+// A member confirmed, left, went to another game or came back, or the host changed (LBR-04, LBR-07, LBR-08, ARL-10): the members after the change.
 export const RoomMemberChangedEvent = z.object({
   type: z.literal('room.member_changed'),
   data: z.object({
     roomId: Id,
-    change: z.enum(['confirmed', 'left', 'host_changed']),
+    change: z.enum(['confirmed', 'left', 'host_changed', 'elsewhere', 'returned']),
     accountId: Id,
     members: z.array(Member),
   }),
@@ -74,6 +101,15 @@ export const ReadyCheckStartedEvent = z.object({
 });
 export type ReadyCheckStartedEvent = z.infer<typeof ReadyCheckStartedEvent>;
 
+// The agent's copy of an open check: the id, the mode, the difficulty and the two instants, with an empty member list. The
+// agent's hotkey reads the id and the deadline (RDY-07) and nothing of the members (stream-egress SEG-03). The key stays,
+// as `[]`, for an agent from before this change.
+export const AgentReadyCheckStartedEvent = z.object({
+  type: z.literal('ready_check.started'),
+  data: ReadyCheckView.extend({ members: z.array(ReadyCheckMember).max(0) }),
+});
+export type AgentReadyCheckStartedEvent = z.infer<typeof AgentReadyCheckStartedEvent>;
+
 // A member accepted, or the check changed for the members still in it (RDY-02): the same view, with the new marks.
 export const ReadyCheckUpdatedEvent = z.object({
   type: z.literal('ready_check.updated'),
@@ -104,12 +140,13 @@ export const SiteStreamEvent = z.discriminatedUnion('type', [
 ]);
 export type SiteStreamEvent = z.infer<typeof SiteStreamEvent>;
 
-// The agent stream carries the assignment and the ready check's start and end (the agent answers its hotkey, RDY-07);
-// it never receives presence of itself or of others.
+// The agent stream carries the assignment, the end of a room (`room.stage_changed` to `expired` or `closed`, ARL-01) and the
+// ready check's start and end (the agent answers its hotkey, RDY-07); it never receives presence of itself or of others.
 export const AgentStreamEvent = z.discriminatedUnion('type', [
-  RoomAssignedEvent,
-  RoomRunOpenedEvent,
-  ReadyCheckStartedEvent,
+  AgentRoomAssignedEvent,
+  AgentRoomStageChangedEvent,
+  AgentRoomRunOpenedEvent,
+  AgentReadyCheckStartedEvent,
   ReadyCheckResolvedEvent,
 ]);
 export type AgentStreamEvent = z.infer<typeof AgentStreamEvent>;

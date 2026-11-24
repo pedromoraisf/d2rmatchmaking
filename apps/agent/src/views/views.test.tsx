@@ -1,13 +1,29 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createAgentI18n, translatorFor } from '../shared/i18n.ts';
-import type { AgentView, CaptureDiagnostics, Diagnostics, PairingState } from '../shared/labels.ts';
+import type {
+  AgentView,
+  CaptureDiagnostics,
+  Diagnostics,
+  HotkeyFailure,
+  HotkeyPress,
+  PairingState,
+} from '../shared/labels.ts';
 import { DiagnosticsView } from './DiagnosticsView.tsx';
+import { HotkeysView } from './HotkeysView.tsx';
 import { PairingView } from './PairingView.tsx';
 import { StatusView } from './StatusView.tsx';
 
 const en = translatorFor(createAgentI18n('en'));
 const ptBR = translatorFor(createAgentI18n('pt-BR'));
+
+const DEFAULT_KEY = 'Ctrl+Shift+A';
+const NONE_YET = 'none';
+const ACCEPT_PRESS: HotkeyPress = 'accept';
+const PRESSES: HotkeyPress[] = ['accept', 'unmatched'];
+const REFUSED: HotkeyFailure = 'refused';
+const NO_MANAGER: HotkeyFailure = 'no-manager';
+const REASONS: HotkeyFailure[] = ['no-manager', 'refused', 'unmapped', 'dispatch'];
 
 const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   pairing: 'paired',
@@ -15,6 +31,7 @@ const view = (overrides: Partial<AgentView> = {}): AgentView => ({
   room: null,
   update: 'idle',
   readyCheckOpen: false,
+  hotkey: DEFAULT_KEY,
   diagnostics: null,
   ...overrides,
 });
@@ -99,6 +116,47 @@ describe('status view', () => {
     expect(screen.getByText('Room mmbaalh-12 — waiting for the game')).toBeTruthy();
   });
 
+  it('shows the room line as presence confirmed once the API accepted the observation (ARL-03)', () => {
+    renderStatus({
+      room: { gameName: 'mmbaalh-12', needsReveal: false, matched: true, confirmed: true },
+    });
+
+    expect(screen.getByText('Room mmbaalh-12 — presence confirmed')).toBeTruthy();
+    expect(screen.queryByText('Room mmbaalh-12 — waiting for the game')).toBeNull();
+  });
+
+  it('shows presence confirmed in pt-BR (ARL-03)', () => {
+    const confirmed = view({
+      room: { gameName: 'mmbaalh-12', needsReveal: false, matched: true, confirmed: true },
+    });
+    render(<StatusView view={confirmed} translate={ptBR} />);
+
+    expect(screen.getByText('Sala mmbaalh-12 — presença confirmada')).toBeTruthy();
+  });
+
+  it('says the player is in another game, without naming it, and keeps presence confirmed otherwise (ARL-08)', () => {
+    const { unmount } = renderStatus({
+      room: { gameName: 'mmbaalh-28', needsReveal: false, matched: true, confirmed: true, elsewhere: true },
+    });
+    expect(screen.getByText('You are in another game (not mmbaalh-28)')).toBeTruthy();
+    expect(screen.queryByText('Room mmbaalh-28 — presence confirmed')).toBeNull();
+    unmount();
+
+    renderStatus({
+      room: { gameName: 'mmbaalh-28', needsReveal: false, matched: true, confirmed: true },
+    });
+    expect(screen.getByText('Room mmbaalh-28 — presence confirmed')).toBeTruthy();
+  });
+
+  it('says the player is in another game in pt-BR (ARL-08)', () => {
+    const away = view({
+      room: { gameName: 'mmbaalh-28', needsReveal: false, matched: true, confirmed: true, elsewhere: true },
+    });
+    render(<StatusView view={away} translate={ptBR} />);
+
+    expect(screen.getByText('Você está em outro jogo (não mmbaalh-28)')).toBeTruthy();
+  });
+
   it('tells the player to reveal the game name while it is masked (AGN-04)', () => {
     const { unmount } = renderStatus({
       room: { gameName: 'mmbaalh-12', needsReveal: true, matched: false },
@@ -155,6 +213,94 @@ describe('status view', () => {
   });
 });
 
+describe('hotkey status and settings (AST-01, AST-08)', () => {
+  it('names a changed accept hotkey in the ready-check line', () => {
+    renderStatus({ readyCheckOpen: true, hotkey: 'Alt+Q' });
+    expect(screen.getByText('A ready check is open: press Alt+Q to accept it.')).toBeTruthy();
+  });
+
+  it('shows no hotkey line while no ready check is open and nothing failed', () => {
+    const { container } = renderStatus({ pairing: 'requesting', room: null });
+    expect(container.querySelectorAll('li')).toHaveLength(0);
+  });
+
+  it('says the hotkey could not be registered, in English and Portuguese, and says nothing otherwise', () => {
+    const { container, unmount } = renderStatus({ hotkeyUnavailable: REFUSED });
+    expect(
+      screen.getByText(
+        /The accept hotkey \(Ctrl\+Shift\+A\) could not be registered.*Choose another combination.*\(reason: refused\)/,
+      ),
+    ).toBeTruthy();
+    unmount();
+    render(<StatusView view={view({ hotkeyUnavailable: NO_MANAGER })} translate={ptBR} />);
+    expect(
+      screen.getByText(
+        /atalho de aceitar \(Ctrl\+Shift\+A\).*Escolha outra combinação.*\(motivo: no-manager\)/,
+      ),
+    ).toBeTruthy();
+    expect(container.textContent).not.toMatch(/could not be registered/);
+  });
+
+  it('shows each registration failure reason as its own code', () => {
+    for (const reason of REASONS) {
+      const { container, unmount } = renderStatus({ hotkeyUnavailable: reason });
+      expect(container.textContent, reason).toContain(`(reason: ${reason})`);
+      unmount();
+    }
+  });
+
+  it('says in the diagnostics which hotkey press came last, or that none came', () => {
+    const seen = new Set<string>();
+    const { container, unmount } = render(
+      <DiagnosticsView diagnostics={null} lastPress={NONE_YET} translate={en} />,
+    );
+    expect(container.textContent).toContain('none since the agent started');
+    unmount();
+    for (const press of PRESSES) {
+      const view = render(<DiagnosticsView diagnostics={null} lastPress={press} translate={en} />);
+      const text = view.container.textContent ?? '';
+      expect(seen.has(text), `${press} has its own line`).toBe(false);
+      seen.add(text);
+      view.unmount();
+    }
+    render(<DiagnosticsView diagnostics={null} lastPress={ACCEPT_PRESS} translate={ptBR} />);
+    expect(screen.getByText(/Último atalho pressionado: o de aceitar/)).toBeTruthy();
+  });
+
+  it('saves a hotkey through the callback and shows the saved line', async () => {
+    const onChange = vi.fn(async () => undefined);
+    render(<HotkeysView hotkey={DEFAULT_KEY} translate={en} onChange={onChange} />);
+    const field = screen.getByLabelText('Accept a ready check');
+    fireEvent.change(field, { target: { value: 'Alt+G' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onChange).toHaveBeenCalledWith('Alt+G');
+    expect(await screen.findByText('Hotkey saved.')).toBeTruthy();
+  });
+
+  it('shows the reason the core refused a hotkey, and a generic line for an unknown failure', async () => {
+    const reasons = new Map([
+      ['no-modifier', 'Use Ctrl or Alt with the key.'],
+      ['needs-ctrl-or-alt', 'Use Ctrl or Alt with the key; Shift alone is not enough.'],
+      [
+        'reserved',
+        'That combination is already used by Windows or every program (such as Ctrl+C, Alt+F4 or the Windows key). Pick another.',
+      ],
+      ['confirming-key', 'Enter, Tab, Space, Escape and Backspace cannot be hotkeys.'],
+      ['unsupported-key', 'Use a letter, a digit or F1 to F12 (for example Ctrl+Shift+F).'],
+      ['boom', 'Could not save the hotkey. Try again.'],
+    ]);
+    for (const [reason, text] of reasons) {
+      const onChange = vi.fn(async () => {
+        throw reason;
+      });
+      const { unmount } = render(<HotkeysView hotkey={DEFAULT_KEY} translate={en} onChange={onChange} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect((await screen.findByRole('alert')).textContent, reason).toBe(text);
+      unmount();
+    }
+  });
+});
+
 describe('diagnostics view', () => {
   const diagnostics: Diagnostics = {
     screen: 'characterSelect',
@@ -182,7 +328,18 @@ describe('diagnostics view', () => {
     expect(screen.getByText('Cards read: 2, settled: 1')).toBeTruthy();
     expect(screen.getByText('Popup options found: 2')).toBeTruthy();
     expect(screen.getByText('Card 2 not settled: name-disagree')).toBeTruthy();
-    expect(screen.getByText('Last send: not-sent')).toBeTruthy();
+    expect(screen.getByText('Last send: nothing sent yet')).toBeTruthy();
+  });
+
+  it('says which configuration version the agent runs, 0 being the built-in defaults (RCF-08)', () => {
+    const { rerender } = render(<DiagnosticsView diagnostics={diagnostics} translate={en} />);
+    expect(screen.getByText('Configuration: version 0')).toBeTruthy();
+
+    rerender(<DiagnosticsView diagnostics={diagnostics} configVersion={7} translate={en} />);
+    expect(screen.getByText('Configuration: version 7')).toBeTruthy();
+
+    rerender(<DiagnosticsView diagnostics={diagnostics} configVersion={7} translate={ptBR} />);
+    expect(screen.getByText('Configuração: versão 7')).toBeTruthy();
   });
 
   it('is translated to pt-BR', () => {
@@ -190,7 +347,7 @@ describe('diagnostics view', () => {
 
     expect(screen.getByText('Diagnóstico')).toBeTruthy();
     expect(screen.getByText('Tela: Seleção de personagem')).toBeTruthy();
-    expect(screen.getByText('Último envio: not-sent')).toBeTruthy();
+    expect(screen.getByText('Último envio: nada enviado ainda')).toBeTruthy();
   });
 });
 
@@ -211,6 +368,8 @@ describe('capture diagnostics', () => {
     windowWidth: 1936,
     windowHeight: 1095,
     party: { panelOpen: true, field: 'masked', matched: false },
+    method: 'print-window',
+    readRatePercent: 97,
   };
   const renderCapture = (overrides: Partial<CaptureDiagnostics> = {}, translate = en) =>
     render(
@@ -311,6 +470,41 @@ describe('capture diagnostics', () => {
     expect(screen.getByText('Campo do grupo, leitura mais próxima: sub(l>9)@9')).toBeTruthy();
   });
 
+  it('shows the capture method and the usable share', () => {
+    renderCapture({ method: 'graphics-capture', readRatePercent: 88 });
+
+    expect(screen.getByText('Capture method: Graphics capture')).toBeTruthy();
+    expect(screen.getByText('Usable frames: 88%')).toBeTruthy();
+  });
+
+  it('names each method and says None when no method gave a frame', () => {
+    renderCapture({ method: 'screen-crop' });
+    expect(screen.getByText('Capture method: Screen crop')).toBeTruthy();
+    cleanup();
+    renderCapture({ method: 'none' });
+    expect(screen.getByText('Capture method: None')).toBeTruthy();
+    expect(screen.queryByText(/Usable frames/)).toBeNull();
+  });
+
+  it('says the capture shows nothing, even before any frame was read', () => {
+    const seen: CaptureDiagnostics = {
+      ...capture,
+      method: 'none',
+      readRatePercent: 0,
+      blank: true,
+      reason: 'nothing',
+    };
+    render(<DiagnosticsView diagnostics={null} capture={seen} translate={en} />);
+
+    expect(screen.getByText('The capture shows nothing: no capture method gave a usable frame')).toBeTruthy();
+    expect(screen.getByText('Capture method: None')).toBeTruthy();
+  });
+
+  it('shows nothing without diagnostics and without a capture', () => {
+    const { container } = render(<DiagnosticsView diagnostics={null} translate={en} />);
+    expect(container.innerHTML).toBe('');
+  });
+
   it('shows no capture lines before the first frame', () => {
     render(<DiagnosticsView diagnostics={diagnostics} translate={en} />);
 
@@ -318,7 +512,9 @@ describe('capture diagnostics', () => {
   });
 
   it('is translated to pt-BR', () => {
-    renderCapture({ blank: true }, ptBR);
+    renderCapture({ blank: true, method: 'graphics-capture' }, ptBR);
+
+    expect(screen.getByText('Método de captura: Captura gráfica')).toBeTruthy();
 
     expect(screen.getByText('Janela (com bordas): 1936×1095')).toBeTruthy();
     expect(screen.getByText('Conteúdo do quadro: vazio (brilho 87)')).toBeTruthy();

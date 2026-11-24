@@ -14,6 +14,7 @@ import type { RoomView } from '@d2rmm/contracts';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { After, Given, Then, When, test } from '../fixtures.ts';
 import { AGENT_VERSION } from '../support/agent-client.ts';
+import { apiBaseFor } from '../support/agent-wire.ts';
 import { HeadlessAgent, preparePartyFixture, setPartyPanel } from '../support/headless-agent.ts';
 import { submitPairingCode, type World } from '../support/world.ts';
 import {
@@ -72,7 +73,7 @@ function stateOf(world: World): RoomsState {
   return state;
 }
 
-function pageOf(world: World, name: string): Page {
+export function pageOf(world: World, name: string): Page {
   const page = world.player(name).visitor?.page;
   if (page === undefined) {
     throw new Error(`${name} has no site open in this scenario`);
@@ -89,7 +90,7 @@ function stageLabelToStage(label: string): string {
 }
 
 /** The room of the player as the API reads it, or a failure that says there is none. */
-async function roomViewOf(world: World, name: string): Promise<RoomView> {
+export async function roomViewOf(world: World, name: string): Promise<RoomView> {
   const room = await roomOf(world, name);
   if (room === null) {
     throw new Error(`${name} has no room`);
@@ -98,7 +99,7 @@ async function roomViewOf(world: World, name: string): Promise<RoomView> {
 }
 
 /** Waits until the player's room is in the stage (and run, when given), as the API reads it. */
-async function expectStage(world: World, name: string, stage: string, run?: number): Promise<void> {
+export async function expectStage(world: World, name: string, stage: string, run?: number): Promise<void> {
   await expect
     .poll(
       async () => {
@@ -122,11 +123,11 @@ function memberRows(page: Page): Locator {
 }
 
 /** The row of a player in the members list, found by the class and level of the player's character. */
-function memberRow(page: Page, name: string): Locator {
+export function memberRow(page: Page, name: string): Locator {
   return memberRows(page).filter({ hasText: ROW_TEXT[name] ?? name });
 }
 
-async function expectSiteStage(page: Page, label: string): Promise<void> {
+export async function expectSiteStage(page: Page, label: string): Promise<void> {
   await expect(currentStep(page), `the room as ${label}`).toHaveText(label, { timeout: SITE_LIMIT_MS });
 }
 
@@ -153,13 +154,14 @@ async function showRoomOn(world: World, name: string): Promise<void> {
 // --- The headless agents (@agent) -----------------------------------------------------------------------------------
 
 /** Starts the headless agent of the player: pairs it as the player's agent and waits for its assignment. */
-async function startHeadless(world: World, name: string, gameName: string): Promise<void> {
+export async function startHeadless(world: World, name: string, gameName: string): Promise<void> {
   const state = stateOf(world);
   state.dir ??= mkdtempSync(path.join(tmpdir(), 'd2rmm-rooms-'));
   const playerDir = mkdtempSync(path.join(state.dir, `${name}-`));
   const fixture = preparePartyFixture(playerDir, { gameNameField: MASKED });
   const agent = HeadlessAgent.start({
-    apiBase: world.site.api,
+    // The API, or the recording proxy in front of it when the scenario asked for the wire (agent-trust).
+    apiBase: await apiBaseFor(world, name),
     fixture: fixture.png,
     party: true,
     agentVersion: AGENT_VERSION,
@@ -176,7 +178,7 @@ async function startHeadless(world: World, name: string, gameName: string): Prom
 }
 
 /** Starts the headless agents of both players, once. The first start is the host's fetch of the assignment (LBR-02). */
-async function ensureHeadless(world: World): Promise<void> {
+export async function ensureHeadless(world: World): Promise<void> {
   test.setTimeout(START_TIMEOUT_MS);
   const state = stateOf(world);
   const gameName = (await roomViewOf(world, 'Alice')).expectedGameName;
@@ -188,7 +190,7 @@ async function ensureHeadless(world: World): Promise<void> {
   }
 }
 
-function headlessOf(world: World, name: string): HeadlessPlayer {
+export function headlessOf(world: World, name: string): HeadlessPlayer {
   const found = stateOf(world).headless.get(name);
   if (found === undefined) {
     throw new Error(`${name}'s headless agent is not running in this scenario`);
@@ -201,7 +203,7 @@ function observedCount(world: World, name: string): number {
 }
 
 /** The player's game shows the Party panel with the field: the headless agent reads it on its next capture. */
-function showPanel(world: World, name: string, field: string): void {
+export function showPanel(world: World, name: string, field: string): void {
   setPartyPanel(headlessOf(world, name).png, { gameNameField: field });
 }
 
@@ -217,37 +219,42 @@ async function waitForObservation(world: World, name: string, before: number): P
 Given(
   'Alice and Bob accepted a ready check for a GM duel on Hell in the Americas, Alice first',
   async ({ world }) => {
-    await readyPlayer(world, 'Alice', SORC_OF_ALICE, 'browser');
-    await readyPlayer(world, 'Bob', HAMMER_OF_BOB, 'browser');
-    // Alice joins first, so she is the oldest ticket and hosts (QUE-12).
-    await joinAs(world, 'Alice', 'PvP', 'Sorc', 'Hell', 'Americas', { format: 'duel', rules: 'gm' });
-    expect(world.last?.status, 'Alice joins').toBe(201);
-    await joinAs(world, 'Bob', 'PvP', 'Hammer', 'Hell', 'Americas', { format: 'duel', rules: 'gm' });
-    expect(world.last, 'Bob joins, and the group forms').toMatchObject({ status: 201 });
-    const check = await rememberCheck(world, 'Alice');
-    for (const name of PLAYERS) {
-      await answerAs(world, name, check?.id ?? '', 'accept');
-      expect(world.last?.status, `${name} accepts`).toBe(204);
-    }
-    await expect
-      .poll(async () => (await roomOf(world, 'Bob'))?.roomId ?? null, {
-        timeout: API_WAIT_MS,
-        message: 'the room of the group',
-      })
-      .not.toBeNull();
-    for (const name of PLAYERS) {
-      const room = await roomViewOf(world, name);
-      world.player(name).room = { roomId: room.roomId, gameName: room.expectedGameName };
-    }
-    world.matchOwner = 'Alice';
-    stateOf(world).runNames.set(1, (await roomViewOf(world, 'Alice')).expectedGameName);
-    // No agent has the assignment yet, so the room is waiting to be delivered (LBR-01, LBR-02).
-    expect((await roomViewOf(world, 'Alice')).stage, 'the room as it opens').toBe('formed');
-    for (const name of PLAYERS) {
-      await showRoomOn(world, name);
-    }
+    await formRoom(world);
   },
 );
+
+/** The Background of the lobby-rooms and agent-room-lifecycle scenarios: a duel group, its ready check and its room. */
+export async function formRoom(world: World): Promise<void> {
+  await readyPlayer(world, 'Alice', SORC_OF_ALICE, 'browser');
+  await readyPlayer(world, 'Bob', HAMMER_OF_BOB, 'browser');
+  // Alice joins first, so she is the oldest ticket and hosts (QUE-12).
+  await joinAs(world, 'Alice', 'PvP', 'Sorc', 'Hell', 'Americas', { format: 'duel', rules: 'gm' });
+  expect(world.last?.status, 'Alice joins').toBe(201);
+  await joinAs(world, 'Bob', 'PvP', 'Hammer', 'Hell', 'Americas', { format: 'duel', rules: 'gm' });
+  expect(world.last, 'Bob joins, and the group forms').toMatchObject({ status: 201 });
+  const check = await rememberCheck(world, 'Alice');
+  for (const name of PLAYERS) {
+    await answerAs(world, name, check?.id ?? '', 'accept');
+    expect(world.last?.status, `${name} accepts`).toBe(204);
+  }
+  await expect
+    .poll(async () => (await roomOf(world, 'Bob'))?.roomId ?? null, {
+      timeout: API_WAIT_MS,
+      message: 'the room of the group',
+    })
+    .not.toBeNull();
+  for (const name of PLAYERS) {
+    const room = await roomViewOf(world, name);
+    world.player(name).room = { roomId: room.roomId, gameName: room.expectedGameName };
+  }
+  world.matchOwner = 'Alice';
+  stateOf(world).runNames.set(1, (await roomViewOf(world, 'Alice')).expectedGameName);
+  // No agent has the assignment yet, so the room is waiting to be delivered (LBR-01, LBR-02).
+  expect((await roomViewOf(world, 'Alice')).stage, 'the room as it opens').toBe('formed');
+  for (const name of PLAYERS) {
+    await showRoomOn(world, name);
+  }
+}
 
 // Capture consent is what the agent's Party step needs to read the game window. The headless agents of an @agent
 // scenario start when a step first needs them, so that the host's fetch of the assignment is a step of the scenario.
@@ -320,7 +327,7 @@ async function observeAs(world: World, name: string, run: number): Promise<void>
 }
 
 /** Brings the room to `awaiting_host`: the host's agent has the assignment. */
-async function toAwaitingHost(world: World, tagged: boolean): Promise<void> {
+export async function toAwaitingHost(world: World, tagged: boolean): Promise<void> {
   if (tagged) {
     await ensureHeadless(world);
   } else {
@@ -331,7 +338,7 @@ async function toAwaitingHost(world: World, tagged: boolean): Promise<void> {
 }
 
 /** Brings the room to `created` (the host's game shows the name) and then `active` (the other member's too). */
-async function toStage(world: World, tagged: boolean, stage: 'created' | 'active'): Promise<void> {
+export async function toStage(world: World, tagged: boolean, stage: 'created' | 'active'): Promise<void> {
   await toAwaitingHost(world, tagged);
   const room = await roomViewOf(world, 'Alice');
   if (tagged) {
@@ -617,7 +624,7 @@ async function tabUntilFocused(page: Page, control: Locator): Promise<void> {
 // Stops the headless agents and removes their fixtures after each scenario that started them.
 After(
   {
-    tags: '@LBR-01 or @LBR-02 or @LBR-03 or @LBR-04 or @LBR-05 or @LBR-06 or @LBR-07 or @LBR-08 or @LBR-09 or @LBR-10 or @LBR-12',
+    tags: '@AGT-04 or @AGT-05 or @SNM-05 or @SNM-06 or @ARL-01 or @ARL-03 or @LBR-01 or @LBR-02 or @LBR-03 or @LBR-04 or @LBR-05 or @LBR-06 or @LBR-07 or @LBR-08 or @LBR-09 or @LBR-10 or @LBR-12',
   },
   async ({ world }) => {
     const state = states.get(world);

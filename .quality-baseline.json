@@ -18,7 +18,7 @@
       }
     },
     "mutation.api.application": {
-      "value": 78.67,
+      "value": 100,
       "direction": "higher",
       "floor": 70,
       "tolerance": 0.02,
@@ -116,9 +116,9 @@
       }
     },
     "load.bytes_per_player_hour": {
-      "value": 421399.9457351847,
+      "value": 405334,
       "direction": "lower",
-      "ceiling": 465000,
+      "ceiling": 447000,
       "tolerance": 0.1,
       "contexts": [
         "phase"
@@ -144,9 +144,9 @@
       }
     },
     "ocr.variations.wrong": {
-      "value": 43,
+      "value": 45,
       "direction": "lower",
-      "ceiling": 43,
+      "ceiling": 45,
       "contexts": [
         "ocr"
       ],
@@ -157,9 +157,9 @@
       }
     },
     "ocr.variations.correct": {
-      "value": 1028,
+      "value": 5727,
       "direction": "higher",
-      "floor": 1028,
+      "floor": 5727,
       "contexts": [
         "ocr"
       ],

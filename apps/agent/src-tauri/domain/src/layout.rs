@@ -5,6 +5,7 @@
 //! edge from the centre). A frame outside the supported aspect-ratio range resolves no region, the same as F0's frame of
 //! another size: nothing is read from it.
 
+use crate::remote_config::{Area, Regions};
 use crate::vision::Region;
 
 /// The client size the boxes were measured on (the maintainer's screenshots, 1920×1033).
@@ -90,6 +91,9 @@ pub enum PanelRegion {
     /// used, matched, returned, logged or sent (the lines are read once, and only the title, the Game Name label and the
     /// field are looked for). The three boxes above are where the drawn fixtures put the text; the agent does not read them.
     PartyPanel,
+    /// The first, cheap area the Party lines are searched in: the box measured on the 1033 English client (title, label and
+    /// field). `PartyPanel` is read only when this one finds no title or no label, and the box found there is tracked.
+    PartyFixed,
 }
 
 /// The box of `panel` in pixels of the reference client. The Party panel is anchored at the left edge.
@@ -98,7 +102,8 @@ pub fn panel_box(panel: PanelRegion) -> PanelBox {
         PanelRegion::PartyTitle => PanelBox::new(Anchor::Left, 350, 108, 100, 34),
         PanelRegion::GameNameLabel => PanelBox::new(Anchor::Left, 268, 152, 100, 18),
         PanelRegion::GameNameField => PanelBox::new(Anchor::Left, 238, 172, 156, 38),
-        PanelRegion::PartyPanel => PanelBox::new(Anchor::Left, 230, 100, 250, 170),
+        PanelRegion::PartyPanel => PanelBox::new(Anchor::Left, 0, 0, 576, 413),
+        PanelRegion::PartyFixed => PanelBox::new(Anchor::Left, 230, 100, 250, 170),
     }
 }
 
@@ -116,10 +121,63 @@ pub fn supported_size(width: u32, height: u32) -> bool {
 /// The pixels of `panel` in a client of `width` × `height`, or `None` when the size is not supported or the box does not
 /// resolve on it.
 pub fn panel_region(panel: PanelRegion, width: u32, height: u32) -> Option<Region> {
+    panel_region_with(panel, width, height, &Regions::default())
+}
+
+/// `panel_region` with the areas of the remote configuration: `regions.partyArea` replaces `PartyPanel` when it passes
+/// `configured_or`, and every other panel is the built-in box (RCF-05, RCF-09).
+pub fn panel_region_with(
+    panel: PanelRegion,
+    width: u32,
+    height: u32,
+    regions: &Regions,
+) -> Option<Region> {
     if !supported_size(width, height) {
         return None;
     }
-    panel_box(panel).resolve(width, height)
+    let built_in = panel_box(panel).resolve(width, height)?;
+    Some(match panel {
+        PanelRegion::PartyPanel => configured_or(built_in, regions.party_area, width, height),
+        _ => built_in,
+    })
+}
+
+/// The area a reading takes: the configured fractions of the client when they land inside it and cover no more pixels than
+/// the built-in area at this size, else the built-in area (RCF-05, RCF-09: a configured region never reads more pixels than
+/// its default). Integer arithmetic on the pixel counts, so the boundary is exact; a fraction that is not finite or not in
+/// 0 to 1 makes no region.
+fn configured_or(built_in: Region, area: Option<Area>, width: u32, height: u32) -> Region {
+    let Some(area) = area else {
+        return built_in;
+    };
+    let pixel = |fraction: f64, side: u32| -> Option<u32> {
+        (fraction.is_finite() && (0.0..=1.0).contains(&fraction))
+            .then(|| (fraction * f64::from(side)).round() as u32)
+    };
+    let (Some(x), Some(y), Some(w), Some(h)) = (
+        pixel(area.x, width),
+        pixel(area.y, height),
+        pixel(area.width, width),
+        pixel(area.height, height),
+    ) else {
+        return built_in;
+    };
+    let inside = w >= 1
+        && h >= 1
+        && u64::from(x) + u64::from(w) <= u64::from(width)
+        && u64::from(y) + u64::from(h) <= u64::from(height);
+    let reads = u64::from(w) * u64::from(h);
+    let built_in_reads = u64::from(built_in.width) * u64::from(built_in.height);
+    if inside && reads <= built_in_reads {
+        Region {
+            x,
+            y,
+            width: w,
+            height: h,
+        }
+    } else {
+        built_in
+    }
 }
 
 /// The client's regions the character screens read (CHR-04, CHR-06, CHR-18, CHR-19), measured on the maintainer's
@@ -161,7 +219,34 @@ pub enum ScreenRegion {
     CardColumn,
     /// The area of the popup's title and options, around the centre line (`anchors::popup_options`).
     PopupArea,
+    /// The full-width band along the bottom of the client, where the Life and Mana labels of the in-game HUD are searched
+    /// by their words (`anchors::find_hud`): the fixed "Life:" box missed in both window and full screen, because D2R does
+    /// not scale its HUD linearly between the two. Its width is the client's, whatever the aspect ratio.
+    HudBand,
+    /// The top-right corner where the automap's area block sits, searched for its "Difficulty:" line by its word
+    /// (`anchors::find_automap`) when the fixed `AreaDifficulty` box misses: a fallback, the fixed box stays the first check.
+    AutomapArea,
+    /// The band along the top right of the client where the automap's text column sits, searched for a line that shows the
+    /// game name (`anchors::find_name_line`, game-name-reading GNR-06). A band and never one box: from 85% of the client's
+    /// width to its right edge, and from the top to 12% of its height, whatever the client's size. The name line sits at
+    /// x 1728 to 1738, y 34 to 35 (1920×1033) and y 46 to 47 (1920×1045), 155 to 166 px wide and 11 to 15 px high, on one line
+    /// with its label (`<label>: <name>`), measured by `ocr-real` on the maintainer's English and Portuguese automap prints.
+    AutomapName,
+    /// The band at the left of the client where the chat lines sit (`chat::classify`, GNR-07): from the left edge to 30% of the
+    /// width, and from 50% to 80% of the height. The chat lines were measured at x 24 to 26 and y 590 to 790, up to about 530
+    /// px wide, on the 1920×1033 and 1920×1045 prints.
+    ChatArea,
+    /// The bottom-right corner where the character list's "Create New" button sits, searched for its word
+    /// (`anchors::find_create_new`) when the fixed `CreateNew` box misses: a fallback, the fixed box stays the first check.
+    /// The button is at 882 to 904 on the reference client; the area reaches 80 px above and below it for the drift of the
+    /// window, borderless and full-screen layouts and of a client a few pixels taller or shorter.
+    CreateNewArea,
 }
+
+/// The top of `ScreenRegion::HudBand` in pixels of the reference client: the bottom quarter. The "Life:" label sits at
+/// 826 to 848 there (80% of the height), the Mana label level with it on the right; the 5% above it absorbs the shift of
+/// the full-screen layout.
+const HUD_BAND_TOP: u32 = 775;
 
 fn card_top(slot: u8) -> u32 {
     CARD_TOP + CARD_PITCH * u32::from(slot)
@@ -184,6 +269,20 @@ pub fn screen_box(region: ScreenRegion) -> PanelBox {
         ScreenRegion::CardSelected(slot) => PanelBox::new(Right, 210, card_top(slot) - 1, 20, 3),
         ScreenRegion::CardColumn => PanelBox::new(Right, 40, 30, 340, 850),
         ScreenRegion::PopupArea => PanelBox::new(Centre, -130, 320, 260, 290),
+        ScreenRegion::AutomapArea => PanelBox::new(Right, 0, 20, 560, 220),
+        // The bands are a share of the client, not pixels of the reference one: `screen_region` replaces them; these are the
+        // same bands on the reference client.
+        ScreenRegion::AutomapName => PanelBox::new(Left, 1632, 0, 288, 124),
+        ScreenRegion::ChatArea => PanelBox::new(Left, 0, 517, 576, 309),
+        ScreenRegion::CreateNewArea => PanelBox::new(Right, 0, 800, 560, 220),
+        // The width is the client's: `screen_region` replaces it.
+        ScreenRegion::HudBand => PanelBox::new(
+            Left,
+            0,
+            HUD_BAND_TOP,
+            REFERENCE_WIDTH,
+            REFERENCE_HEIGHT - HUD_BAND_TOP,
+        ),
     }
 }
 
@@ -212,10 +311,69 @@ pub fn selection_band(name: Region, width: u32, height: u32) -> Option<Region> {
 /// The pixels of a screen region in a client of `width` × `height`, or `None` when the size is not supported or the
 /// region does not resolve on it (CHR-19: an unsupported aspect ratio reads nothing).
 pub fn screen_region(region: ScreenRegion, width: u32, height: u32) -> Option<Region> {
+    screen_region_with(region, width, height, &Regions::default())
+}
+
+/// `screen_region` with the areas of the remote configuration: `regions.hudBand` replaces `HudBand` and
+/// `regions.automapArea` replaces `AutomapArea` when they pass `configured_or`; every other region is the built-in one
+/// (RCF-05, RCF-09).
+pub fn screen_region_with(
+    region: ScreenRegion,
+    width: u32,
+    height: u32,
+    regions: &Regions,
+) -> Option<Region> {
+    let built_in = built_in_screen_region(region, width, height)?;
+    Some(match region {
+        ScreenRegion::HudBand => configured_or(built_in, regions.hud_band, width, height),
+        ScreenRegion::AutomapArea => configured_or(built_in, regions.automap_area, width, height),
+        _ => built_in,
+    })
+}
+
+fn built_in_screen_region(region: ScreenRegion, width: u32, height: u32) -> Option<Region> {
     if !supported_size(width, height) {
         return None;
     }
+    if region == ScreenRegion::HudBand {
+        // Full width, from the reference top scaled with the height down to the bottom edge of the client.
+        let top = (f64::from(HUD_BAND_TOP) * f64::from(height) / f64::from(REFERENCE_HEIGHT))
+            .round() as u32;
+        return Some(Region {
+            x: 0,
+            y: top,
+            width,
+            height: height - top,
+        });
+    }
+    if let Some(band) = share_band(region, width, height) {
+        return Some(band);
+    }
     screen_box(region).resolve(width, height)
+}
+
+/// The share of the client a band covers, in percent: `(left, top, right, bottom)` of the width and the height.
+fn band_shares(region: ScreenRegion) -> Option<(u32, u32, u32, u32)> {
+    match region {
+        ScreenRegion::AutomapName => Some((85, 0, 100, 12)),
+        ScreenRegion::ChatArea => Some((0, 50, 30, 80)),
+        _ => None,
+    }
+}
+
+/// The pixels of a band that is a share of the client (`band_shares`), rounded to the nearest pixel; `None` for any other
+/// region.
+fn share_band(region: ScreenRegion, width: u32, height: u32) -> Option<Region> {
+    let (left, top, right, bottom) = band_shares(region)?;
+    let at = |share: u32, size: u32| (u64::from(share) * u64::from(size) + 50) / 100;
+    let (x0, x1) = (at(left, width), at(right, width));
+    let (y0, y1) = (at(top, height), at(bottom, height));
+    Some(Region {
+        x: u32::try_from(x0).ok()?,
+        y: u32::try_from(y0).ok()?,
+        width: u32::try_from(x1.checked_sub(x0)?).ok()?,
+        height: u32::try_from(y1.checked_sub(y0)?).ok()?,
+    })
 }
 
 impl ScreenRegion {
@@ -235,6 +393,11 @@ impl ScreenRegion {
             ScreenRegion::CardSelected(slot) => format!("cardSelected{slot}"),
             ScreenRegion::CardColumn => "cardColumn".to_string(),
             ScreenRegion::PopupArea => "popupArea".to_string(),
+            ScreenRegion::HudBand => "hudBand".to_string(),
+            ScreenRegion::AutomapArea => "automapArea".to_string(),
+            ScreenRegion::AutomapName => "automapName".to_string(),
+            ScreenRegion::ChatArea => "chatArea".to_string(),
+            ScreenRegion::CreateNewArea => "createNewArea".to_string(),
         }
     }
 }
@@ -444,6 +607,106 @@ mod screen_tests {
     }
 
     #[test]
+    fn the_hud_band_is_the_bottom_quarter_at_the_full_width_of_every_client() {
+        let band = |width: u32, height: u32| at(ScreenRegion::HudBand, width, height);
+        assert_eq!(
+            band(1920, 1033),
+            Region {
+                x: 0,
+                y: 775,
+                width: 1920,
+                height: 258
+            }
+        );
+        // The window and the full screen: the Life label (826 on the reference, 80% of the height) is inside both.
+        for (width, height) in [(1920, 1056), (1920, 1080)] {
+            let area = band(width, height);
+            let label = height * 826 / 1033;
+            assert_eq!(
+                (area.x, area.width, area.y + area.height),
+                (0, width, height)
+            );
+            assert!(area.y <= label && label + 22 <= height);
+            assert!(
+                area.y > height * 7 / 10,
+                "a quarter of the client, not more"
+            );
+        }
+        assert_eq!(band(2560, 1440).width, 2560);
+        assert_eq!(screen_region(ScreenRegion::HudBand, 1280, 1024), None);
+    }
+
+    #[test]
+    fn the_automap_area_holds_the_fixed_difficulty_line_of_every_client() {
+        // The area is where the automap's difficulty line is searched by its word when the fixed box misses: it contains
+        // that box at every height of the maintainer's prints and stays at the top right.
+        for height in [1033, 1045, 1056, 1080] {
+            let area = at(ScreenRegion::AutomapArea, 1920, height);
+            let line = at(ScreenRegion::AreaDifficulty, 1920, height);
+            assert!(
+                area.x <= line.x
+                    && line.right() <= area.right()
+                    && area.y <= line.y
+                    && line.bottom() <= area.bottom(),
+                "at {height}"
+            );
+            assert_eq!(area.right(), 1920, "anchored to the right edge");
+            assert!(area.bottom() < height / 4, "a corner, not a half: {height}");
+        }
+        assert_eq!(
+            at(ScreenRegion::AutomapArea, 1920, 1033),
+            Region {
+                x: 1360,
+                y: 20,
+                width: 560,
+                height: 220
+            }
+        );
+    }
+
+    #[test]
+    fn the_create_new_area_holds_the_fixed_marker_of_every_client_and_stays_at_the_bottom_right() {
+        // Where the marker is searched by its word when the fixed box misses: it contains that box at every height of the
+        // maintainer's prints, reaches the right edge and is a corner, not a half.
+        for height in [1033, 1045, 1056, 1080] {
+            let area = at(ScreenRegion::CreateNewArea, 1920, height);
+            let marker = at(ScreenRegion::CreateNew, 1920, height);
+            assert!(
+                area.x <= marker.x
+                    && marker.right() <= area.right()
+                    && area.y <= marker.y
+                    && marker.bottom() <= area.bottom(),
+                "at {height}"
+            );
+            assert_eq!(area.right(), 1920, "anchored to the right edge");
+            assert!(area.bottom() < height, "inside the client: {height}");
+            assert!(area.y > height / 2, "the bottom half only: {height}");
+        }
+        assert_eq!(
+            at(ScreenRegion::CreateNewArea, 1920, 1033),
+            Region {
+                x: 1360,
+                y: 800,
+                width: 560,
+                height: 220
+            }
+        );
+        assert_eq!(screen_region(ScreenRegion::CreateNewArea, 1280, 1024), None);
+    }
+
+    #[test]
+    fn the_card_column_box_is_pinned_per_client_size() {
+        let measured = |width: u32, height: u32| {
+            let r = at(ScreenRegion::CardColumn, width, height);
+            (r.x, r.y, r.width, r.height)
+        };
+        assert_eq!(measured(1920, 1033), (1540, 30, 340, 850));
+        assert_eq!(measured(1920, 1080), (1523, 31, 355, 889));
+        assert_eq!(measured(1680, 1050), (1293, 30, 346, 864));
+        assert_eq!(measured(2560, 1440), (2030, 42, 474, 1185));
+    }
+
+    #[test]
     fn the_gold_band_follows_the_name_line_not_a_fixed_slot() {
         // The reference client: the border of slot 0 is at 45..48 and its name line is centred on 91.
         let name = Region {
@@ -563,6 +826,17 @@ mod tests {
 
     fn field_at(width: u32, height: u32) -> Region {
         panel_region(PanelRegion::GameNameField, width, height).expect("the size is supported")
+    }
+
+    #[test]
+    fn the_hud_band_box_spans_from_its_top_to_the_bottom_of_the_reference_client() {
+        // Pins today (rule 14, `screen_box`): the band starts at row 775 and ends at the reference height 1033, so it is
+        // 258 px high on the full 1920 x 1033 reference client (maintainer's prints).
+        use super::{ScreenRegion, screen_box};
+        assert_eq!(
+            screen_box(ScreenRegion::HudBand),
+            PanelBox::new(Anchor::Left, 0, 775, 1920, 258)
+        );
     }
 
     #[test]
@@ -791,5 +1065,444 @@ mod tests {
         );
         assert_eq!(at_edge(Anchor::Left, 5, 5, 10, 0), None);
         assert_eq!(at_edge(Anchor::Left, 5, 5, 0, 10), None);
+    }
+}
+
+#[cfg(test)]
+mod pin_fixed_boxes {
+    use super::{PanelRegion, ScreenRegion, panel_region, screen_region};
+
+    use crate::vision::Region;
+
+    const fn r(x: u32, y: u32, width: u32, height: u32) -> Region {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    /// The fixed boxes of the Party panel, the Life label and the area's difficulty line at the client heights of the
+    /// maintainer's prints (1033 maximized, 1045, 1056 window, 1080 full screen): they follow the height linearly, which is
+    /// what a client that does not scale its panels linearly outgrows (screen-recognition SCR-01, SCR-03, SCR-04).
+    #[test]
+    fn the_fixed_boxes_follow_the_client_height_linearly() {
+        let party = |height| panel_region(PanelRegion::PartyPanel, 1920, height);
+        let life = |height| screen_region(ScreenRegion::Life, 1920, height);
+        let area = |height| screen_region(ScreenRegion::AreaDifficulty, 1920, height);
+        // Changed expectation (screen-recognition T6, SCR-04): the Party lines are searched in the wide top-left area.
+        assert_eq!(party(1033), Some(r(0, 0, 576, 413)));
+        assert_eq!(party(1045), Some(r(0, 0, 583, 418)));
+        assert_eq!(party(1056), Some(r(0, 0, 589, 422)));
+        assert_eq!(party(1080), Some(r(0, 0, 602, 432)));
+        // The cheap first area keeps the box T2 pinned.
+        let fixed = |height| panel_region(PanelRegion::PartyFixed, 1920, height);
+        assert_eq!(fixed(1033), Some(r(230, 100, 250, 170)));
+        assert_eq!(fixed(1045), Some(r(233, 101, 253, 172)));
+        assert_eq!(fixed(1056), Some(r(235, 102, 256, 174)));
+        assert_eq!(fixed(1080), Some(r(240, 105, 261, 178)));
+        assert_eq!(life(1033), Some(r(400, 826, 160, 22)));
+        assert_eq!(life(1045), Some(r(405, 836, 162, 22)));
+        assert_eq!(life(1056), Some(r(409, 844, 164, 22)));
+        assert_eq!(life(1080), Some(r(418, 864, 167, 23)));
+        assert_eq!(area(1033), Some(r(1750, 52, 150, 16)));
+        assert_eq!(area(1045), Some(r(1748, 53, 152, 16)));
+        assert_eq!(area(1056), Some(r(1747, 53, 153, 16)));
+        assert_eq!(area(1080), Some(r(1742, 54, 157, 17)));
+    }
+}
+
+/// ocr-protection (game-name-reading T4): what the existing regions resolve to before the name band and the chat band join
+/// them. These pass on the code as it was and must pass after the new regions are added.
+#[cfg(test)]
+mod pin_before_name_band {
+    use super::{ScreenRegion, screen_region, screen_text_regions};
+    use crate::vision::Region;
+
+    #[test]
+    fn the_automap_area_and_the_difficulty_line_resolve_as_measured_at_each_height() {
+        let area = |height| screen_region(ScreenRegion::AutomapArea, 1920, height);
+        let line = |height| screen_region(ScreenRegion::AreaDifficulty, 1920, height);
+        assert_eq!(
+            area(1080),
+            Some(Region {
+                x: 1335,
+                y: 21,
+                width: 585,
+                height: 230
+            })
+        );
+        for height in [1033, 1045, 1056, 1080] {
+            let band = area(height).expect("the area resolves");
+            assert_eq!(band.right(), 1920, "anchored to the right edge, {height}");
+            assert!(line(height).is_some(), "{height}");
+        }
+        assert_eq!(
+            line(1033),
+            Some(Region {
+                x: 1750,
+                y: 52,
+                width: 150,
+                height: 16
+            })
+        );
+    }
+
+    #[test]
+    fn the_text_regions_are_the_markers_the_popup_and_nine_cards() {
+        let keys: Vec<String> = screen_text_regions()
+            .into_iter()
+            .map(ScreenRegion::key)
+            .collect();
+        assert_eq!(keys.len(), 7 + 9 * 3);
+        for key in ["automapName", "chatArea"] {
+            assert!(
+                !keys.iter().any(|held| held == key),
+                "{key} is a search area, not a text region"
+            );
+        }
+    }
+}
+
+/// game-name-reading T4: the name band and the chat band, resolved by the client size, holding the lines `ocr-real` measured.
+#[cfg(test)]
+mod band_tests {
+    use super::{ScreenRegion, screen_region};
+    use crate::vision::Region;
+
+    fn at(region: ScreenRegion, width: u32, height: u32) -> Region {
+        screen_region(region, width, height).expect("a supported size resolves the band")
+    }
+
+    fn holds(band: Region, line: Region) -> bool {
+        band.x <= line.x
+            && line.right() <= band.right()
+            && band.y <= line.y
+            && line.bottom() <= band.bottom()
+    }
+
+    const fn line(x: u32, y: u32, width: u32, height: u32) -> Region {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    #[test]
+    fn the_name_band_is_the_top_right_share_of_every_client() {
+        assert_eq!(
+            at(ScreenRegion::AutomapName, 1920, 1033),
+            line(1632, 0, 288, 124)
+        );
+        assert_eq!(
+            at(ScreenRegion::AutomapName, 1920, 1045),
+            line(1632, 0, 288, 125)
+        );
+        assert_eq!(
+            at(ScreenRegion::AutomapName, 1920, 1056),
+            line(1632, 0, 288, 127)
+        );
+        assert_eq!(
+            at(ScreenRegion::AutomapName, 1920, 1080),
+            line(1632, 0, 288, 130)
+        );
+        for (width, height) in [(1920, 1033), (2560, 1440), (1680, 1050)] {
+            let band = at(ScreenRegion::AutomapName, width, height);
+            assert_eq!(band.right(), width, "to the right edge");
+            assert_eq!(band.y, 0);
+            assert_eq!(band.x, (width * 85 + 50) / 100);
+        }
+    }
+
+    #[test]
+    fn the_name_band_holds_the_measured_name_lines() {
+        // The English print at 1920x1033 and the Portuguese one at 1920x1045 (boxes from `ocr-real`), and the Portuguese
+        // variant whose line sat at y 83.
+        for (height, measured) in [
+            (1033, line(1735, 34, 155, 13)),
+            (1045, line(1728, 46, 166, 15)),
+            (1033, line(1728, 83, 166, 15)),
+        ] {
+            assert!(
+                holds(at(ScreenRegion::AutomapName, 1920, height), measured),
+                "{measured:?} at {height}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_name_band_scales_the_measured_lines_to_the_other_heights() {
+        for height in [1056u32, 1080] {
+            let scale = |value: u32| value * height / 1033;
+            let measured = line(1735, scale(34), 155, scale(13));
+            assert!(
+                holds(at(ScreenRegion::AutomapName, 1920, height), measured),
+                "{height}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_chat_band_is_the_left_share_of_every_client() {
+        assert_eq!(
+            at(ScreenRegion::ChatArea, 1920, 1033),
+            line(0, 517, 576, 309)
+        );
+        assert_eq!(
+            at(ScreenRegion::ChatArea, 1920, 1045),
+            line(0, 523, 576, 313)
+        );
+        assert_eq!(
+            at(ScreenRegion::ChatArea, 1920, 1080),
+            line(0, 540, 576, 324)
+        );
+    }
+
+    #[test]
+    fn the_chat_band_holds_the_measured_chat_lines() {
+        // Lines at x 24 to 26, up to about 530 wide: 1920x1033 at y 656 and 770; 1920x1045 at y 592, 668 and 744.
+        for (height, ys) in [(1033, vec![656, 770]), (1045, vec![592, 668, 744])] {
+            let band = at(ScreenRegion::ChatArea, 1920, height);
+            for y in ys {
+                assert!(holds(band, line(24, y, 530, 20)), "y {y} at {height}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_bands_resolve_nothing_on_an_unsupported_size_and_keep_their_keys() {
+        for region in [ScreenRegion::AutomapName, ScreenRegion::ChatArea] {
+            assert_eq!(screen_region(region, 1280, 1024), None);
+            assert_eq!(screen_region(region, 0, 0), None);
+        }
+        assert_eq!(ScreenRegion::AutomapName.key(), "automapName");
+        assert_eq!(ScreenRegion::ChatArea.key(), "chatArea");
+    }
+}
+
+/// ocr-protection (remote-config T15, rule 14): the HUD band and the automap area at every client height of the maintainer's
+/// prints, exactly, as measured before `regions.hudBand` and `regions.automapArea` can replace them. They pass on the code
+/// as it was and must pass with the default threaded in.
+#[cfg(test)]
+mod pin_remote_config_regions {
+    use super::{ScreenRegion, screen_region};
+    use crate::vision::Region;
+
+    const fn r(x: u32, y: u32, width: u32, height: u32) -> Region {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    #[test]
+    fn the_hud_band_at_each_client_height() {
+        let band = |height| screen_region(ScreenRegion::HudBand, 1920, height);
+        assert_eq!(band(1033), Some(r(0, 775, 1920, 258)));
+        assert_eq!(band(1045), Some(r(0, 784, 1920, 261)));
+        assert_eq!(band(1056), Some(r(0, 792, 1920, 264)));
+        assert_eq!(band(1080), Some(r(0, 810, 1920, 270)));
+    }
+
+    #[test]
+    fn the_automap_area_at_each_client_height() {
+        let area = |height| screen_region(ScreenRegion::AutomapArea, 1920, height);
+        assert_eq!(area(1033), Some(r(1360, 20, 560, 220)));
+        assert_eq!(area(1045), Some(r(1353, 20, 567, 223)));
+        assert_eq!(area(1056), Some(r(1348, 20, 572, 225)));
+        assert_eq!(area(1080), Some(r(1335, 21, 585, 230)));
+    }
+}
+
+/// remote-config T17: a configured region replaces the built-in one only inside the client and never above its pixels
+/// (RCF-05, RCF-09); with none configured every size reads exactly what `pin_remote_config_regions` pinned.
+#[cfg(test)]
+mod regions_threaded {
+    use super::{
+        PanelRegion, ScreenRegion, panel_region, panel_region_with, screen_region,
+        screen_region_with,
+    };
+    use crate::remote_config::{Area, Regions};
+    use crate::vision::Region;
+
+    const HEIGHTS: [u32; 4] = [1033, 1045, 1056, 1080];
+
+    const fn area(x: f64, y: f64, width: f64, height: f64) -> Area {
+        Area {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    fn pixels(region: Region) -> u64 {
+        u64::from(region.width) * u64::from(region.height)
+    }
+
+    #[test]
+    fn with_nothing_configured_every_region_is_the_built_in_one_at_every_height() {
+        let none = Regions::default();
+        for height in HEIGHTS {
+            for region in [ScreenRegion::HudBand, ScreenRegion::AutomapArea] {
+                assert_eq!(
+                    screen_region_with(region, 1920, height, &none),
+                    screen_region(region, 1920, height),
+                    "{region:?} {height}"
+                );
+            }
+            assert_eq!(
+                panel_region_with(PanelRegion::PartyPanel, 1920, height, &none),
+                panel_region(PanelRegion::PartyPanel, 1920, height),
+                "{height}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_smaller_configured_region_replaces_each_built_in_one_at_every_height() {
+        let regions = Regions {
+            hud_band: Some(area(0.0, 0.8, 0.5, 0.15)),
+            automap_area: Some(area(0.7, 0.02, 0.25, 0.1)),
+            party_area: Some(area(0.0, 0.0, 0.25, 0.25)),
+        };
+        for height in HEIGHTS {
+            let at = |region| screen_region_with(region, 1920, height, &regions).expect("resolves");
+            let band = at(ScreenRegion::HudBand);
+            assert_ne!(
+                Some(band),
+                screen_region(ScreenRegion::HudBand, 1920, height)
+            );
+            assert_eq!(band.x, 0);
+            assert_eq!(band.width, 960);
+            let automap = at(ScreenRegion::AutomapArea);
+            assert_eq!(automap.x, 1344);
+            assert_eq!(automap.width, 480);
+            let party = panel_region_with(PanelRegion::PartyPanel, 1920, height, &regions)
+                .expect("resolves");
+            assert_eq!((party.x, party.y, party.width), (0, 0, 480));
+        }
+    }
+
+    #[test]
+    fn a_region_with_exactly_the_built_in_pixels_is_taken_and_one_pixel_more_is_not() {
+        // The automap area at 1920x1080 is 585 x 230 px; the same pixels as fractions of the client.
+        let exact = area(
+            1335.0 / 1920.0,
+            21.0 / 1080.0,
+            585.0 / 1920.0,
+            230.0 / 1080.0,
+        );
+        let one_more = area(
+            1335.0 / 1920.0,
+            21.0 / 1080.0,
+            586.0 / 1920.0,
+            230.0 / 1080.0,
+        );
+        let built_in = screen_region(ScreenRegion::AutomapArea, 1920, 1080).expect("resolves");
+        let with = |area| {
+            let regions = Regions {
+                automap_area: Some(area),
+                ..Regions::default()
+            };
+            screen_region_with(ScreenRegion::AutomapArea, 1920, 1080, &regions).expect("resolves")
+        };
+        assert_eq!(with(exact), built_in);
+        assert_eq!(pixels(with(exact)), pixels(built_in));
+        // 586 x 230 is larger: the built-in one stays.
+        assert_eq!(with(one_more), built_in);
+        // And a taller one that is also wider than the built-in box is refused at the full client.
+        assert_eq!(with(area(0.0, 0.0, 1.0, 1.0)), built_in);
+    }
+
+    #[test]
+    fn a_region_that_is_larger_outside_or_not_a_fraction_is_the_built_in_one() {
+        for height in HEIGHTS {
+            for bad in [
+                area(0.0, 0.0, 1.0, 1.0),
+                area(0.9, 0.9, 0.5, 0.5),
+                area(f64::NAN, 0.0, 0.1, 0.1),
+                area(0.0, 0.0, f64::INFINITY, 0.1),
+                area(-0.1, 0.0, 0.1, 0.1),
+                area(0.0, 0.0, 0.0, 0.1),
+            ] {
+                let regions = Regions {
+                    hud_band: Some(bad),
+                    automap_area: Some(bad),
+                    party_area: Some(bad),
+                };
+                for region in [ScreenRegion::HudBand, ScreenRegion::AutomapArea] {
+                    assert_eq!(
+                        screen_region_with(region, 1920, height, &regions),
+                        screen_region(region, 1920, height),
+                        "{region:?} {height} {bad:?}"
+                    );
+                }
+                assert_eq!(
+                    panel_region_with(PanelRegion::PartyPanel, 1920, height, &regions),
+                    panel_region(PanelRegion::PartyPanel, 1920, height),
+                    "{height} {bad:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_region_never_reads_more_pixels_than_the_built_in_one_across_sizes() {
+        let candidates = [
+            area(0.0, 0.0, 0.3, 0.3),
+            area(0.5, 0.5, 0.5, 0.5),
+            area(0.0, 0.7, 1.0, 0.3),
+            area(0.0, 0.0, 0.2, 0.05),
+        ];
+        for (width, height) in [(1920, 1033), (1920, 1080), (2560, 1440), (1680, 1050)] {
+            for candidate in candidates {
+                let regions = Regions {
+                    hud_band: Some(candidate),
+                    automap_area: Some(candidate),
+                    party_area: Some(candidate),
+                };
+                for region in [ScreenRegion::HudBand, ScreenRegion::AutomapArea] {
+                    let built_in = screen_region(region, width, height).expect("resolves");
+                    let taken =
+                        screen_region_with(region, width, height, &regions).expect("resolves");
+                    assert!(
+                        pixels(taken) <= pixels(built_in),
+                        "{region:?} {width}x{height}"
+                    );
+                }
+                let built_in =
+                    panel_region(PanelRegion::PartyPanel, width, height).expect("resolves");
+                let taken = panel_region_with(PanelRegion::PartyPanel, width, height, &regions)
+                    .expect("resolves");
+                assert!(pixels(taken) <= pixels(built_in), "party {width}x{height}");
+            }
+        }
+    }
+
+    #[test]
+    fn an_unsupported_size_reads_nothing_whatever_is_configured() {
+        let regions = Regions {
+            hud_band: Some(area(0.0, 0.0, 0.1, 0.1)),
+            automap_area: Some(area(0.0, 0.0, 0.1, 0.1)),
+            party_area: Some(area(0.0, 0.0, 0.1, 0.1)),
+        };
+        assert_eq!(
+            screen_region_with(ScreenRegion::HudBand, 1280, 1024, &regions),
+            None
+        );
+        assert_eq!(
+            screen_region_with(ScreenRegion::AutomapArea, 0, 0, &regions),
+            None
+        );
+        assert_eq!(
+            panel_region_with(PanelRegion::PartyPanel, 1280, 1024, &regions),
+            None
+        );
     }
 }

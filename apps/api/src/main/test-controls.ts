@@ -1,13 +1,16 @@
 // The test controls of the acceptance stack (design.md § Composition roots, AD-045, AD-062): `POST /__test/reset`,
 // `POST /__test/clock`, `POST /__test/redeliver-match-formed` (the at-least-once redelivery of AWS-20) and the site-stream
-// controls of QUE-05 (`GET /__test/site-streams/:accountId`, `POST /__test/site-streams/:accountId/close`). Only `local.ts`
+// controls of QUE-05 (`GET /__test/site-streams/:accountId`, `POST /__test/site-streams/:accountId/close`) and the remote
+// configuration control of remote-config (`PUT /__test/agent-config`, RCF-05, RCF-06). Only `local.ts`
 // registers them, and only when `D2RMM_ACCEPTANCE=true`; `render.ts` never does, and they are never in `openapi.json`.
 import { timingSafeEqual } from 'node:crypto';
-import { ErrorResponse } from '@d2rmm/contracts';
+import { AGENT_CONFIG_MAX_BYTES, ErrorResponse } from '@d2rmm/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { sql, type Kysely } from 'kysely';
 import { z } from 'zod';
+import { digestOf } from '../modules/agents/adapters/file/agent-config-file.ts';
+import { servedConfigOf, type ServedAgentConfig } from '../modules/agents/domain/agent-config.ts';
 import type { AnyDomainEvent, Clock, EventBus } from '../shared-kernel/index.ts';
 import type { AppDatabase } from './app.ts';
 
@@ -17,6 +20,9 @@ export const TEST_CONTROL_HEADER = 'x-test-control';
 /** Reset and redelivery run only on a per-worker acceptance database and only on loopback (AD-045). */
 const ACCEPTANCE_DATABASE = /^acc_w\d+$/;
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1']);
+
+/** The largest text the agent-config control serves: twice the contract's 64 KiB, so a scenario can send one over it. */
+const MAX_AGENT_CONFIG_TEXT = AGENT_CONFIG_MAX_BYTES * 2;
 
 /** Largest clock advance in one call: one year. Scenarios move time by days, never by more. */
 const MAX_ADVANCE_MS = 365 * 24 * 60 * 60 * 1000;
@@ -60,6 +66,11 @@ export interface TestControlDeps {
     readonly joins: ClearableStore;
     /** The open ready checks (RDY-09): a scenario starts with none open. */
     readonly readyChecks: ClearableStore;
+    /** The served remote configuration: reset puts the committed document back; the control replaces it. */
+    readonly agentConfig: {
+      replace(served: ServedAgentConfig | undefined): void;
+      reset(): void;
+    };
   };
   readonly hub: {
     closeAll(): void;
@@ -68,7 +79,9 @@ export interface TestControlDeps {
     /** Closes the open site streams of an account, as a dropped connection would (QUE-05, QUE-14). */
     closeSiteStreams(accountId: string): number;
   };
-  readonly relay: { sweep(): Promise<void> };
+  readonly relay: { sweep(): Promise<void>; quiesce(): Promise<void> };
+  /** The scheduled database jobs (matcher, sweeps, site-closed drops): paused, and awaited, for the length of a reset. */
+  readonly background: { pause(): Promise<void>; resume(): void };
   /** The pending site-closed drops: reset cancels them, after the streams close (QUE-14). */
   readonly siteClosedTimers: ClearableStore;
   /** The bus the redelivery publishes on: the one the relay and the consumers of this process share (AD-062). */
@@ -78,6 +91,17 @@ export interface TestControlDeps {
 /** True when the process is connected to a per-worker acceptance database on loopback (AD-045). */
 function onAcceptanceDatabase(deps: TestControlDeps): boolean {
   return ACCEPTANCE_DATABASE.test(deps.database.name) && LOOPBACK_HOSTS.has(deps.database.host);
+}
+
+/**
+ * What reset stops before it touches the database: the streams and the pending site-closed drops write to the database
+ * when they fire, so a drop alive during the truncate holds row locks the truncate queues behind, and its next
+ * statement queues behind the truncate (40P01, answered 503). Closing the streams schedules their drops, so the timers
+ * are cleared after the close.
+ */
+export function stopLeftoverWork(deps: Pick<TestControlDeps, 'hub' | 'siteClosedTimers'>): void {
+  deps.hub.closeAll();
+  deps.siteClosedTimers.clear();
 }
 
 /** Every table of the API, truncated in one statement by reset (design.md § Data Models). */
@@ -93,6 +117,24 @@ const TABLES = [
   'matchmaking.penalties',
   'platform.outbox',
 ] as const;
+
+type ResetStep = 'stop' | 'quiesce' | 'truncate' | 'sequence' | 'stores' | 'sweep';
+
+const ResetFailureResponse = z.object({
+  error: z.literal('reset-failed'),
+  step: z.string(),
+  pgCode: z.string().optional(),
+});
+
+/** The 503 body of a failed reset: the step and the Postgres error code only, never a message or data. */
+export function resetFailure(error: unknown, step: string): z.infer<typeof ResetFailureResponse> {
+  const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
+  return {
+    error: 'reset-failed',
+    step,
+    ...(typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code) ? { pgCode: code } : {}),
+  };
+}
 
 /** Constant-time comparison of the presented secret with the configured one. */
 function secretMatches(presented: unknown, expected: string): boolean {
@@ -122,24 +164,43 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
     '/__test/reset',
     {
       preHandler: [requireSecret],
-      schema: { response: { 204: z.null(), 403: ErrorResponse } },
+      schema: { response: { 204: z.null(), 403: ErrorResponse, 503: ResetFailureResponse } },
     },
-    async (_request, reply) => {
+    async (request, reply) => {
       if (!onAcceptanceDatabase(deps)) {
         return reply.code(403).send({ error: 'forbidden' });
       }
-      await sql`truncate table ${sql.raw(TABLES.join(', '))} restart identity cascade`.execute(deps.db);
-      await sql`alter sequence lobby.game_name_seq restart with 1`.execute(deps.db);
-      deps.stores.presence.clear();
-      deps.stores.rateLimits.clear();
-      deps.stores.tokenCache.clear();
-      deps.stores.queue.clear();
-      deps.stores.joins.clear();
-      deps.stores.readyChecks.clear();
-      deps.hub.closeAll();
-      // After the close: closing the streams schedules their site-closed drops, and those must not fire in the next scenario.
-      deps.siteClosedTimers.clear();
-      await deps.relay.sweep();
+      let step: ResetStep = 'stop';
+      try {
+        stopLeftoverWork(deps);
+        // A drain still running from the last scenario holds locks the truncate needs (see OutboxRelay.quiesce).
+        step = 'quiesce';
+        // The clock advance of the last scenario started jobs that outlive its step: stop them, and wait for the ones
+        // that are writing, before the truncate (they would hold locks it queues behind: 40P01).
+        await deps.background.pause();
+        await deps.relay.quiesce();
+        step = 'truncate';
+        await sql`truncate table ${sql.raw(TABLES.join(', '))} restart identity cascade`.execute(deps.db);
+        step = 'sequence';
+        await sql`alter sequence lobby.game_name_seq restart with 1`.execute(deps.db);
+        step = 'stores';
+        deps.stores.presence.clear();
+        deps.stores.rateLimits.clear();
+        deps.stores.tokenCache.clear();
+        deps.stores.queue.clear();
+        deps.stores.joins.clear();
+        deps.stores.readyChecks.clear();
+        deps.stores.agentConfig.reset();
+        step = 'sweep';
+        await deps.relay.sweep();
+      } catch (error) {
+        // Test controls only: names the database error (40P01 deadlock, 55P03 lock timeout…) a bare 503 hides.
+        const code = (error as { code?: unknown }).code;
+        request.log.error({ errorCode: code, message: (error as Error).message }, 'acceptance reset failed');
+        return reply.code(503).send(resetFailure(error, step));
+      } finally {
+        deps.background.resume();
+      }
       return reply.code(204).send(null);
     },
   );
@@ -186,6 +247,34 @@ export function registerTestControls(app: FastifyInstance, deps: TestControlDeps
     },
     async (request, reply) => {
       return reply.code(200).send({ closed: deps.hub.closeSiteStreams(request.params.accountId) });
+    },
+  );
+
+  // RCF-05, RCF-06 (acceptance): what `GET /v1/agents/config` serves, as raw text. A scenario needs a value outside its
+  // range, an unknown field or a body that is not JSON, none of which the committed file may hold. `body: null` serves
+  // nothing (404); `version` is the version the ETag names. Reset puts the committed document back.
+  typed.put(
+    '/__test/agent-config',
+    {
+      preHandler: [requireSecret],
+      schema: {
+        body: z.object({
+          version: z.number().int().min(1).max(2147483647).optional(),
+          body: z.string().max(MAX_AGENT_CONFIG_TEXT).nullable(),
+        }),
+        response: { 204: z.null(), 403: ErrorResponse },
+      },
+    },
+    async (request, reply) => {
+      // Like reset: only on a per-worker acceptance database on loopback (AD-045), never on any other database.
+      if (!onAcceptanceDatabase(deps)) {
+        return reply.code(403).send({ error: 'forbidden' });
+      }
+      const { body, version } = request.body;
+      deps.stores.agentConfig.replace(
+        body === null ? undefined : servedConfigOf(version ?? 1, body, digestOf(body)),
+      );
+      return reply.code(204).send(null);
     },
   );
 

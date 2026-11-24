@@ -96,6 +96,18 @@ export class OutboxRelay {
     return this.#running ?? Promise.resolve();
   }
 
+  /**
+   * Resolves once no drain is running or pending, including the drains a handler wakes while one runs. A drain holds a
+   * transaction open while its handlers run, so work that needs every table (the acceptance reset's truncate) waits here
+   * first: otherwise the truncate queues behind the drain and the handlers' own statements queue behind the truncate,
+   * which Postgres ends as a deadlock (40P01).
+   */
+  async quiesce(): Promise<void> {
+    while (this.#running !== undefined) {
+      await this.#running;
+    }
+  }
+
   async #run(): Promise<void> {
     try {
       do {

@@ -196,6 +196,8 @@ function fakeDocker(fs, options) {
                 ? {}
                 : { sinkBytesBySignal: answer.sinkBytesBySignal }),
               windowSeconds: answer.windowSeconds,
+              eventBytes: answer.eventBytes,
+              roomsCreated: answer.roomsCreated,
             }),
             mode: 0o644,
           });
@@ -223,6 +225,10 @@ function fakeDocker(fs, options) {
     async stats(name) {
       state.calls.push(['stats', name]);
       return [{ CPUPerc: '12.50%', MemUsage: '64MiB / 512MiB' }];
+    },
+    async imageExists(tag) {
+      state.calls.push(['imageExists', tag]);
+      return options.images?.includes(tag) ?? false;
     },
     async build(spec) {
       state.calls.push(['build', spec.tag]);
@@ -331,6 +337,7 @@ function scenario(options = {}) {
     failRemove: options.failRemove,
     failRun: options.failRun,
     failBuild: options.failBuild,
+    images: options.images,
     sweepFound: options.sweepFound,
     staleContainers: options.staleContainers,
     existingVolumes: options.existingVolumes,
@@ -399,6 +406,42 @@ test('sequence and cleanup on every exit path', { timeout: SLOW_TEST_MS }, async
     assert.equal(scn.docker.state.planModes[0], 0o600, 'the plan is written at mode 0600');
     assertClean(scn);
   });
+
+  await t.test(
+    'prebuilt images are not built again when the flag is set and both exist (UPK-06)',
+    async () => {
+      const scn = scenario({
+        profile: 'smoke',
+        env: { LOAD_IMAGES_PREBUILT: '1' },
+        images: [API_IMAGE_TAG, K6_IMAGE_TAG],
+      });
+      await runLoad(scn.input);
+      assert.deepEqual(
+        scn.docker.state.calls.filter((call) => call[0] === 'build'),
+        [],
+      );
+    },
+  );
+
+  await t.test(
+    'the flag with one image missing builds both, and no flag never asks Docker (UPK-06)',
+    async () => {
+      const half = scenario({
+        profile: 'smoke',
+        env: { LOAD_IMAGES_PREBUILT: '1' },
+        images: [API_IMAGE_TAG],
+      });
+      await runLoad(half.input);
+      assert.deepEqual(
+        half.docker.state.calls.filter((call) => call[0] === 'build').map((call) => call[1]),
+        [API_IMAGE_TAG, K6_IMAGE_TAG],
+      );
+      const plain = scenario({ profile: 'smoke', images: [API_IMAGE_TAG, K6_IMAGE_TAG] });
+      await runLoad(plain.input);
+      assert.equal(plain.docker.state.calls.filter((call) => call[0] === 'imageExists').length, 0);
+      assert.equal(plain.docker.state.calls.filter((call) => call[0] === 'build').length, 2);
+    },
+  );
 
   await t.test(
     'the containers start in the order of the sequence and the images are built first',
@@ -557,6 +600,15 @@ test('sequence and cleanup on every exit path', { timeout: SLOW_TEST_MS }, async
     assert.match(result.refusal, /LOAD_TARGET/u);
     assert.equal(scn.docker.state.calls.length, 0, 'the guard refuses before the first Docker call');
   });
+
+  await t.test('a capture directory inside the repository is refused before any Docker call', async () => {
+    const scn = scenario({ env: { LOAD_TELEMETRY_CAPTURE_DIR: `${ROOT}/captures` } });
+    const result = await runLoad(scn.input);
+
+    assert.equal(result.exitCode, 2);
+    assert.match(result.refusal, /LOAD_TELEMETRY_CAPTURE_DIR/u);
+    assert.equal(scn.docker.state.calls.length, 0, 'the guard refuses before the first Docker call');
+  });
 });
 
 test('no secret in arguments or logs', { timeout: SLOW_TEST_MS }, async () => {
@@ -704,6 +756,57 @@ test(
   },
 );
 
+test(
+  'the bytes of each event type in the step file reach the step of the summary',
+  { timeout: SLOW_TEST_MS },
+  async () => {
+    const eventBytes = {
+      site: { 'room.assigned': 1_000_000, 'room.stage_changed': 500_000 },
+      agent: { 'room.assigned': 400_000 },
+    };
+    const scn = scenario({ profile: 'smoke', k6: () => ({ ...PASSING_K6(), eventBytes }) });
+    const result = await runLoad(scn.input);
+    const step = result.summary.steps[0];
+
+    assert.equal(step.bytesByEvent.site['room.assigned'], 1_000_000);
+    assert.equal(step.bytesByEvent.site['room.stage_changed'], 500_000);
+    assert.equal(step.bytesByEvent.agent['room.assigned'], 400_000);
+    assert.equal(step.bytesByEvent.other, 50_000_000 - 1_900_000, 'the rest of the metered bytes');
+    assertClean(scn);
+
+    const without = await runLoad(scenario({ profile: 'smoke', k6: PASSING_K6 }).input);
+    assert.equal(without.summary.steps[0].bytesByEvent, null, 'a step file with no counts gives none');
+  },
+);
+
+test(
+  'the rooms of a step are the ones that reached created in the window, as the journey counted them',
+  { timeout: SLOW_TEST_MS },
+  async () => {
+    const counted = await runLoad(
+      scenario({ profile: 'smoke', rooms: 3, k6: () => ({ ...PASSING_K6(), roomsCreated: 37 }) }).input,
+    );
+    assert.equal(counted.summary.steps[0].roomsCreated, 37, 'the journey count, not the sampled peak');
+    assert.equal(counted.summary.maxConcurrentRooms, 37);
+
+    const none = await runLoad(
+      scenario({ profile: 'smoke', rooms: 3, k6: () => ({ ...PASSING_K6(), roomsCreated: 0 }) }).input,
+    );
+    assert.equal(
+      none.summary.steps[0].roomsCreated,
+      0,
+      'zero rooms in the window is zero, not the sampled peak',
+    );
+
+    const older = await runLoad(scenario({ profile: 'smoke', rooms: 3, k6: PASSING_K6 }).input);
+    assert.equal(
+      older.summary.steps[0].roomsCreated,
+      3,
+      'a step file without the count falls back to the sampled peak',
+    );
+  },
+);
+
 test('LB_SAMPLE lines are the latency samples of a step', () => {
   assert.deepEqual(
     samplesOf(
@@ -760,4 +863,27 @@ test('k6Tail: the failed step carries the last lines of k6 stderr, or says there
   assert.ok(tail.includes('line 29') && tail.includes('line 15') && !tail.includes('line 14 '));
   assert.ok(k6Tail({ stdout: 'only stdout', stderr: '' }).includes('only stdout'));
   assert.equal(k6Tail({ stdout: '', stderr: '' }), '; k6 wrote no output');
+});
+
+test('LOAD_TELEMETRY_CAPTURE_DIR is the sink capture directory, and a run without it has none', async () => {
+  const sinkRunOf = (scn) => scn.docker.state.calls.find((call) => call.includes('--token-file'));
+  const plain = scenario({ profile: 'smoke' });
+  await runLoad(plain.input);
+  assert.equal(sinkRunOf(plain).includes('--capture-dir'), false);
+
+  const captured = scenario({ profile: 'smoke', env: { LOAD_TELEMETRY_CAPTURE_DIR: '/tmp/capture' } });
+  await runLoad(captured.input);
+  const args = sinkRunOf(captured);
+  assert.ok(args.includes('/tmp/capture:/capture:rw'));
+  assert.equal(args[args.indexOf('--capture-dir') + 1], '/capture');
+});
+
+test('LOAD_MAX_STEPS ends a local run after that many steps; unset, the ladder runs to its end', async () => {
+  const limited = scenario({ profile: 'full', env: { LOAD_MAX_STEPS: '2' } });
+  const result = await runLoad(limited.input);
+  assert.equal(result.summary.steps.length, 2);
+  assert.deepEqual(
+    result.summary.steps.map((step) => step.players),
+    [25, 50],
+  );
 });

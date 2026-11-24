@@ -259,3 +259,36 @@ describe('the ready check: reading the open check (RDY-11)', () => {
     expect(await t.queue.openReadyCheckOf({ accountId: 'alice' })).toBeNull();
   });
 });
+
+describe('the ready check: its pending deadline is freed when the check ends', () => {
+  it('holds one deadline while the check is open', async () => {
+    const t = queueSetup();
+    await openDuel(t);
+    expect(t.queue.pendingReadyCheckDeadlines()).toBe(1);
+  });
+
+  it('holds none once every member accepted', async () => {
+    const t = queueSetup();
+    const checkId = await openDuel(t);
+    await t.queue.answerReadyCheck({ accountId: 'alice', checkId, answer: 'accept' });
+    expect(t.queue.pendingReadyCheckDeadlines()).toBe(1);
+    await t.queue.answerReadyCheck({ accountId: 'bob', checkId, answer: 'accept' });
+    expect(t.queue.pendingReadyCheckDeadlines()).toBe(0);
+  });
+
+  it('holds none once a member declined', async () => {
+    const t = queueSetup();
+    const checkId = await openDuel(t);
+    await t.queue.answerReadyCheck({ accountId: 'bob', checkId, answer: 'decline' });
+    expect(t.queue.pendingReadyCheckDeadlines()).toBe(0);
+  });
+
+  it('holds none once the deadline passed', async () => {
+    const t = queueSetup();
+    await openDuel(t);
+    t.clock.advance(60 * SECOND);
+    await settleDeadlines(t);
+    expect(t.bus.readyChecksResolved()[0]?.outcome).toBe('timed-out');
+    expect(t.queue.pendingReadyCheckDeadlines()).toBe(0);
+  });
+});

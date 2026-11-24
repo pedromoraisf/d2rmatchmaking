@@ -30,6 +30,7 @@ const ROUTES: readonly {
   { method: 'post', url: '/v1/agents/heartbeat', path: '/v1/agents/heartbeat' },
   { method: 'get', url: '/v1/agents/me', path: '/v1/agents/me' },
   { method: 'get', url: '/v1/agents/me/assignment', path: '/v1/agents/me/assignment' },
+  { method: 'get', url: '/v1/agents/config', path: '/v1/agents/config' },
   { method: 'delete', url: '/v1/agents/:id', path: '/v1/agents/{id}' },
   { method: 'post', url: '/v1/lobby-rooms/:id/observations', path: '/v1/lobby-rooms/{id}/observations' },
   { method: 'post', url: '/v1/lobby-rooms/:id/runs', path: '/v1/lobby-rooms/{id}/runs' },
@@ -103,7 +104,13 @@ describe('openapi document', () => {
     // The schemas travel with the routes: a body where the route takes one, and every declared status.
     const observation = document.paths['/v1/lobby-rooms/{id}/observations']?.['post'];
     expect(observation?.requestBody).toBeDefined();
-    expect(Object.keys(observation?.responses ?? {}).sort()).toStrictEqual(['202', '400', '401', '403']);
+    expect(Object.keys(observation?.responses ?? {}).sort()).toStrictEqual([
+      '202',
+      '400',
+      '401',
+      '403',
+      '429',
+    ]);
     // The room actions take an empty JSON body and answer 204, or 401, 403, 404 or 409 (LBR-06, LBR-07, LBR-09).
     for (const action of ['runs', 'leave', 'close']) {
       const operation = document.paths[`/v1/lobby-rooms/{id}/${action}`]?.['post'];

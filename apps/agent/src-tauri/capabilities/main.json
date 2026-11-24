@@ -1,12 +1,15 @@
 {
   "identifier": "main",
-  "description": "The agent window: listen to agent-state, ask for a new pairing code, and read and save the capture consent (allow-get-consent, allow-set-consent). Nothing else.",
+  "description": "The agent window: listen to agent-state, ask for a new pairing code, and read and save the capture consent (allow-get-consent, allow-set-consent), and set the two hotkeys (allow-set-hotkey), and read and save the diagnostics switch (allow-get-diagnostics, allow-set-diagnostics). Nothing else.",
   "windows": ["main"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "allow-get-new-code",
     "allow-get-consent",
-    "allow-set-consent"
+    "allow-set-consent",
+    "allow-set-hotkey",
+    "allow-get-diagnostics",
+    "allow-set-diagnostics"
   ]
 }

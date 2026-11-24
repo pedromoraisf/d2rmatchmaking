@@ -1,11 +1,14 @@
 //! Telemetry of the agent (AGS-12, ADR 013, OBS-18 to OBS-19, OBS-32, OBS-43): one `tracing` subscriber with an OpenTelemetry
 //! layer that propagates W3C `traceparent`. With an `ExportConfig` the sampled spans also go to the relay, sanitized and
-//! queued (`sanitize`, `queue`, `relay_client`); without one no span leaves the process (AD-098).
+//! queued (`sanitize`, `queue`, `relay_client`); without one no span leaves the process. The release build always has one
+//! (ADR 037 lifted AD-098); the tier (`tier`) decides how much detail a span carries.
 
 pub mod export;
 pub mod queue;
 pub mod relay_client;
 pub mod sanitize;
+pub mod switch;
+pub mod tier;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -28,6 +31,8 @@ use export::{DropOldestProcessor, EXPORT_INTERVAL, SpanQueue, export_loop};
 use queue::{BoundedQueue, SPAN_QUEUE_CAPACITY};
 use relay_client::{HeaderSource, RelayHttpClient};
 use sanitize::SanitizingExporter;
+pub use switch::{DiagnosticsSwitch, FileDiagnosticsStore};
+pub use tier::{TelemetryTier, ratio_of, tier_of};
 
 const INSTRUMENTATION_SCOPE: &str = "d2rmm-agent";
 /// The `service.name` of every agent span.
@@ -43,8 +48,8 @@ pub enum Mode {
     Release,
 }
 
-/// Where the agent exports its spans and how. The composition root builds it only when the build decides to export
-/// (AD-098); `None` keeps every span in the process.
+/// Where the agent exports its spans and how. The composition root builds it for every release build (ADR 037);
+/// `None` keeps every span in the process (tests, debug profile).
 pub struct ExportConfig {
     /// The relay's traces URL.
     pub endpoint: String,
@@ -56,6 +61,11 @@ pub struct ExportConfig {
     pub agent_version: String,
     /// `deployment.environment`.
     pub environment: String,
+    /// The detail tier: the `d2r.telemetry.tier` resource attribute and what the sanitizer lets through.
+    pub tier: TelemetryTier,
+    /// The player's "send diagnostics" switch (OBT-16): while it is off no span is queued or exported. The window flips the
+    /// same flag at run time.
+    pub switch: DiagnosticsSwitch,
 }
 
 /// Owns the tracer provider. `shutdown` flushes what is still queued; the composition root calls it on exit.
@@ -92,10 +102,17 @@ pub fn init(mode: Mode, export: Option<ExportConfig>) -> Result<TelemetryGuard, 
         let queue: SpanQueue = Arc::new(Mutex::new(BoundedQueue::new(SPAN_QUEUE_CAPACITY)));
         let exporter = span_exporter(&config)?;
         builder = builder
-            .with_resource(agent_resource(&config.agent_version, &config.environment))
+            .with_resource(agent_resource(
+                &config.agent_version,
+                &config.environment,
+                config.tier,
+            ))
             .with_sampler(agent_sampler(config.ratio))
-            .with_span_processor(DropOldestProcessor::new(Arc::clone(&queue)));
-        export_task = Some((queue, exporter));
+            .with_span_processor(DropOldestProcessor::new(
+                Arc::clone(&queue),
+                config.switch.clone(),
+            ));
+        export_task = Some((queue, exporter, config.switch.clone()));
     }
     let provider = builder.build();
     let tracer = provider.tracer(INSTRUMENTATION_SCOPE);
@@ -105,9 +122,15 @@ pub fn init(mode: Mode, export: Option<ExportConfig>) -> Result<TelemetryGuard, 
         .with(level_filter(mode))
         .with(tracing_opentelemetry::layer().with_tracer(tracer))
         .try_init()?;
-    if let Some((queue, exporter)) = export_task {
+    if let Some((queue, exporter, switch)) = export_task {
         let report = |message: &str| tracing::warn!("{message}");
-        export_runtime().spawn(export_loop(queue, exporter, EXPORT_INTERVAL, report));
+        export_runtime().spawn(export_loop(
+            queue,
+            exporter,
+            switch,
+            EXPORT_INTERVAL,
+            report,
+        ));
     }
     Ok(TelemetryGuard { provider })
 }
@@ -124,7 +147,7 @@ fn span_exporter(
         .with_http_client(client)
         .with_retry_policy(RetryPolicy::disabled())
         .build()?;
-    Ok(SanitizingExporter::new(exporter))
+    Ok(SanitizingExporter::new(exporter, config.tier))
 }
 
 /// The runtime of the export task: the caller's when it runs inside one, otherwise a thread of its own, so the app starts
@@ -161,15 +184,16 @@ fn level_filter(mode: Mode) -> Targets {
     }
 }
 
-/// The resource of every agent span: the service name, the version and the environment, and the agent version under
-/// its own key (OBS-32). Nothing else; no host or process attribute.
-pub fn agent_resource(agent_version: &str, environment: &str) -> Resource {
+/// The resource of every agent span: the service name, the version and the environment, the agent version under its own
+/// key (OBS-32) and the telemetry tier (OBT-02). Nothing else; no host or process attribute.
+pub fn agent_resource(agent_version: &str, environment: &str, tier: TelemetryTier) -> Resource {
     Resource::builder_empty()
         .with_attributes([
             KeyValue::new("service.name", SERVICE_NAME.to_string()),
             KeyValue::new("service.version", agent_version.to_string()),
             KeyValue::new("deployment.environment", environment.to_string()),
             KeyValue::new("d2r.agent.version", agent_version.to_string()),
+            KeyValue::new("d2r.telemetry.tier", tier.name()),
         ])
         .build()
 }
@@ -223,14 +247,14 @@ mod tests {
     use opentelemetry_sdk::trace::{SamplingDecision, ShouldSample};
     use serde_json::Value as Json;
 
-    use super::{LogGate, agent_resource, agent_sampler, sanitize};
+    use super::{LogGate, TelemetryTier, agent_resource, agent_sampler, sanitize};
 
     /// The vector every sender reads (AD-100), inside this crate so mutation runs copy it with the crate.
     const SAMPLER_VECTOR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/test-vectors/sampler.json");
 
     #[test]
     fn agent_resource_carries_the_agent_version() {
-        let resource = agent_resource("1.2.3", "development");
+        let resource = agent_resource("1.2.3", "development", TelemetryTier::Full);
 
         assert_eq!(
             resource.get(&Key::new("d2r.agent.version")),
@@ -247,6 +271,15 @@ mod tests {
         assert_eq!(
             resource.get(&Key::new("deployment.environment")),
             Some(Value::from("development"))
+        );
+        assert_eq!(
+            resource.get(&Key::new("d2r.telemetry.tier")),
+            Some(Value::from("full"))
+        );
+        let production = agent_resource("1.2.3", "production", TelemetryTier::Production);
+        assert_eq!(
+            production.get(&Key::new("d2r.telemetry.tier")),
+            Some(Value::from("production"))
         );
         for (key, _) in resource.iter() {
             assert!(

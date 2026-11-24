@@ -15,12 +15,13 @@ use d2rmm_agent_domain::vision::{ReadText, Region};
 
 use crate::check_update::Updater;
 use crate::messages::{
-    FrameReading, GameNameObservation, IssuedCode, Presence, ReadyCheckOpen, Screen,
+    FrameReading, GameNameObservation, IssuedCode, OtherGameObservation, PlayerObservation,
+    Presence, ReadyCheckOpen, Screen,
 };
 use crate::ports::{
-    ApiError, ApiGateway, ConsentStore, EndReason, EventStream, FrameReader, FrameSource,
-    ProcessSource, ReadError, Rgba, StateSink, StoreError, StreamItem, TextReader, TokenStore,
-    UpdateOutcome,
+    ApiError, ApiGateway, ConsentStore, DiagnosticsStore, EndReason, EventStream, FrameReader,
+    FrameSource, ProcessSource, ReadError, Rgba, StateSink, StoreError, StreamItem, TextReader,
+    TokenStore, UpdateOutcome,
 };
 use crate::secret::Secret;
 use crate::view::AgentView;
@@ -33,6 +34,8 @@ pub enum Call {
     Heartbeat { presence: Presence, version: String },
     Assignment,
     PostObservation(GameNameObservation),
+    PostPlayerObservation(PlayerObservation),
+    PostOtherGame(OtherGameObservation),
     PostCharacters { cards: Vec<Card> },
     OpenStream { last_event_id: Option<String> },
     AcceptReadyCheck { check_id: String },
@@ -65,6 +68,8 @@ struct Script {
     heartbeat: VecDeque<Result<(), ApiError>>,
     assignment: VecDeque<Result<Option<Assignment>, ApiError>>,
     post_observation: VecDeque<Result<(), ApiError>>,
+    post_player_observation: VecDeque<Result<(), ApiError>>,
+    post_other_game: VecDeque<Result<(), ApiError>>,
     post_characters: VecDeque<Result<(), ApiError>>,
     open_stream: VecDeque<Result<Vec<StreamItem>, ApiError>>,
     accept_ready_check: VecDeque<Result<(), ApiError>>,
@@ -123,6 +128,17 @@ impl FakeApiGateway {
 
     pub fn script_post_observation(&self, answers: impl IntoIterator<Item = Result<(), ApiError>>) {
         self.with(|script| script.post_observation.extend(answers));
+    }
+
+    pub fn script_post_player_observation(
+        &self,
+        answers: impl IntoIterator<Item = Result<(), ApiError>>,
+    ) {
+        self.with(|script| script.post_player_observation.extend(answers));
+    }
+
+    pub fn script_post_other_game(&self, answers: impl IntoIterator<Item = Result<(), ApiError>>) {
+        self.with(|script| script.post_other_game.extend(answers));
     }
 
     pub fn script_post_characters(&self, answers: impl IntoIterator<Item = Result<(), ApiError>>) {
@@ -231,6 +247,30 @@ impl ApiGateway for FakeApiGateway {
                 .calls
                 .push(Call::PostObservation(observation.clone()));
             answer(&mut script.post_observation)
+        })
+    }
+
+    async fn post_player_observation(
+        &self,
+        _token: &Secret,
+        observation: &PlayerObservation,
+    ) -> Result<(), ApiError> {
+        self.with(|script| {
+            script
+                .calls
+                .push(Call::PostPlayerObservation(observation.clone()));
+            answer(&mut script.post_player_observation)
+        })
+    }
+
+    async fn post_other_game(
+        &self,
+        _token: &Secret,
+        observation: &OtherGameObservation,
+    ) -> Result<(), ApiError> {
+        self.with(|script| {
+            script.calls.push(Call::PostOtherGame(observation.clone()));
+            answer(&mut script.post_other_game)
         })
     }
 
@@ -368,6 +408,58 @@ impl ConsentStore for NoConsent {
     }
 }
 
+/// A store kept in memory, for tests of what composes the switch: `saved` holds a choice, `missing` reads as on, `unreadable`
+/// reads as off and refuses a save, and a save that is refused changes nothing.
+#[derive(Debug)]
+pub struct InMemoryDiagnosticsStore {
+    choice: Mutex<Option<bool>>,
+    readable: bool,
+}
+
+impl InMemoryDiagnosticsStore {
+    pub fn saved(on: bool) -> Self {
+        Self {
+            choice: Mutex::new(Some(on)),
+            readable: true,
+        }
+    }
+
+    pub fn missing() -> Self {
+        Self {
+            choice: Mutex::new(None),
+            readable: true,
+        }
+    }
+
+    pub fn unreadable() -> Self {
+        Self {
+            choice: Mutex::new(None),
+            readable: false,
+        }
+    }
+}
+
+impl DiagnosticsStore for InMemoryDiagnosticsStore {
+    fn load(&self) -> bool {
+        if !self.readable {
+            return false;
+        }
+        self.choice
+            .lock()
+            .ok()
+            .and_then(|choice| *choice)
+            .unwrap_or(true)
+    }
+
+    fn save(&self, on: bool) -> Result<(), StoreError> {
+        if !self.readable {
+            return Err(StoreError);
+        }
+        *self.choice.lock().map_err(|_| StoreError)? = Some(on);
+        Ok(())
+    }
+}
+
 /// A frame reader that places every frame on no screen and reads no card.
 pub struct NoFrameReader;
 
@@ -443,7 +535,7 @@ mod tests {
     use super::{Call, FakeApiGateway};
     use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
 
-    use crate::messages::{Presence, Screen};
+    use crate::messages::{CaptureReport, Presence, Screen};
     use crate::ports::{ApiError, ApiGateway, EndReason, StreamItem};
     use crate::secret::Secret;
 
@@ -472,6 +564,7 @@ mod tests {
         let presence = Presence {
             game_running: true,
             screen: Screen::Unknown,
+            capture: CaptureReport::default(),
         };
 
         assert_eq!(gateway.claim(&claim).await, Err(ApiError::Pending));

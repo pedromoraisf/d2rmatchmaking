@@ -25,7 +25,7 @@ interface HeadlessState {
 const headlessStates = new WeakMap<World, HeadlessState>();
 
 /** The headless agent state of a scenario. Its own store: the Party steps (agent-game-name) keep theirs. */
-function stateOf(world: World): HeadlessState {
+export function stateOf(world: World): HeadlessState {
   let state = headlessStates.get(world);
   if (state === undefined) {
     state = {};
@@ -78,7 +78,7 @@ function cardsOf(fixture: string): FixtureCard[] {
   return cards;
 }
 
-function agentOf(world: World): HeadlessAgent {
+export function agentOf(world: World): HeadlessAgent {
   const agent = stateOf(world).agent;
   if (agent === undefined) {
     throw new Error(
@@ -100,14 +100,14 @@ async function listedCharacters(world: World, name: string) {
 }
 
 /** The screen the agent reported on its last heartbeat, or undefined when no agent is paired. */
-async function reportedScreen(world: World, name: string): Promise<string | undefined> {
+export async function reportedScreen(world: World, name: string): Promise<string | undefined> {
   const answer = await world.presenceOf(name);
   const body = answer.body as { status?: string; screen?: string } | undefined;
   return body?.status === 'paired' ? body.screen : undefined;
 }
 
 /** Starts the headless agent for the player, with or without consent, and pairs it as the player's agent (CHR-01). */
-async function startHeadless(world: World, name: string, consent: boolean): Promise<void> {
+export async function startHeadless(world: World, name: string, consent: boolean): Promise<void> {
   test.setTimeout(START_TIMEOUT_MS);
   const session = await world.sessionOf(name);
   const state = stateOf(world);
@@ -131,7 +131,7 @@ async function startHeadless(world: World, name: string, consent: boolean): Prom
 }
 
 /** Shows a drawn fixture to the agent: its picture and sidecar are copied into the scenario's directory first. */
-function showFixture(world: World, fixture: string, unreadable?: string): void {
+export function showFixture(world: World, fixture: string, unreadable?: string): void {
   const state = stateOf(world);
   if (state.dir === undefined) {
     throw new Error('the headless agent has no fixture directory in this scenario');
@@ -158,6 +158,22 @@ function showFixture(world: World, fixture: string, unreadable?: string): void {
 // The player has consent and no room: the agent reads the character screens of the scenario (CHR-04, CHR-06, CHR-18).
 // Its own step, not agent-game-name's: that one expects the player to hold a room (AGN-01).
 Given(/^(.+)'s agent has capture consent and no room$/, async ({ world }, name: string) => {
+  // A scenario whose Background formed a room (server-name-match) closes it first: "no room" is what the step promises.
+  const held = world.player(name).room;
+  if (held !== undefined) {
+    const closed = await fetch(`${world.site.api}/v1/lobby-rooms/${encodeURIComponent(held.roomId)}/close`, {
+      method: 'POST',
+      headers: {
+        Cookie: `${SESSION_COOKIE}=${await world.sessionOf(name)}`,
+        Origin: world.site.site,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+      signal: AbortSignal.timeout(10_000),
+    });
+    expect(closed.status, `closing the room of "${name}"`).toBe(204);
+    delete world.player(name).room;
+  }
   expect(world.player(name).room, `the room of "${name}"`).toBeUndefined();
   await startHeadless(world, name, true);
 });
@@ -294,8 +310,8 @@ function playerOf(world: World): string {
   return player;
 }
 
-// Closes the example and removes its fixture directory after each character screen scenario.
-After({ tags: '@CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) => {
+/** Closes the example and removes its fixture directory; the scenarios of other features that start the example reuse it. */
+export async function stopHeadless(world: World): Promise<void> {
   const state = headlessStates.get(world);
   await state?.agent?.stop();
   if (state?.dir !== undefined) {
@@ -303,4 +319,9 @@ After({ tags: '@CHR-04 or @CHR-06 or @CHR-18 or @CHR-20' }, async ({ world }) =>
   }
   headlessStates.delete(world);
   lastShown.delete(world);
+}
+
+// Closes the example and removes its fixture directory after each character screen scenario.
+After({ tags: '@AGT-06 or @CHR-04 or @CHR-06 or @CHR-18 or @CHR-20 or @SNM-05' }, async ({ world }) => {
+  await stopHeadless(world);
 });

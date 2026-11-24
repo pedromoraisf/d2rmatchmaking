@@ -21,8 +21,15 @@ pub struct IssuedCode {
 /// The `GAME_NAME_SEEN` observation is the domain's value object (M5): fusion builds it and the sender posts it as is.
 pub use d2rmm_agent_domain::fusion::GameNameObservation;
 
+/// The `PLAYER_JOINED_SEEN` and `PLAYER_LEFT_SEEN` observation (server-name-match): the domain checks the reading rule when it
+/// builds one.
+pub use d2rmm_agent_domain::player_observation::{NameRefused, PlayerKind, PlayerObservation};
+
+/// The `OTHER_GAME_SEEN` observation (agent-room-lifecycle): it holds no name.
+pub use d2rmm_agent_domain::other_game::OtherGameObservation;
+
 /// The heartbeat's presence and screen are the domain's value objects (M5).
-pub use d2rmm_agent_domain::presence::{Presence, Screen};
+pub use d2rmm_agent_domain::presence::{CaptureReport, Presence, Screen};
 
 /// A ready check the account's group opened (RDY-01), as the agent needs it: the id to answer and the time left to answer
 /// it, measured on the server's clock when the agent heard of it. The agent counts that time on its own monotonic clock,

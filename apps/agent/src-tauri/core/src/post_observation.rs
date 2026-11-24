@@ -8,6 +8,7 @@ use d2rmm_agent_domain::observation_retry::{ObservationRetry, PostFailure, Retry
 use tokio::time::Instant;
 use tracing::Instrument;
 
+use crate::detail;
 use crate::device_state::DeviceState;
 use crate::groups::ReadPorts;
 use crate::messages::GameNameObservation;
@@ -31,14 +32,35 @@ pub async fn send<G: ApiGateway + Send + Sync>(
     };
     let mut retry = ObservationRetry::new(device.epoch());
     loop {
-        let span = tracing::info_span!("agent.observation.post");
+        let span = tracing::info_span!(
+            "agent.observation.post",
+            "d2r.room.id" = tracing::field::Empty,
+            "d2r.run.id" = tracing::field::Empty,
+            "d2r.game.name" = tracing::field::Empty,
+            "d2r.ocr.confidence" = tracing::field::Empty,
+            "d2r.step.duration_ms" = tracing::field::Empty,
+        );
+        detail::record_observation(
+            &span,
+            &observation.room.to_string(),
+            observation.run.get(),
+            &observation.game_name,
+            observation.confidence,
+        );
+        let started = Instant::now();
         let outcome = ports
             .gateway
             .post_observation(&token, observation)
-            .instrument(span)
+            .instrument(span.clone())
             .await;
+        detail::record_duration(&span, started.elapsed());
         let error = match outcome {
-            Ok(()) => return SendOutcome::Posted,
+            Ok(()) => {
+                tracing::info_span!("agent.run.confirm")
+                    .in_scope(|| tracing::info!("agent.run.confirmed"));
+                device.confirm_run(&observation.room.to_string(), observation.run);
+                return SendOutcome::Posted;
+            }
             Err(error) => error,
         };
         if matches!(error, ApiError::Unauthorized | ApiError::UpgradeRequired) {
@@ -131,6 +153,103 @@ mod tests {
             tokens: tokens.clone(),
         };
         (device, tokens, ports, gateway)
+    }
+
+    /// The assignment the observation names: its room, run 1.
+    fn held_assignment(run: u64) -> d2rmm_agent_domain::room_assignment::Assignment {
+        d2rmm_agent_domain::room_assignment::Assignment {
+            room: d2rmm_agent_domain::room_assignment::RoomId::new(
+                "00000000-0000-0000-0000-000000000001",
+            ),
+            run: NonZeroU64::new(run).expect("a run is not zero"),
+            expected_game_name: d2rmm_agent_domain::room_assignment::GameName::new("mmbaalh-12"),
+            members: Vec::new(),
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_accepted_post_confirms_the_run_in_the_window_until_the_run_changes() {
+        let (device, _tokens, ports, gateway) = paired();
+        gateway.script_post_observation([Ok(())]);
+        let probe = crate::event_probe::EventProbe::default();
+        let _guard = probe.install();
+        device.replace_assignment(Some(held_assignment(1)));
+        device.publish_room();
+        let confirmed =
+            |device: &DeviceState| device.hub.snapshot().room.map(|room| room.confirmed);
+        assert_eq!(confirmed(&device), Some(false), "waiting before the post");
+
+        send(&device, &ports, &observation()).await;
+        assert_eq!(confirmed(&device), Some(true), "the 2xx confirms the run");
+        let events = probe.named("agent.run.confirmed");
+        assert_eq!(events.len(), 1);
+        assert!(events[0].fields.is_empty(), "no names on the event");
+
+        device.replace_assignment(Some(held_assignment(2)));
+        device.publish_room();
+        assert_eq!(
+            confirmed(&device),
+            Some(false),
+            "a new run waits again (ARL-04)"
+        );
+
+        device.replace_assignment(None);
+        device.publish_room();
+        assert_eq!(confirmed(&device), None, "a dropped room shows no line");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_post_span_carries_the_ids_and_game_data_and_no_name() {
+        let (device, _tokens, ports, gateway) = paired();
+        gateway.script_post_observation([Ok(())]);
+        let probe = crate::event_probe::EventProbe::default();
+        let _guard = probe.install();
+        device.replace_assignment(Some(held_assignment(1)));
+
+        send(&device, &ports, &observation()).await;
+
+        let spans = probe.spans();
+        let post = spans
+            .iter()
+            .find(|span| span.message == "agent.observation.post")
+            .expect("the post span");
+        let sent = observation();
+        assert_eq!(post.fields["d2r.room.id"], format!("\"{}\"", sent.room));
+        assert_eq!(
+            post.fields["d2r.run.id"],
+            format!("\"{}/{}\"", sent.room, sent.run)
+        );
+        assert_eq!(
+            post.fields["d2r.game.name"],
+            format!("{:?}", sent.game_name)
+        );
+        assert!(post.fields.contains_key("d2r.ocr.confidence"));
+        assert!(post.fields.contains_key("d2r.step.duration_ms"));
+        for key in post.fields.keys() {
+            assert!(
+                !matches!(key.as_str(), "d2r.ocr.text" | "d2r.ocr.names"),
+                "{key} is a full-tier key"
+            );
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_refused_or_failed_post_keeps_waiting() {
+        let (device, _tokens, ports, gateway) = paired();
+        gateway.script_post_observation([Err(ApiError::Unauthorized)]);
+        device.replace_assignment(Some(held_assignment(1)));
+        device.publish_room();
+
+        send(&device, &ports, &observation()).await;
+
+        assert!(
+            device
+                .hub
+                .snapshot()
+                .room
+                .is_none_or(|room| !room.confirmed),
+            "nothing confirms a refused post"
+        );
     }
 
     #[tokio::test(start_paused = true)]

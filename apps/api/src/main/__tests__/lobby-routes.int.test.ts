@@ -246,6 +246,28 @@ describe('lobby routes', () => {
     expect(after.stage).toBe('created');
   });
 
+  it("an OTHER_GAME_SEEN marks the host elsewhere without moving the room, and the name's return clears it (ARL-10)", async () => {
+    const cookie = await sessionFor(uniquePlayerName());
+    const token = await pairNewAgent(cookie);
+    await formTestMatch(cookie);
+    const room = bodyOf<RoomBody>(await myRoom(cookie));
+    await observe(token, room.roomId, observationBody(room.expectedGameName));
+
+    const away = await observe(token, room.roomId, observationBody('', { type: 'OTHER_GAME_SEEN' }));
+    expect(away.statusCode).toBe(202);
+    const during = bodyOf<RoomBody & { members: readonly { elsewhere?: boolean }[] }>(await myRoom(cookie));
+    expect(during.stage).toBe('created');
+    expect(during.members[0]?.elsewhere).toBe(true);
+
+    const refused = await observe(token, room.roomId, observationBody('duels', { type: 'OTHER_GAME_SEEN' }));
+    expect(refused.statusCode).toBe(400);
+
+    await observe(token, room.roomId, observationBody(room.expectedGameName));
+    const back = bodyOf<RoomBody & { members: readonly { elsewhere?: boolean }[] }>(await myRoom(cookie));
+    expect(back.stage).toBe('created');
+    expect(back.members[0]?.elsewhere).toBe(false);
+  });
+
   it('a repeated idempotency key is stored once for the agent', async () => {
     const cookie = await sessionFor(uniquePlayerName());
     const token = await pairNewAgent(cookie);
@@ -274,6 +296,23 @@ describe('lobby routes', () => {
       .where('room_id', '=', room.roomId)
       .execute();
     expect(stored).toHaveLength(0);
+  });
+
+  it('answers the 21st observation of a minute 429 rate-limited with Retry-After, and stores no more', async () => {
+    const cookie = await sessionFor(uniquePlayerName());
+    const token = await pairNewAgent(cookie);
+    await formTestMatch(cookie);
+    const room = bodyOf<RoomBody>(await myRoom(cookie));
+
+    const answers = [];
+    for (let i = 0; i < 21; i += 1) {
+      answers.push(await observe(token, room.roomId, observationBody('mmnotit-1', { key: `limit-${i}` })));
+    }
+
+    expect(answers.slice(0, 20).map((answer) => answer.statusCode)).toEqual(Array(20).fill(202));
+    expect(answers[20]?.statusCode).toBe(429);
+    expect(bodyOf(answers[20] ?? { body: '{}' })).toEqual({ error: 'rate-limited' });
+    expect(Number(answers[20]?.headers['retry-after'])).toBeGreaterThanOrEqual(1);
   });
 
   it('a 5 KB body answers 413', async () => {

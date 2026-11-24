@@ -299,7 +299,7 @@ O agente é um app Tauri 2 para Windows que fica na bandeja. O núcleo em Rust f
 | `fusion` | Combina sinais numa observação com confiança; compara com o nome esperado por distância de edição |
 | `outbox` | Fila local em SQLite com reenvio, idempotência e limite de tamanho |
 | `api_client` | REST, SSE e heartbeat; propaga `traceparent` |
-| `hotkeys` | Atalhos globais configuráveis; preencher digita o nome da partida só com o D2R em foco e nunca aperta Enter |
+| `hotkeys` | Atalho global configurável para aceitar a confirmação de partida; o agente não digita nem cola nada no jogo (o jogador copia o nome no site e cola com o Ctrl+V do próprio jogo) |
 | `telemetry` | OpenTelemetry com exportação OTLP para a API |
 
 **O que o agente nunca faz**, verificado em revisão e documentado no site: abrir o processo do jogo, ler ou escrever memória, injetar código, interceptar rede, capturar fora da janela do jogo, executar comandos vindos do servidor, confirmar ações no jogo pelo jogador.
@@ -464,7 +464,7 @@ Tudo roda no GitHub Actions, com filtros por pasta e o Turborepo executando só 
 | Workflow | Gatilho | O que faz |
 | --- | --- | --- |
 | `ci.yml` | PR e push | Formatação, lint, tipos, dependency-cruiser, unitários, integração com Testcontainers, contrato, ponta a ponta, mutação incremental, gitleaks, `harness-score --min-level 4` |
-| `deploy-web.yml` | Push na `main` em `apps/web` | Build e publicação no Cloudflare Pages; preview automático nos PRs |
+| `site.yml` | Push na `main` e PRs | Estágios reutilizáveis (ADR 033): build uma vez, verificação, publicação no Cloudflare Pages (preview nos PRs, staging na `main`), smoke, promoção |
 | `deploy-api.yml` | Push na `main` em `apps/api` ou `packages/*`, após o CI | Migração no Neon, deploy hook do Render, smoke test em `/healthz`, marcação de deploy na telemetria |
 | `release-please.yml` | Push na `main` | Mantém um PR de release do agente com a versão nova (Conventional Commits) e o changelog; ao mergear, cria a tag `agent-v*` |
 | `release-agent.yml` | Tag `agent-v*` | Build no `windows-latest` com tauri-action, assinatura do updater, `latest.json`, cópia do instalador com nome fixo, GitHub Release |

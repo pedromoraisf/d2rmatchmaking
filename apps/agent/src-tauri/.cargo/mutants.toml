@@ -1,3 +1,7 @@
+# cargo-mutants builds with the `mutants` profile of the workspace Cargo.toml: unoptimised workspace crates built
+# incrementally, optimised dependencies (tuned on the nightly's slices). Debug assertions and overflow checks stay on there.
+profile = "mutants"
+
 # cargo-mutants scope of the agent (ADR 014, AGS-21, ADR 026; design.md § Mutation scope, AD-080). The nightly `agent-mutation`
 # job and the Verifier run these modules against their unit tests only (`-- --lib`). Every module of the domain is in scope,
 # and so are the rule modules of the application and of the adapters. `adapters/src/http/api_client.rs` is out of scope by the
@@ -11,6 +15,8 @@ examine_globs = [
   "core/src/beat.rs",
   "core/src/party.rs",
   "core/src/screen_reader.rs",
+  "core/src/automap_name.rs",
+  "core/src/chat_step.rs",
   "adapters/src/http/translate.rs",
   "adapters/src/http/sse.rs",
   "adapters/src/telemetry/queue.rs",
@@ -18,19 +24,24 @@ examine_globs = [
   "adapters/src/telemetry/sanitize.rs",
 ]
 
+# An `exclude_re` regex never holds a line or column: a reading module gains lines above an excluded mutant and a
+# `file:line:col` regex stops matching, so the mutant reappears in the nightly. It matches the file, the mutation and the
+# function instead (`file\.rs:\d+:\d+: <description> in <function>`); the comment keeps the `file:line` for humans.
+# The only exception is a mutant whose name equals that of a sibling in the same function (only line and column differ):
+# its entry keeps the position and says why in a `Position-bound:` comment line.
 # Every entry of `exclude_re` needs the comment block above it: the `file:line` and the mutation, why it is equivalent,
 # and an `Evidence:` line (`scripts/agent/mutation-config.mjs`, ocr-protection OCP-06).
 #
-# Equivalent mutant, excluded by the maintainer's decision (2026-11-02): `core/src/pair.rs:87`, `delete ! in pair_once`.
+# Equivalent mutant, excluded by the maintainer's decision (2026-11-02): `core/src/pair.rs:88:20`, `delete ! in pair_once`.
 # With `!` deleted, `pause` returning true ends `pair_once` with `Interrupted` and `run` re-enters it at once with a fresh
 # `Pairing`, which equals the aggregate after the pause; with `!` kept, `pause` returning false loops once and
 # `obtain_code` returns `None`, also `Interrupted`. No unit test can tell the two apart.
 # Evidence: the entry's own comment above, "With `!` deleted, `pause` returning true ends `pair_once` with `Interrupted`
 # and `run` re-enters it at once with a fresh `Pairing`" (maintainer's decision, 2026-11-02).
 exclude_re = [
-  "delete ! in pair_once",
+  "pair\\.rs:\\d+:\\d+: delete ! in pair_once",
 
-  # Equivalent mutant (ocr-protection): `domain/src/anchors.rs:182:31`, `replace match guard found.title.rank() ==
+  # Equivalent mutant (ocr-protection): `domain/src/anchors.rs:184:31`, `replace match guard found.title.rank() ==
   # card.title.rank() with true in find_cards_in_variants`. With the guard true, a found card of a lower rank than the
   # card already kept would fall into the arm that ANDs `title_unseen` instead of the empty arm `Some(_) => {}`. A card
   # that outranks another has a title line (`Known` or `Unknown`), and `find_cards` sets `title_unseen` only when it
@@ -39,35 +50,39 @@ exclude_re = [
   # Evidence: `find_cards` (`anchors.rs`): `title_unseen = above.is_none_or(is_tab_line)` and `title = TitleLine::None`
   # for exactly those two cases (`None`, or a tab line), so `title_unseen` implies rank 0 on every print; cargo-mutants
   # run on `anchors.rs` after the pinning tests left this as the only survivor.
-  "anchors\\.rs:182:31: replace match guard found\\.title\\.rank\\(\\) == card\\.title\\.rank\\(\\) with true in find_cards_in_variants",
+  "anchors\\.rs:\\d+:\\d+: replace match guard found\\.title\\.rank\\(\\) == card\\.title\\.rank\\(\\) with true in find_cards_in_variants",
 
   # Equivalent mutant (ocr-protection): `domain/src/characters.rs:247:27`, `replace || with && in is_character_name`
   # (the first `||` of `index == 0 || previous_was_separator || separators > 1`). At index 0, `previous_was_separator`
   # still holds its initial `true`, so `index == 0 && previous_was_separator` equals `index == 0 || previous_was_separator`
   # there; after index 0, `previous_was_separator` is true only when the character before was a separator, which was
   # already counted, so `separators > 1` is true and the name is refused either way. No unit test can tell the two apart.
+  # Position-bound: `is_character_name` holds three `replace || with &&` mutants whose names differ only by line and column
+  # (245:36, 247:27, 247:53); no regex over the name separates them, so this entry keeps its column.
   # Evidence: the rule of D2R names (CHR-10, "at most one `-` or `_` that is neither first nor last"): the only names the
   # two forms read differently would need a separator right after a separator with `separators <= 1`, which the counter
   # makes impossible; cargo-mutants run on `characters.rs` leaves this as the only survivor of the function.
   "characters\\.rs:247:27: replace \\|\\| with && in is_character_name",
 
-  # Equivalent mutant (ocr-protection): `domain/src/layout.rs:49:29`, `replace || with && in PanelBox::resolve` (the guard
+  # Equivalent mutant (ocr-protection): `domain/src/layout.rs:50:29`, `replace || with && in PanelBox::resolve` (the guard
   # `frame_width == 0 || frame_height == 0`). The guard is only an early exit: a zero height makes the scale 0 so every
   # size rounds to 0 and `width < 1.0` returns `None`; a zero width makes `left + width <= 0` false for any box that has
   # a width of at least one (`left >= 0` is required first), so `None` again. With `&&` only a frame of 0 x 0 exits early,
   # and every other empty frame reaches the same `None` further down. No unit test can tell the two apart.
+  # Position-bound: `PanelBox::resolve` holds three `replace || with &&` mutants whose names differ only by line and column
+  # (50:29, 67:24, 67:40); no regex over the name separates them, so this entry keeps its column.
   # Evidence: `resolve` in `layout.rs`: the `width < 1.0 || height < 1.0 || !inside` test after the arithmetic returns
   # `None` for each empty frame, and `a_box_that_rounds_to_nothing_or_an_empty_client_is_none` pins that result for both
   # forms; the supported sizes of the maintainer's prints (1920x1033, 1920x1080) are never empty.
-  "layout\\.rs:49:29: replace \\|\\| with && in PanelBox::resolve",
+  "layout\\.rs:50:29: replace \\|\\| with && in PanelBox::resolve",
 
-  # Equivalent mutant (ocr-protection): `domain/src/layout.rs:108:19`, `replace || with && in supported_size` (the guard
+  # Equivalent mutant (ocr-protection): `domain/src/layout.rs:113:19`, `replace || with && in supported_size` (the guard
   # `width == 0 || height == 0`). A zero side falls through to `width * 5 >= height * 8 && width <= height * 2`, which is
   # false for (w, 0) with w > 0 (`w <= 0`) and for (0, h) with h > 0 (`0 >= 8h`); (0, 0) satisfies `&&` itself and exits
   # early. Every empty client is unsupported either way. No unit test can tell the two apart.
   # Evidence: the arithmetic of `supported_size` for each zero case above, and `an_empty_client_is_not_supported` which
   # pins (0, 0), (1920, 0) and (0, 1080) as unsupported with both forms of the guard.
-  "layout\\.rs:108:19: replace \\|\\| with && in supported_size",
+  "layout\\.rs:\\d+:\\d+: replace \\|\\| with && in supported_size",
 
   # Non-terminating mutants (ocr-protection): `domain/src/name_diff.rs:83:15` and `domain/src/name_diff.rs:86:15`,
   # `replace -= with /= in edit_operations_with` (`i -= 1` of a deletion, `j -= 1` of an insertion). Dividing by one leaves
@@ -75,7 +90,20 @@ exclude_re = [
   # the result of a function that does not return, and the loop grows a vector until cargo-mutants kills the run at its
   # timeout. The two branches are pinned by `the_operations_of_an_insertion_a_deletion_and_a_substitution_are_listed_by_position`,
   # which fails for every other mutation of these lines (`+=` indexes out of range and panics).
+  # Position-bound: `edit_operations_with` holds six `replace -= with /=` mutants (70, 71, 79, 80, 83, 86) with identical
+  # names but the position; no regex over the name separates 83 and 86 from the others, so this entry keeps its lines.
   # Evidence: run 44558970584 (nightly of 2026-11-19), `agent-domain/mutants.out/timeout.txt`:
   # `domain/src/name_diff.rs:83:15: replace -= with /= in edit_operations_with`, the only entry of that file's timeouts.
   "name_diff\\.rs:(?:83|86):15: replace -= with /= in edit_operations_with",
+
+  # Equivalent mutant: `domain/src/player_observation.rs:107:40`, `replace - with / in is_player_name` (the slice
+  # `&bytes[1..bytes.len() - 1]` of the loop over the inner bytes). Dividing by one makes the slice `1..len`, which adds the
+  # last byte to the loop; the last byte was already checked to be an ASCII letter, so the `match` takes its letter arm,
+  # counts no separator and returns no refusal, and the result is the same for every input. No unit test can tell the two apart.
+  # Position-bound: `is_player_name` holds two `replace - with /` mutants (102:54, 107:40) with the same name; 102:54 panics
+  # (`bytes[len]` is out of range) and is killed, so this entry keeps its position.
+  # Evidence: `is_player_name` returns `false` at line 103 unless `last.is_ascii_alphabetic()`, so only a letter can be the
+  # extra byte; cargo-mutants lists both mutants of the function and the hand-applied `/` at 107:40 left the 462 domain unit
+  # tests green, the one at 102:54 does not.
+  "player_observation\\.rs:107:40: replace - with / in is_player_name",
 ]

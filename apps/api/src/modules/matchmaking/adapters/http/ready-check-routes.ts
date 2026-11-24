@@ -22,6 +22,8 @@ export interface ReadyCheckRouteGuards {
   readonly requireAgentVersion: Guard;
   readonly requireSameOrigin: Guard;
   readonly requireSession: Guard;
+  /** After a route's own guard: 60 requests a minute per account, agent or site, then 429 (UPK-03). */
+  readonly limitReadyCheck: Guard;
 }
 
 export interface ReadyCheckRouteDeps {
@@ -110,8 +112,16 @@ export function readyCheckRoutes(app: FastifyInstance, deps: ReadyCheckRouteDeps
   typed.get(
     '/v1/ready-checks/me',
     {
-      preHandler: [readOwnerGuard(guards)],
-      schema: { response: { 200: ReadyCheckView, 204: z.null(), 401: ErrorResponse, 426: ErrorResponse } },
+      preHandler: [readOwnerGuard(guards), guards.limitReadyCheck],
+      schema: {
+        response: {
+          200: ReadyCheckView,
+          204: z.null(),
+          401: ErrorResponse,
+          426: ErrorResponse,
+          429: ErrorResponse,
+        },
+      },
     },
     async (request, reply) => {
       const accountId = request.agentAccountId ?? request.accountId;
@@ -129,7 +139,7 @@ export function readyCheckRoutes(app: FastifyInstance, deps: ReadyCheckRouteDeps
   typed.post(
     '/v1/ready-checks/:id/accept',
     {
-      preHandler: [acceptGuard(guards)],
+      preHandler: [acceptGuard(guards), guards.limitReadyCheck],
       schema: {
         params,
         response: {
@@ -137,6 +147,7 @@ export function readyCheckRoutes(app: FastifyInstance, deps: ReadyCheckRouteDeps
           401: ErrorResponse,
           404: ReadyCheckAnswerRefusal,
           409: ReadyCheckAnswerRefusal,
+          429: ErrorResponse,
         },
       },
     },
@@ -160,7 +171,7 @@ export function readyCheckRoutes(app: FastifyInstance, deps: ReadyCheckRouteDeps
   typed.post(
     '/v1/ready-checks/:id/decline',
     {
-      preHandler: [guards.requireSameOrigin, guards.requireSession],
+      preHandler: [guards.requireSameOrigin, guards.requireSession, guards.limitReadyCheck],
       schema: {
         params,
         response: {
@@ -168,6 +179,7 @@ export function readyCheckRoutes(app: FastifyInstance, deps: ReadyCheckRouteDeps
           401: ErrorResponse,
           404: ReadyCheckAnswerRefusal,
           409: ReadyCheckAnswerRefusal,
+          429: ErrorResponse,
         },
       },
     },

@@ -183,3 +183,43 @@ test(
     }
   },
 );
+
+test('with a capture directory the sink writes each OTLP body to a numbered file by signal, and counts as before', async () => {
+  const { mkdtempSync, readdirSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const directory = mkdtempSync(path.join(tmpdir(), 'sink-capture-'));
+  const sink = await startSink({
+    listen: '127.0.0.1:0',
+    control: '127.0.0.1:0',
+    token: TOKEN,
+    captureDir: directory,
+  });
+  try {
+    const socket = await openConnection(sink.otlpPort);
+    await exchange(socket, wireOf(sink.otlpPort, '/v1/traces', '{"a":1}'));
+    await exchange(socket, wireOf(sink.otlpPort, '/v1/logs', '{"b":22}'));
+    socket.destroy();
+    assert.deepEqual(readdirSync(directory).sort(), ['00000001-traces.bin', '00000002-logs.bin']);
+    assert.equal(readFileSync(path.join(directory, '00000002-logs.bin'), 'utf8'), '{"b":22}');
+  } finally {
+    await sink.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('the entry reads --capture-dir, and without it the settings carry none', async () => {
+  const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const directory = mkdtempSync(path.join(tmpdir(), 'sink-entry-'));
+  const tokenFile = path.join(directory, 'token');
+  writeFileSync(tokenFile, `${TOKEN}\n`);
+  try {
+    const base = ['--listen', '127.0.0.1:4318', '--control', '0.0.0.0:9101', '--token-file', tokenFile];
+    const withFlag = await settingsFromArguments([...base, '--capture-dir', '/capture']);
+    assert.equal(withFlag.captureDir, '/capture');
+    const without = await settingsFromArguments(base);
+    assert.equal('captureDir' in without, false);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

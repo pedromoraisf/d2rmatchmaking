@@ -4,15 +4,21 @@
 //! 0.1.3: a full-screen client draws the panels at other offsets than a maximized one). The frame and the text never leave
 //! the process (AGS-20). A frame in an unsupported client size shows nothing (CHR-19).
 
-use std::sync::Arc;
+use std::cell::Cell;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use d2rmm_agent_domain::anchors::{self, line_pad};
 use d2rmm_agent_domain::character_screen::{
     BandRead, Probes, is_enabled_label, is_gold, label_brightness, luma, read_screen,
 };
+use d2rmm_agent_domain::hud_track::{AUTOMAP_SEARCH_EVERY, LIST_SEARCH_EVERY, TrackRead, Tracker};
 use d2rmm_agent_domain::language::LanguagePack;
-use d2rmm_agent_domain::layout::{ScreenRegion, screen_region, selection_band, supported_size};
+use d2rmm_agent_domain::layout::{
+    ScreenRegion, screen_region, screen_region_with, selection_band, supported_size,
+};
 use d2rmm_agent_domain::presence::Screen;
+use d2rmm_agent_domain::remote_config::Effective;
 use d2rmm_agent_domain::vision::{Region, TextLine};
 
 use crate::messages::FrameReading;
@@ -23,7 +29,60 @@ use crate::title_ink::{InkRead, read_band};
 pub struct ScreenReader {
     reader: Arc<dyn TextReader + Send + Sync>,
     language: Arc<LanguagePack>,
+    /// Where the HUD's label was last found: the next frames read a small box around it, not the whole band.
+    hud: Mutex<Tracker>,
+    /// The same for the automap's "Difficulty:" line.
+    automap: Mutex<Tracker>,
+    /// The same for the character list's "Create New" button, searched only when the fixed box missed.
+    create_new: Mutex<Tracker>,
+    /// The reader of the pack's fallback language (the pt-BR client, whose words the English ones never find), with its own
+    /// trackers: tried when the pack's own words read the frame as `Unknown`. `None` when the pack has no fallback.
+    fallback: Option<Box<ScreenReader>>,
+    /// Whether the fallback language read the last frame it could: it is then tried first, so a pt-BR client does not pay
+    /// an English read of every frame.
+    prefers_fallback: AtomicBool,
+    /// The `Unknown` frames in a row the second pack was asked about (see `SECOND_PACK_EVERY`); a known screen resets it.
+    unknown_run: AtomicUsize,
 }
+
+/// A frame the first pack reads as `Unknown` asks the second pack on every Nth frame in a row (the first of each run, so a
+/// client's first frame, or the first frame after a known screen, is read by both). The reading of `Unknown` carries no
+/// count of partial anchors, so "no anchor at all" cannot be told from a pt-BR screen the English words miss: the guard is
+/// bounded instead, and a pt-BR client is recognised within `SECOND_PACK_EVERY - 1` seconds.
+const SECOND_PACK_EVERY: usize = 5;
+
+/// How a frame's HUD, automap or list marker was looked for (SCR-09): the tracked box held it, the wide area was searched,
+/// or the search rested for the frame. The last tracker asked sets it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Search {
+    Track,
+    Band,
+    Rested,
+}
+
+/// The fixed words a frame's reading carries on its `agent.vision.read` span (`vision.screen`, `vision.search`,
+/// `vision.area_class`): never a coordinate, a text or a pixel.
+fn vision_words(screen: Screen, search: Option<Search>) -> [&'static str; 3] {
+    let screen_word = match screen {
+        Screen::InGame => "in_game",
+        Screen::AutomapOpen => "automap",
+        Screen::CharacterSelect => "character_select",
+        Screen::Unknown => "unknown",
+    };
+    let (search_word, area_class) = match (search, screen) {
+        (Some(Search::Track), _) => ("track", "box"),
+        (Some(Search::Band), _) => ("band", "band"),
+        (Some(Search::Rested), Screen::CharacterSelect) => ("rested", "panel"),
+        (Some(Search::Rested), _) => ("rested", "box"),
+        (None, Screen::Unknown) => ("none", "box"),
+        (None, Screen::CharacterSelect) => ("fixed", "panel"),
+        (None, _) => ("fixed", "box"),
+    };
+    [screen_word, search_word, area_class]
+}
+
+/// Finds a tracked label's line in a frame's variants.
+type FindLabel = fn(&LanguagePack, &[Vec<TextLine>]) -> Option<Region>;
 
 /// What the anchors found in a frame: counts only, never a line of text (`ocr-check` prints them).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -36,12 +95,125 @@ pub struct AnchorCounts {
 
 impl ScreenReader {
     pub fn new(reader: Arc<dyn TextReader + Send + Sync>, language: Arc<LanguagePack>) -> Self {
-        Self { reader, language }
+        let fallback = language
+            .fallback()
+            .map(|pack| Box::new(Self::new(Arc::clone(&reader), Arc::new(pack.clone()))));
+        Self {
+            fallback,
+            prefers_fallback: AtomicBool::new(false),
+            unknown_run: AtomicUsize::new(0),
+            reader,
+            language,
+            hud: Mutex::new(Tracker::new(ScreenRegion::HudBand)),
+            automap: Mutex::new(Tracker::searching_every(
+                ScreenRegion::AutomapArea,
+                AUTOMAP_SEARCH_EVERY,
+            )),
+            create_new: Mutex::new(Tracker::searching_every(
+                ScreenRegion::CreateNewArea,
+                LIST_SEARCH_EVERY,
+            )),
+        }
+    }
+
+    /// The lines that hold a label: the box it was last found in, when it is still there, else the whole search area of
+    /// its tracker. What was found is remembered for the next frame (search, then track).
+    fn tracked_lines(
+        &self,
+        frame: &Rgba,
+        tracker: &Mutex<Tracker>,
+        find: FindLabel,
+        every: u32,
+        how: &Cell<Option<Search>>,
+        config: &Effective,
+    ) -> Vec<Vec<TextLine>> {
+        let plan = {
+            let mut held = tracker.lock().unwrap_or_else(PoisonError::into_inner);
+            let plan = held.next_with(
+                frame.width,
+                frame.height,
+                config.thresholds.track_pad,
+                &config.regions,
+            );
+            // A search of the wide area that found nothing last time rests for some frames (NFR-03 CPU).
+            if matches!(plan, Some(TrackRead::Search(_))) && held.rests(frame.width, frame.height) {
+                how.set(Some(Search::Rested));
+                return Vec::new();
+            }
+            plan
+        };
+        let (area, tracked) = match plan {
+            Some(TrackRead::Track(area)) => (area, true),
+            Some(TrackRead::Search(area)) => (area, false),
+            None => return Vec::new(),
+        };
+        let mut lines = self.reader.read_line_variants(frame, area);
+        let mut found = find(&self.language, &lines);
+        how.set(Some(if tracked && found.is_some() {
+            Search::Track
+        } else {
+            Search::Band
+        }));
+        if tracked && found.is_none() {
+            // The label moved or is gone: look in the whole search area.
+            let search = tracker
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .search_area_with(frame.width, frame.height, &config.regions);
+            if let Some(search) = search {
+                lines = self.reader.read_line_variants(frame, search);
+                found = find(&self.language, &lines);
+            }
+        }
+        tracker
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .record_every(found, frame.width, frame.height, every);
+        lines
     }
 
     /// The lines of a search area as each variant of the reader reads them.
-    fn lines_of(&self, frame: &Rgba, search: ScreenRegion) -> Vec<Vec<TextLine>> {
-        screen_region(search, frame.width, frame.height)
+    fn lines_of(
+        &self,
+        frame: &Rgba,
+        search: ScreenRegion,
+        how: &Cell<Option<Search>>,
+        config: &Effective,
+    ) -> Vec<Vec<TextLine>> {
+        match search {
+            ScreenRegion::HudBand => {
+                return self.tracked_lines(
+                    frame,
+                    &self.hud,
+                    anchors::find_hud_in_variants,
+                    1,
+                    how,
+                    config,
+                );
+            }
+            ScreenRegion::AutomapArea => {
+                return self.tracked_lines(
+                    frame,
+                    &self.automap,
+                    anchors::find_automap_in_variants,
+                    config.cadence.automap_search_every,
+                    how,
+                    config,
+                );
+            }
+            ScreenRegion::CreateNewArea => {
+                return self.tracked_lines(
+                    frame,
+                    &self.create_new,
+                    anchors::find_create_new_in_variants,
+                    config.cadence.list_search_every,
+                    how,
+                    config,
+                );
+            }
+            _ => {}
+        }
+        screen_region_with(search, frame.width, frame.height, &config.regions)
             .map(|area| self.reader.read_line_variants(frame, area))
             .unwrap_or_default()
     }
@@ -51,16 +223,17 @@ impl ScreenReader {
         if !supported_size(frame.width, frame.height) {
             return AnchorCounts::default();
         }
+        let built_in = Effective::built_in();
         AnchorCounts {
             cards: anchors::find_cards_in_variants(
                 &self.language,
-                &self.lines_of(frame, ScreenRegion::CardColumn),
+                &self.lines_of(frame, ScreenRegion::CardColumn, &Cell::new(None), &built_in),
                 frame.height,
             )
             .len(),
             popup_options: anchors::popup_options_in_variants(
                 &self.language,
-                &self.lines_of(frame, ScreenRegion::PopupArea),
+                &self.lines_of(frame, ScreenRegion::PopupArea, &Cell::new(None), &built_in),
             )
             .len(),
         }
@@ -108,9 +281,58 @@ pub fn readings_of(reader: &dyn TextReader, frame: &Rgba, area: Region) -> Vec<S
 
 impl FrameReader for ScreenReader {
     fn read(&self, frame: &Rgba) -> FrameReading {
+        self.read_with(frame, &Effective::built_in())
+    }
+
+    fn read_with(&self, frame: &Rgba, config: &Effective) -> FrameReading {
+        let Some(fallback) = self.fallback.as_deref() else {
+            return self.read_own(frame, config);
+        };
+        // The pack's own words first (the last language that read a frame first); the other language only when the first
+        // finds nothing, so a frame that is no known screen in either stays `Unknown`.
+        let fallback_first = self.prefers_fallback.load(Ordering::Relaxed);
+        let (first, second) = if fallback_first {
+            (fallback, self)
+        } else {
+            (self, fallback)
+        };
+        let reading = first.read_own(frame, config);
+        if reading.screen != Screen::Unknown {
+            self.unknown_run.store(0, Ordering::Relaxed);
+            return reading;
+        }
+        if !self
+            .unknown_run
+            .fetch_add(1, Ordering::Relaxed)
+            .is_multiple_of(SECOND_PACK_EVERY)
+        {
+            return reading;
+        }
+        let other = second.read_own(frame, config);
+        if other.screen == Screen::Unknown {
+            return reading;
+        }
+        self.unknown_run.store(0, Ordering::Relaxed);
+        self.prefers_fallback
+            .store(!fallback_first, Ordering::Relaxed);
+        other
+    }
+}
+
+impl ScreenReader {
+    /// A frame read with this reader's own pack only.
+    fn read_own(&self, frame: &Rgba, config: &Effective) -> FrameReading {
         if !supported_size(frame.width, frame.height) {
             return FrameReading::without_cards(Screen::Unknown);
         }
+        let span = tracing::info_span!(
+            "agent.vision.read",
+            "vision.screen" = tracing::field::Empty,
+            "vision.search" = tracing::field::Empty,
+            "vision.area_class" = tracing::field::Empty,
+        );
+        let _entered = span.enter();
+        let how = Cell::new(None);
         let text = |region: ScreenRegion| -> Option<Vec<String>> {
             let area = screen_region(region, frame.width, frame.height)?;
             let readings = readings_of(self.reader.as_ref(), frame, area);
@@ -126,7 +348,7 @@ impl FrameReader for ScreenReader {
             &self.language,
             frame.height,
             text,
-            |search| self.lines_of(frame, search),
+            |search| self.lines_of(frame, search, &how, config),
             field,
             Probes {
                 selected: |name| is_selected(frame, name),
@@ -142,6 +364,10 @@ impl FrameReader for ScreenReader {
                 },
             },
         );
+        let [screen_word, search_word, area_class] = vision_words(reading.screen, how.get());
+        span.record("vision.screen", screen_word);
+        span.record("vision.search", search_word);
+        span.record("vision.area_class", area_class);
         FrameReading {
             screen: reading.screen,
             cards: reading.cards,
@@ -200,7 +426,7 @@ mod tests {
     use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
     use serde_json::Value;
 
-    use super::{AnchorCounts, ScreenReader, is_lit, is_selected};
+    use super::{AnchorCounts, SECOND_PACK_EVERY, ScreenReader, is_lit, is_selected};
     use crate::messages::FrameReading;
     use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
 
@@ -430,8 +656,12 @@ mod tests {
             }
         };
         let pack = LanguagePack::english();
+        let brazilian = brazilian();
         for line in &sidecar.lines {
-            let Some(difficulty) = pack.read_difficulty(&line.text) else {
+            let Some(difficulty) = pack
+                .read_difficulty(&line.text)
+                .or_else(|| brazilian.read_difficulty(&line.text))
+            else {
                 continue;
             };
             let level = if dimmed.contains(&difficulty) {
@@ -449,6 +679,8 @@ mod tests {
                 && text.chars().all(char::is_alphabetic)
                 && pack.read_title_word(text).is_none()
                 && pack.read_difficulty(text).is_none()
+                && brazilian.read_difficulty(text).is_none()
+                && brazilian.read_title_word(text).is_none()
         }) {
             let area = line.region;
             let mut x = area.x + 1;
@@ -477,6 +709,253 @@ mod tests {
             height,
             pixels,
         }
+    }
+
+    /// The Brazilian pack the app ships (`resources/lang/pt-BR.json`, the app crate's test pins the file to these words).
+    fn brazilian() -> LanguagePack {
+        let words = [
+            ("party", "Grupo"),
+            ("gameName", "Nome"),
+            ("password", "Senha"),
+            ("characterLevel", "Nv."),
+            ("classAmazon", "Amazona"),
+            ("classAssassin", "Assassina"),
+            ("classNecromancer", "Necromante"),
+            ("classSorceress", "Maga"),
+            ("titleMatriarch", "Matriarca"),
+            ("createNew", "Criar novo"),
+            ("life", "Vida:"),
+            ("mana", "Mana:"),
+            ("difficultyLabel", "Dificuldade:"),
+            ("selectDifficulty", "Selecionar dificuldade"),
+            ("difficultyNormal", "Normal"),
+            ("difficultyNightmare", "Pesadelo"),
+            ("difficultyHell", "Tormento"),
+            ("tabOnline", "Online"),
+            ("tabOffline", "Offline"),
+        ]
+        .map(|(key, word)| (key.to_string(), word.to_string()));
+        LanguagePack::from_words("pt-BR", words).expect("the pack builds")
+    }
+
+    /// The pack the agent reads with: English, with the Brazilian words as the fallback.
+    fn shipped_like() -> Arc<LanguagePack> {
+        Arc::new(LanguagePack::english().with_fallback(brazilian()))
+    }
+
+    fn read_shipped(json: &str, selected: Option<u8>) -> FrameReading {
+        let sidecar = Sidecar::of(json, 1920, 1080);
+        let image = frame(&sidecar, selected, &[]);
+        ScreenReader::new(Arc::new(sidecar), shipped_like()).read(&image)
+    }
+
+    const PT_SELECT: &str = r#"{
+        "createNew": "Criar novo",
+        "cardTitle0": "Matriarca", "cardName0": "vukVuka", "cardLevel0": "Nv. 88 Maga",
+        "cardTitle1": "", "cardName1": "vukaDao", "cardLevel1": "Nv. 11 Maga",
+        "selectDifficulty": "Selecionar dificuldade",
+        "popupNormal": "Normal", "popupNightmare": "Pesadelo", "popupHell": "Tormento"
+    }"#;
+    const PT_IN_GAME: &str = r#"{ "life": "Vida: 925 / 925" }"#;
+    const PT_AUTOMAP: &str = r#"{ "areaDifficulty": "Dificuldade: Tormento" }"#;
+
+    #[test]
+    fn a_pt_br_client_reads_its_selection_screen_its_popup_and_its_hud_through_the_fallback_pack() {
+        // The field bug: the English words alone read "Unknown" on a pt-BR client.
+        for json in [PT_SELECT, PT_IN_GAME, PT_AUTOMAP] {
+            let sidecar = Sidecar::of(json, 1920, 1080);
+            let image = frame(&sidecar, Some(0), &[]);
+            let english_only =
+                ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english()));
+            assert_eq!(english_only.read(&image).screen, Screen::Unknown);
+        }
+        let reading = read_shipped(PT_SELECT, Some(0));
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
+        assert_eq!(reading.cards[0].level(), 88);
+        assert_eq!(
+            reading.cards[0].title(),
+            Some(d2rmm_agent_domain::characters::Title::Matriarch)
+        );
+        assert_eq!(reading.popup_options, 3);
+        assert_eq!(read_shipped(PT_IN_GAME, None).screen, Screen::InGame);
+        assert_eq!(read_shipped(PT_AUTOMAP, None).screen, Screen::AutomapOpen);
+    }
+
+    #[test]
+    fn the_fallback_pack_leaves_an_english_client_and_an_unknown_frame_as_they_were() {
+        for (json, screen) in [
+            (SELECT_NORMAL, Screen::CharacterSelect),
+            (IN_GAME, Screen::InGame),
+            (AUTOMAP, Screen::AutomapOpen),
+            (MENU, Screen::Unknown),
+        ] {
+            assert_eq!(read_shipped(json, Some(0)).screen, screen);
+            assert_eq!(read(json, Some(0)).screen, screen);
+        }
+        assert_eq!(
+            names(&read_shipped(SELECT_NORMAL, Some(0))),
+            names(&read(SELECT_NORMAL, Some(0)))
+        );
+    }
+
+    #[test]
+    fn a_reader_that_read_the_fallback_language_keeps_reading_it_frame_after_frame() {
+        let sidecar = Sidecar::of(PT_SELECT, 1920, 1080);
+        let image = frame(&sidecar, Some(0), &[]);
+        let reader = ScreenReader::new(Arc::new(sidecar), shipped_like());
+        for _ in 0..3 {
+            let reading = reader.read(&image);
+            assert_eq!(reading.screen, Screen::CharacterSelect);
+            assert_eq!(names(&reading), ["vukVuka", "vukaDao"]);
+        }
+    }
+
+    /// A text reader that counts the reads asked of it and shows the sidecar it was last given: one pass of a reader asks a
+    /// fixed number of reads for a frame, so the count says how many passes (English, pt-BR) a frame cost.
+    struct Counting {
+        shown: Mutex<Sidecar>,
+        asked: std::sync::atomic::AtomicUsize,
+    }
+
+    impl Counting {
+        fn showing(json: &str) -> Arc<Self> {
+            Arc::new(Self {
+                shown: Mutex::new(Sidecar::of(json, 1920, 1080)),
+                asked: std::sync::atomic::AtomicUsize::new(0),
+            })
+        }
+
+        fn show(&self, json: &str) {
+            *self.shown.lock().expect("the shown sidecar") = Sidecar::of(json, 1920, 1080);
+        }
+
+        /// The frame of the sidecar on show.
+        fn frame(&self) -> Rgba {
+            frame(&self.shown.lock().expect("the shown sidecar"), Some(0), &[])
+        }
+
+        /// The reads asked since the last call.
+        fn take(&self) -> usize {
+            self.asked.swap(0, std::sync::atomic::Ordering::Relaxed)
+        }
+
+        fn count(&self) {
+            self.asked
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    impl TextReader for Counting {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.count();
+            self.shown
+                .lock()
+                .expect("the shown sidecar")
+                .read(image, region)
+        }
+
+        fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+            self.count();
+            self.shown
+                .lock()
+                .expect("the shown sidecar")
+                .read_variants(image, region)
+        }
+
+        fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.count();
+            self.shown
+                .lock()
+                .expect("the shown sidecar")
+                .read_lines(image, region)
+        }
+    }
+
+    /// The reads one fresh pass of `pack` costs on the frame of `json` (a reader with no fallback).
+    fn one_pass_cost(json: &str, pack: LanguagePack) -> usize {
+        let counting = Counting::showing(json);
+        let image = counting.frame();
+        ScreenReader::new(
+            Arc::clone(&counting) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(pack),
+        )
+        .read(&image);
+        counting.take()
+    }
+
+    #[test]
+    fn the_language_that_read_the_last_frame_is_read_first_and_no_english_read_happens() {
+        let pt_pass = one_pass_cost(PT_SELECT, brazilian());
+        let english_miss = one_pass_cost(PT_SELECT, LanguagePack::english());
+        let english_pass = one_pass_cost(SELECT_NORMAL, LanguagePack::english());
+        assert!(pt_pass > 0 && english_miss > 0 && english_pass > 0);
+
+        let counting = Counting::showing(PT_SELECT);
+        let pt_image = counting.frame();
+        let reader = ScreenReader::new(
+            Arc::clone(&counting) as Arc<dyn TextReader + Send + Sync>,
+            shipped_like(),
+        );
+        // The first pt-BR frame: English first finds nothing, then pt-BR reads it.
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert_eq!(counting.take(), english_miss + pt_pass);
+        // The next ones: pt-BR first, one pass, no English read.
+        for _ in 0..2 {
+            assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+            assert_eq!(counting.take(), pt_pass);
+        }
+        // A known English frame: pt-BR first finds nothing, English reads it, and the order flips back.
+        counting.show(SELECT_NORMAL);
+        let english_image = counting.frame();
+        assert_eq!(reader.read(&english_image).screen, Screen::CharacterSelect);
+        assert_eq!(
+            counting.take(),
+            one_pass_cost(SELECT_NORMAL, brazilian()) + english_pass
+        );
+        assert_eq!(reader.read(&english_image).screen, Screen::CharacterSelect);
+        assert_eq!(counting.take(), english_pass);
+        // And back to pt-BR: English first again (a miss, its trackers warm), so more than the one pt-BR pass.
+        counting.show(PT_SELECT);
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert!(counting.take() > pt_pass);
+    }
+
+    /// A pt-BR in-game frame whose Life line the engine lost: only the Mana label, a word both packs share.
+    const SHARED_MANA_HUD: &str = r#"{ "lines": [
+        { "text": "Mana: 400 / 400", "x": 1500, "y": 868, "width": 200, "height": 24 }
+    ] }"#;
+
+    #[test]
+    fn a_word_both_packs_share_reads_the_frame_in_whichever_language_goes_first_and_keeps_that_order()
+     {
+        let pt_pass = one_pass_cost(PT_SELECT, brazilian());
+        let counting = Counting::showing(SHARED_MANA_HUD);
+        let mana_image = counting.frame();
+        let reader = ScreenReader::new(
+            Arc::clone(&counting) as Arc<dyn TextReader + Send + Sync>,
+            shipped_like(),
+        );
+        // A fresh reader: English goes first and its "Mana:" matches, so the frame is in game and pt-BR is never asked.
+        assert_eq!(reader.read(&mana_image).screen, Screen::InGame);
+        let english_only = counting.take();
+        assert_eq!(
+            one_pass_cost(SHARED_MANA_HUD, LanguagePack::english()),
+            english_only
+        );
+        // The order is still English first: a pt-BR selection screen pays the English miss before its own pass.
+        counting.show(PT_SELECT);
+        let pt_image = counting.frame();
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert!(counting.take() > pt_pass);
+        // Now pt-BR goes first: the shared word reads in game in pt-BR, with no English read, and the order stays pt-BR.
+        counting.show(SHARED_MANA_HUD);
+        assert_eq!(reader.read(&mana_image).screen, Screen::InGame);
+        let pt_on_mana = counting.take();
+        assert_eq!(one_pass_cost(SHARED_MANA_HUD, brazilian()), pt_on_mana);
+        counting.show(PT_SELECT);
+        assert_eq!(reader.read(&pt_image).screen, Screen::CharacterSelect);
+        assert_eq!(counting.take(), pt_pass);
     }
 
     fn read(json: &str, selected: Option<u8>) -> FrameReading {
@@ -1017,5 +1496,1311 @@ mod tests {
         let inside = Region { x: 0, ..area };
         assert!(!is_lit(&image, Region { y: 0, ..inside }));
         assert!(is_lit(&image, Region { y: 1, ..inside }));
+    }
+
+    // NFR-03: the client sizes other than 1920×1080 (tests only; they pin what the reader returns today).
+
+    /// Full-screen and maximized client sizes the reader supports (aspect 16:10 to 2:1).
+    const FULL_SIZES: [(u32, u32); 8] = [
+        (1280, 720),
+        (1366, 768),
+        (1600, 900),
+        (1920, 1080),
+        (2560, 1440),
+        (3840, 2160),
+        (1920, 1200),
+        (2560, 1600),
+    ];
+    /// The same sizes as a window with a title bar: the height lowered by about 4%.
+    const WINDOWED_SIZES: [(u32, u32); 8] = [
+        (1280, 689),
+        (1366, 735),
+        (1600, 861),
+        (1920, 1033),
+        (2560, 1378),
+        (3840, 2067),
+        (1920, 1148),
+        (2560, 1531),
+    ];
+    /// Sizes outside 16:10 to 2:1: 21:9 twice, 5:4 and 4:3.
+    const UNSUPPORTED_SIZES: [(u32, u32); 4] =
+        [(2560, 1080), (3440, 1440), (1280, 1024), (1024, 768)];
+
+    /// The full-screen print's lines (measured at 1920×1080) moved as a client of `width`×`height` draws them: boxes scale
+    /// with the height, the right-hand list keeps its distance from the right edge and the popup its offset from the centre
+    /// line. The scale rule is the layout's (linear in the height); no real print of another size exists to check it.
+    fn print_scaled(json: &str, width: u32, height: u32) -> Sidecar {
+        let mut sidecar = Sidecar::of(json, width, height);
+        let scale = f64::from(height) / 1080.0;
+        let move_box = |area: Region| {
+            let x = if area.x >= 1200 {
+                i64::from(width) - (f64::from(1920 - area.x) * scale).round() as i64
+            } else {
+                i64::from(width) / 2 + (f64::from(area.x as i32 - 960) * scale).round() as i64
+            };
+            Region {
+                x: x as u32,
+                y: (f64::from(area.y) * scale).round() as u32,
+                width: (f64::from(area.width) * scale).round() as u32,
+                height: (f64::from(area.height) * scale).round() as u32,
+            }
+        };
+        for line in &mut sidecar.lines {
+            line.region = move_box(line.region);
+        }
+        sidecar.gold = sidecar.gold.map(move_box);
+        sidecar
+    }
+
+    fn read_sidecar(sidecar: Sidecar, selected: Option<u8>) -> FrameReading {
+        let image = frame(&sidecar, selected, &[]);
+        ScreenReader::new(Arc::new(sidecar), Arc::new(LanguagePack::english())).read(&image)
+    }
+
+    #[test]
+    fn the_drawn_selection_screens_read_at_every_supported_size_full_screen_or_windowed() {
+        for (width, height) in FULL_SIZES.into_iter().chain(WINDOWED_SIZES) {
+            let at = format!("{width}×{height}");
+            let list = read_at(SELECT_NORMAL, width, height, Some(0));
+            assert_eq!(list.screen, Screen::CharacterSelect, "{at}");
+            assert_eq!(names(&list), ["vukVuka", "vukaDao"], "{at}");
+            assert_eq!(list.cards[0].title(), Some(Title::Matriarch), "{at}");
+            assert_eq!(list.cards[1].title(), None, "{at}");
+            let popup = read_at(SELECT_DIFFICULTY, width, height, Some(0));
+            assert_eq!(popup.screen, Screen::CharacterSelect, "{at}");
+            assert_eq!(popup.popup_options, 3, "{at}");
+        }
+    }
+
+    #[test]
+    fn the_full_screen_print_scaled_to_other_sizes_reads_the_same_cards() {
+        for (width, height) in FULL_SIZES {
+            let at = format!("{width}×{height}");
+            let list = read_sidecar(print_scaled(FULLSCREEN_SELECT, width, height), Some(0));
+            assert_eq!(list.screen, Screen::CharacterSelect, "{at}");
+            assert_eq!(names(&list), ["vukVuka", "vukaDao"], "{at}");
+            let popup = read_sidecar(print_scaled(FULLSCREEN_DIFFICULTY, width, height), Some(0));
+            assert_eq!(popup.screen, Screen::CharacterSelect, "{at}");
+            assert_eq!(popup.popup_options, 3, "{at}");
+        }
+    }
+
+    #[test]
+    fn the_21_9_5_4_and_4_3_sizes_read_no_screen_and_no_card() {
+        for (width, height) in UNSUPPORTED_SIZES {
+            for json in [SELECT_NORMAL, SELECT_DIFFICULTY, IN_GAME, AUTOMAP] {
+                let reading = read_at(json, width, height, None);
+                assert_eq!(reading.screen, Screen::Unknown, "{width}×{height}");
+                assert!(reading.cards.is_empty(), "{width}×{height}");
+                assert_eq!(reading.popup_options, 0, "{width}×{height}");
+            }
+            let print = read_sidecar(print_scaled(FULLSCREEN_SELECT, width, height), None);
+            assert_eq!(print.screen, Screen::Unknown, "{width}×{height}");
+            assert!(print.cards.is_empty(), "{width}×{height}");
+        }
+    }
+
+    /// A text reader that counts each kind of read asked of it, to put a frame's cost in engine calls: the production reader
+    /// makes one engine call for `read` and `read_lines` and six for `read_variants` and `read_line_variants` (nearest 3x
+    /// and the five extra variants of `windows_ocr.rs`).
+    struct Metered {
+        shown: Sidecar,
+        asked: Mutex<[usize; 4]>,
+    }
+
+    /// Engine calls one read of each kind makes in production: `read`, `read_variants`, `read_lines`, `read_line_variants`.
+    const ENGINE_CALLS: [usize; 4] = [1, 6, 1, 6];
+
+    impl Metered {
+        fn showing(json: &str) -> Arc<Self> {
+            Arc::new(Self {
+                shown: Sidecar::of(json, 1920, 1080),
+                asked: Mutex::new([0; 4]),
+            })
+        }
+
+        fn ask(&self, kind: usize) {
+            self.asked.lock().expect("the asked counts")[kind] += 1;
+        }
+
+        /// The reads asked since the last call, by kind.
+        fn take(&self) -> [usize; 4] {
+            std::mem::take(&mut *self.asked.lock().expect("the asked counts"))
+        }
+    }
+
+    impl TextReader for Metered {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.ask(0);
+            self.shown.read(image, region)
+        }
+
+        fn read_variants(&self, image: &Rgba, region: Region) -> Vec<ReadText> {
+            self.ask(1);
+            self.shown.read_variants(image, region)
+        }
+
+        fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.ask(2);
+            self.shown.read_lines(image, region)
+        }
+
+        fn read_line_variants(&self, image: &Rgba, region: Region) -> Vec<Vec<TextLine>> {
+            self.ask(3);
+            vec![self.shown.read_lines(image, region)]
+        }
+    }
+
+    /// A desktop window in front of the game: text of no screen of either language.
+    const DESKTOP: &str = r#"{ "lines": [
+        { "text": "File Edit View", "x": 40, "y": 20, "width": 200, "height": 24 },
+        { "text": "Downloads", "x": 400, "y": 500, "width": 200, "height": 24 }
+    ] }"#;
+
+    /// The engine calls of each of `frames` frames of `json`, read by `pack` as a reader of its own.
+    fn engine_calls(json: &str, pack: Arc<LanguagePack>, frames: usize) -> Vec<usize> {
+        let metered = Metered::showing(json);
+        let image = frame(&metered.shown, Some(0), &[]);
+        let reader = ScreenReader::new(
+            Arc::clone(&metered) as Arc<dyn TextReader + Send + Sync>,
+            pack,
+        );
+        (0..frames)
+            .map(|_| {
+                reader.read(&image);
+                let asked = metered.take();
+                asked.iter().zip(ENGINE_CALLS).map(|(n, c)| n * c).sum()
+            })
+            .collect()
+    }
+
+    fn shipped_calls(json: &str, frames: usize) -> Vec<usize> {
+        engine_calls(json, shipped_like(), frames)
+    }
+
+    #[test]
+    fn an_english_client_in_steady_state_pays_one_pass_per_frame() {
+        // Selection screen 60 engine calls a frame, HUD 12, open automap 6: the English pass, and no pt-BR read at all, so
+        // each frame costs what an English-only reader pays for it.
+        for (json, per_frame) in [(SELECT_NORMAL, 60), (IN_GAME, 12), (AUTOMAP, 6)] {
+            let english_only = engine_calls(json, Arc::new(LanguagePack::english()), 6);
+            assert_eq!(english_only, [per_frame; 6]);
+            assert_eq!(shipped_calls(json, 6), english_only);
+        }
+    }
+
+    #[test]
+    fn a_pt_br_client_in_steady_state_pays_one_pass_per_frame_after_the_first_frame() {
+        // The first frame pays the English miss as well (the cost of learning the language); then the pt-BR pass alone, the
+        // same cost per frame as an English client's.
+        for (json, first, per_frame) in [
+            (PT_SELECT, 102, 60),
+            (PT_IN_GAME, 54, 12),
+            (PT_AUTOMAP, 48, 6),
+        ] {
+            let calls = shipped_calls(json, 6);
+            assert_eq!(calls[0], first);
+            assert_eq!(calls[1..], [per_frame; 5]);
+            assert_eq!(
+                calls[1..],
+                engine_calls(json, Arc::new(brazilian()), 6)[1..]
+            );
+        }
+    }
+
+    #[test]
+    fn a_frame_unknown_in_both_languages_asks_the_second_pack_on_every_fifth_frame_only() {
+        // A main menu, a loading screen (no text) or a desktop window reads `Unknown` in both packs. T17: the second pack
+        // is asked on the first frame of the run and then every `SECOND_PACK_EVERY`th, so most frames pay the English pass
+        // alone (before T17 every frame paid both: 84 and 60 alternating, 72 on average). Each pack's wide searches rest
+        // on their own cadence, so the cost repeats with a period of ten frames.
+        for json in [MENU, "{}", DESKTOP] {
+            let both = shipped_calls(json, 600);
+            let english = engine_calls(json, Arc::new(LanguagePack::english()), 600);
+            assert_eq!(
+                both[..10],
+                [84, 30, 42, 30, 42, 60, 42, 30, 42, 30],
+                "both packs on the first frame, the English pass alone on the next four"
+            );
+            assert_eq!(both[590..], both[..10], "it repeats and does not drift");
+            assert_eq!(
+                both.iter().sum::<usize>(),
+                600 * 432 / 10,
+                "43 engine calls a frame on average, 72 before"
+            );
+            for (frame, calls) in both.iter().enumerate() {
+                if !frame.is_multiple_of(SECOND_PACK_EVERY) {
+                    assert_eq!(
+                        *calls, english[frame],
+                        "frame {frame}: the English pass alone"
+                    );
+                }
+            }
+            assert!(both.iter().sum::<usize>() < english.iter().sum::<usize>() * 2);
+        }
+    }
+
+    #[test]
+    fn an_unknown_frame_costs_less_than_a_selection_screen_and_more_than_a_hud_of_an_english_client()
+     {
+        let unknown = shipped_calls(MENU, 600).iter().sum::<usize>() / 600;
+        let hud = shipped_calls(IN_GAME, 6)[5];
+        let select = shipped_calls(SELECT_NORMAL, 6)[5];
+        assert_eq!((unknown, hud, select), (43, 12, 60));
+        assert!(select > unknown && unknown > hud);
+    }
+
+    #[test]
+    fn a_pt_br_client_is_recognised_on_its_first_frame_and_within_the_bound_after_an_unknown_run() {
+        for json in [PT_SELECT, PT_IN_GAME, PT_AUTOMAP] {
+            // The first frame: both packs are read, as before T17.
+            let first = shipped_calls(json, 1);
+            let english_pass = engine_calls(json, Arc::new(LanguagePack::english()), 1)[0];
+            assert!(first[0] > english_pass, "the pt-BR pass was asked");
+        }
+        // Menu frames first, then the pt-BR HUD appears: the reader that read nothing yet asks pt-BR on the next
+        // second-pack frame, at most `SECOND_PACK_EVERY - 1` frames after the screen changed.
+        for skipped in 0..SECOND_PACK_EVERY {
+            let shown = Counting::showing(MENU);
+            let reader = ScreenReader::new(
+                Arc::clone(&shown) as Arc<dyn TextReader + Send + Sync>,
+                shipped_like(),
+            );
+            let image = shown.frame();
+            for _ in 0..=skipped {
+                assert_eq!(reader.read(&image).screen, Screen::Unknown);
+            }
+            shown.show(PT_IN_GAME);
+            let mut looks = 0;
+            while reader.read(&image).screen != Screen::InGame {
+                looks += 1;
+                assert!(looks < SECOND_PACK_EVERY, "recognised within the bound");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod hud_tests {
+    use std::sync::{Arc, Mutex};
+
+    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::presence::Screen;
+    use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
+
+    use super::ScreenReader;
+    use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
+
+    /// A reader of a HUD: the lines it shows are found when their middle is inside the area asked; every area asked is
+    /// recorded. The HUD's lines can be taken away between frames.
+    struct Hud {
+        lines: Mutex<Vec<TextLine>>,
+        asked: Mutex<Vec<Region>>,
+    }
+
+    impl Hud {
+        fn new(lines: Vec<TextLine>) -> Arc<Self> {
+            Arc::new(Self {
+                lines: Mutex::new(lines),
+                asked: Mutex::new(Vec::new()),
+            })
+        }
+
+        fn take_asked(&self) -> Vec<Region> {
+            std::mem::take(&mut *self.asked.lock().expect("asked"))
+        }
+    }
+
+    impl TextReader for Hud {
+        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+            Err(ReadError::Failed)
+        }
+
+        fn read_lines(&self, _image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.asked.lock().expect("asked").push(region);
+            self.lines
+                .lock()
+                .expect("lines")
+                .iter()
+                .filter(|line| {
+                    let (x, y) = (line.region.middle_x(), line.region.middle_y());
+                    region.x <= x && x < region.right() && region.y <= y && y < region.bottom()
+                })
+                .cloned()
+                .collect()
+        }
+    }
+
+    fn life(x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: "Life: 925 / 925".to_string(),
+            region: Region {
+                x,
+                y,
+                width: 160,
+                height: 22,
+            },
+        }
+    }
+
+    fn frame(width: u32, height: u32) -> Rgba {
+        Rgba {
+            width,
+            height,
+            pixels: vec![0; width as usize * height as usize * 4],
+        }
+    }
+
+    fn reader(hud: &Arc<Hud>) -> ScreenReader {
+        ScreenReader::new(
+            Arc::clone(hud) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        )
+    }
+
+    fn band_reads(asked: &[Region]) -> usize {
+        asked.iter().filter(|area| area.width == 1920).count()
+    }
+
+    #[test]
+    fn the_life_label_is_found_in_the_window_and_in_full_screen() {
+        // The two layouts put the label at other places (window 1920×1056, full screen 1920×1080).
+        for (width, height, x, y) in [(1920, 1056, 400, 846), (1920, 1080, 436, 880)] {
+            let hud = Hud::new(vec![life(x, y)]);
+            let reading = reader(&hud).read(&frame(width, height));
+            assert_eq!(reading.screen, Screen::InGame, "{width}×{height}");
+        }
+    }
+
+    fn difficulty(x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: "Difficulty: Hell".to_string(),
+            region: Region {
+                x,
+                y,
+                width: 150,
+                height: 18,
+            },
+        }
+    }
+
+    #[test]
+    fn the_automap_is_found_by_its_word_where_the_fixed_box_misses_and_then_tracked() {
+        // 1920×1056: the line is at the top right but not in the fixed box. The HUD is on screen too: the automap wins.
+        let hud = Hud::new(vec![difficulty(1600, 120), life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1056);
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let first = hud.take_asked();
+        assert_eq!(automap_reads(&first), 1, "searched");
+        assert_eq!(band_reads(&first), 0, "the band is not read");
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let second = hud.take_asked();
+        assert_eq!(automap_reads(&second), 0, "only tracked");
+        assert!(second.iter().any(|area| area.width < 400 && area.x > 1400));
+    }
+
+    #[test]
+    fn a_closed_automap_searches_its_area_again_and_reads_the_hud() {
+        let hud = Hud::new(vec![difficulty(1600, 120), life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        *hud.lines.lock().expect("lines") = vec![life(436, 880)];
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        hud.take_asked();
+        // The search that found nothing rests one frame (NFR-03 CPU), then the area is read again.
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(automap_reads(&hud.take_asked()), 0, "the search rests");
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(automap_reads(&hud.take_asked()), 1);
+    }
+
+    /// The reads of the whole automap area (about 560 px wide on the reference client, at the top), not of a box around a
+    /// line.
+    fn automap_reads(asked: &[Region]) -> usize {
+        asked
+            .iter()
+            .filter(|area| (500..1000).contains(&area.width) && area.y < 400)
+            .count()
+    }
+
+    /// The reads of the whole area the character list's "Create New" button is searched in (about 560 px wide, at the
+    /// bottom right).
+    fn marker_area_reads(asked: &[Region]) -> usize {
+        asked
+            .iter()
+            .filter(|area| (500..1000).contains(&area.width) && area.y > 700)
+            .count()
+    }
+
+    fn create_new(x: u32, y: u32) -> TextLine {
+        TextLine {
+            text: "Create New".to_string(),
+            region: Region {
+                x,
+                y,
+                width: 140,
+                height: 22,
+            },
+        }
+    }
+
+    #[test]
+    fn the_list_marker_is_found_by_its_word_where_the_fixed_box_misses_and_then_tracked() {
+        // 1920×1080 full screen: the button is at 1650,905, not in the fixed box. Rule 14: before this change the frame read
+        // `Unknown` (the pinned domain test of the previous commit).
+        let hud = Hud::new(vec![create_new(1650, 905)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        let first = hud.take_asked();
+        assert_eq!(marker_area_reads(&first), 1, "searched: {first:?}");
+        for _ in 0..3 {
+            assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+            let steady = hud.take_asked();
+            assert_eq!(marker_area_reads(&steady), 0, "only tracked: {steady:?}");
+            assert!(
+                steady.iter().any(|area| area.width < 400
+                    && area.x <= 1650
+                    && area.y <= 905
+                    && area.y > 700),
+                "the box around the button is read: {steady:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_list_marker_that_moves_out_of_its_box_is_searched_again_once() {
+        let hud = Hud::new(vec![create_new(1650, 905)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        hud.take_asked();
+        *hud.lines.lock().expect("lines") = vec![create_new(1500, 960)];
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        let miss = hud.take_asked();
+        assert_eq!(marker_area_reads(&miss), 1, "{miss:?}");
+        assert_eq!(screens.read(&frame).screen, Screen::CharacterSelect);
+        assert_eq!(marker_area_reads(&hud.take_asked()), 0, "tracked again");
+    }
+
+    #[test]
+    fn a_frame_that_is_neither_the_list_nor_the_game_reads_the_marker_area_every_second_frame_at_most()
+     {
+        // Steady state of a menu or a loading screen: nothing is found, so the area cannot be tracked. The search rests one
+        // frame after each miss (`LIST_SEARCH_EVERY`): one read in two frames, none in between.
+        let hud = Hud::new(vec![]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let mut per_frame = Vec::new();
+        for _ in 0..6 {
+            assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+            per_frame.push(marker_area_reads(&hud.take_asked()));
+        }
+        assert_eq!(per_frame, [1, 0, 1, 0, 1, 0]);
+    }
+
+    /// ocr-protection (remote-config T23, rule 14): how often the two wide areas are searched while their marker is not
+    /// found, as measured before the cadences come from the configuration. 600 looks of a frame that shows nothing: the band
+    /// every look, the automap area and the list marker area every second look. They pass on the code as it was and must
+    /// pass with the defaults threaded in.
+    #[test]
+    fn six_hundred_looks_of_nothing_search_each_wide_area_three_hundred_times() {
+        let hud = Hud::new(vec![]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let (mut band, mut automap, mut marker) = (0, 0, 0);
+        for _ in 0..600 {
+            assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+            let asked = hud.take_asked();
+            band += band_reads(&asked);
+            automap += automap_reads(&asked);
+            marker += marker_area_reads(&asked);
+        }
+        assert_eq!((band, automap, marker), (600, 300, 300));
+    }
+
+    /// remote-config T25: the two search periods come from the configuration. 600 looks of a frame that shows nothing search
+    /// each wide area 300 times at the default and today's floor of 2, and 60 times at the ceiling of 10; the band is read on
+    /// every look whatever the periods.
+    #[test]
+    fn the_search_cadences_of_the_configuration_set_how_often_each_wide_area_is_read() {
+        let searches = |automap_every: u32, list_every: u32| {
+            let hud = Hud::new(vec![]);
+            let screens = reader(&hud);
+            let frame = frame(1920, 1080);
+            let mut config = d2rmm_agent_domain::remote_config::Effective::built_in();
+            config.cadence.automap_search_every = automap_every;
+            config.cadence.list_search_every = list_every;
+            let (mut band, mut automap, mut marker) = (0, 0, 0);
+            for _ in 0..600 {
+                assert_eq!(screens.read_with(&frame, &config).screen, Screen::Unknown);
+                let asked = hud.take_asked();
+                band += band_reads(&asked);
+                automap += automap_reads(&asked);
+                marker += marker_area_reads(&asked);
+            }
+            (band, automap, marker)
+        };
+        assert_eq!(searches(2, 2), (600, 300, 300), "today's period");
+        assert_eq!(searches(10, 10), (600, 60, 60), "the ceiling");
+        assert_eq!(searches(10, 2), (600, 60, 300), "each area on its own");
+        assert_eq!(searches(2, 10), (600, 300, 60), "each area on its own");
+    }
+
+    #[test]
+    fn an_in_game_or_automap_frame_never_reads_the_marker_area() {
+        // The steady state of the game adds no read for the list marker: the HUD or the automap is found first.
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        for _ in 0..4 {
+            assert_eq!(screens.read(&frame).screen, Screen::InGame);
+            assert_eq!(marker_area_reads(&hud.take_asked()), 0);
+        }
+        let map = Hud::new(vec![difficulty(1600, 120)]);
+        let screens = reader(&map);
+        for _ in 0..4 {
+            assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+            assert_eq!(marker_area_reads(&map.take_asked()), 0);
+        }
+    }
+
+    #[test]
+    fn bottom_right_text_that_is_not_the_marker_is_no_list() {
+        // Only the word is the marker: a part of it ("Create") does not make a frame the selection screen.
+        let hud = Hud::new(vec![TextLine {
+            text: "Create".to_string(),
+            region: Region {
+                x: 1650,
+                y: 905,
+                width: 70,
+                height: 22,
+            },
+        }]);
+        assert_eq!(
+            reader(&hud).read(&frame(1920, 1080)).screen,
+            Screen::Unknown
+        );
+    }
+
+    #[test]
+    fn the_life_label_is_found_at_every_client_height_of_the_prints() {
+        // The label at 826/1033 of the height, 400 px from the left, for the heights of the maintainer's prints.
+        for height in [1033u32, 1045, 1056, 1080] {
+            let hud = Hud::new(vec![life(400, 826 * height / 1033 + 8)]);
+            let reading = reader(&hud).read(&frame(1920, height));
+            assert_eq!(reading.screen, Screen::InGame, "1920×{height}");
+        }
+    }
+
+    #[test]
+    fn a_find_at_one_client_size_is_not_tracked_at_another_after_a_loss() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        assert_eq!(screens.read(&frame(1920, 1080)).screen, Screen::InGame);
+        hud.lines.lock().expect("lines").clear();
+        assert_eq!(screens.read(&frame(1920, 1080)).screen, Screen::Unknown);
+        *hud.lines.lock().expect("lines") = vec![life(400, 834)];
+        hud.take_asked();
+        assert_eq!(screens.read(&frame(1920, 1045)).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1, "a new size searches");
+    }
+
+    #[test]
+    fn after_a_find_only_a_small_box_around_the_line_is_read() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1, "the first frame searches");
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let asked = hud.take_asked();
+        assert_eq!(band_reads(&asked), 0, "the second frame only tracks");
+        assert!(
+            asked
+                .iter()
+                .any(|area| area.width < 400 && area.x <= 436 && area.y <= 880)
+        );
+    }
+
+    #[test]
+    fn a_miss_while_tracking_searches_the_band_again() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        hud.take_asked();
+        // The line moves out of its box (a layout change): the band finds it again.
+        *hud.lines.lock().expect("lines") = vec![life(900, 950)];
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1);
+        // And is tracked at the new place.
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 0);
+    }
+
+    #[test]
+    fn a_line_gone_is_not_in_game_and_the_next_frame_searches_the_band() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        hud.lines.lock().expect("lines").clear();
+        assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+        hud.take_asked();
+        assert_eq!(screens.read(&frame).screen, Screen::Unknown);
+        assert_eq!(band_reads(&hud.take_asked()), 1);
+    }
+
+    #[test]
+    fn a_frame_of_another_size_searches_the_band() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        assert_eq!(screens.read(&frame(1920, 1080)).screen, Screen::InGame);
+        hud.take_asked();
+        assert_eq!(screens.read(&frame(1920, 1056)).screen, Screen::InGame);
+        assert_eq!(band_reads(&hud.take_asked()), 1);
+    }
+
+    #[test]
+    fn a_tracked_hud_costs_one_read_of_its_box_and_a_miss_one_extra_band_search() {
+        // Steady state of the in-game frame: the automap area is searched (no automap yet, so it cannot be tracked) and the
+        // HUD's small box is read; the band is read only on the first frame and after a miss, then tracking resumes.
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let small = |asked: &[Region]| asked.iter().filter(|area| area.width < 400).count();
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let first = hud.take_asked();
+        assert_eq!(
+            (first.len(), automap_reads(&first), band_reads(&first)),
+            (2, 1, 1)
+        );
+        // The automap area cannot be tracked, so it is searched on every second frame (`AUTOMAP_SEARCH_EVERY`): the
+        // ceiling is two reads, and the frame between reads only the tracked box.
+        for (frame_number, area_reads) in [(1, 0), (2, 1), (3, 0)] {
+            assert_eq!(screens.read(&frame).screen, Screen::InGame);
+            let steady = hud.take_asked();
+            assert_eq!(
+                steady.len(),
+                1 + area_reads,
+                "frame {frame_number}: the tracked box, and the automap area on every second frame: {steady:?}"
+            );
+            assert_eq!(
+                (automap_reads(&steady), small(&steady), band_reads(&steady)),
+                (area_reads, 1, 0),
+                "frame {frame_number}"
+            );
+        }
+        // The label moves out of its box: the tracked box, then one band search; the next frame tracks the new place.
+        *hud.lines.lock().expect("lines") = vec![life(900, 950)];
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        let miss = hud.take_asked();
+        assert_eq!(
+            (miss.len(), small(&miss), band_reads(&miss)),
+            (3, 1, 1),
+            "{miss:?}"
+        );
+        assert_eq!(screens.read(&frame).screen, Screen::InGame);
+        // The automap area's search of that frame found nothing again, so this frame reads only the tracked box.
+        let resumed = hud.take_asked();
+        assert_eq!((resumed.len(), band_reads(&resumed)), (1, 0), "{resumed:?}");
+    }
+
+    #[test]
+    fn a_tracked_automap_costs_one_read_of_its_box_and_a_miss_one_extra_area_search() {
+        let hud = Hud::new(vec![difficulty(1600, 120)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1056);
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let first = hud.take_asked();
+        assert_eq!(
+            (first.len(), automap_reads(&first)),
+            (1, 1),
+            "searched once"
+        );
+        for _ in 0..3 {
+            assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+            let steady = hud.take_asked();
+            assert_eq!((steady.len(), automap_reads(&steady)), (1, 0), "{steady:?}");
+        }
+        // The line moves: the tracked box misses, the whole area is searched once, and tracking resumes.
+        *hud.lines.lock().expect("lines") = vec![difficulty(1500, 200)];
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let miss = hud.take_asked();
+        assert_eq!((miss.len(), automap_reads(&miss)), (2, 1), "{miss:?}");
+        assert_eq!(screens.read(&frame).screen, Screen::AutomapOpen);
+        let resumed = hud.take_asked();
+        assert_eq!(
+            (resumed.len(), automap_reads(&resumed)),
+            (1, 0),
+            "{resumed:?}"
+        );
+    }
+
+    /// Every `agent.vision.read` span's fields, as text, in creation order.
+    type SpanFields = Vec<(String, String)>;
+
+    #[derive(Default)]
+    struct Spans {
+        recorded: Mutex<Vec<(String, SpanFields)>>,
+    }
+
+    struct Writer<'a>(&'a mut Vec<(String, String)>);
+
+    impl tracing::field::Visit for Writer<'_> {
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            self.0.push((field.name().to_string(), value.to_string()));
+        }
+
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            self.0
+                .push((field.name().to_string(), format!("{value:?}")));
+        }
+    }
+
+    impl tracing::Subscriber for Spans {
+        fn enabled(&self, _metadata: &tracing::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn new_span(&self, attrs: &tracing::span::Attributes<'_>) -> tracing::Id {
+            let mut fields = Vec::new();
+            attrs.record(&mut Writer(&mut fields));
+            let mut recorded = self.recorded.lock().expect("spans");
+            recorded.push((attrs.metadata().name().to_string(), fields));
+            tracing::Id::from_u64(recorded.len() as u64)
+        }
+
+        fn record(&self, span: &tracing::Id, values: &tracing::span::Record<'_>) {
+            let mut recorded = self.recorded.lock().expect("spans");
+            if let Some((_, fields)) = recorded.get_mut(span.into_u64() as usize - 1) {
+                values.record(&mut Writer(fields));
+            }
+        }
+
+        fn record_follows_from(&self, _span: &tracing::Id, _follows: &tracing::Id) {}
+
+        fn event(&self, _event: &tracing::Event<'_>) {}
+
+        fn enter(&self, _span: &tracing::Id) {}
+
+        fn exit(&self, _span: &tracing::Id) {}
+    }
+
+    /// The `agent.vision.read` fields of one read, as `screen/search/area_class`.
+    pub(super) fn words_of(screens: &ScreenReader, frame: &Rgba) -> String {
+        let spans = Arc::new(Spans::default());
+        crate::test_interest::always();
+        let guard = tracing::subscriber::set_default(Arc::clone(&spans));
+        tracing::callsite::rebuild_interest_cache();
+        screens.read(frame);
+        drop(guard);
+        let recorded = spans.recorded.lock().expect("spans");
+        let (name, fields) = recorded.last().expect("a span");
+        assert_eq!(name, "agent.vision.read");
+        let get = |key: &str| {
+            fields
+                .iter()
+                .find(|(name, _)| name == key)
+                .map(|(_, value)| value.clone())
+                .unwrap_or_default()
+        };
+        assert_eq!(fields.len(), 3, "three fields and no more: {fields:?}");
+        format!(
+            "{}/{}/{}",
+            get("vision.screen"),
+            get("vision.search"),
+            get("vision.area_class")
+        )
+    }
+
+    #[test]
+    fn the_read_span_carries_the_screen_the_search_and_the_area_class_as_fixed_words() {
+        let hud = Hud::new(vec![life(436, 880)]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        assert_eq!(words_of(&screens, &frame), "in_game/band/band");
+        assert_eq!(words_of(&screens, &frame), "in_game/track/box");
+        hud.lines.lock().expect("lines").clear();
+        assert_eq!(words_of(&screens, &frame), "unknown/band/band");
+    }
+
+    #[test]
+    fn the_read_span_of_a_frame_that_finds_nothing_is_pinned_frame_by_frame() {
+        let hud = Hud::new(vec![]);
+        let screens = reader(&hud);
+        let frame = frame(1920, 1080);
+        let words: Vec<String> = (0..4).map(|_| words_of(&screens, &frame)).collect();
+        assert_eq!(
+            words,
+            [
+                "unknown/band/band",
+                "unknown/rested/box",
+                "unknown/band/band",
+                "unknown/rested/box"
+            ],
+            "changed expectation (#104 fix round 1, was band on every frame): the frame whose list-marker search rests says so"
+        );
+    }
+
+    #[test]
+    fn the_words_of_a_rested_frame_are_fixed_words() {
+        use super::{Search, vision_words};
+        use d2rmm_agent_domain::presence::Screen;
+        assert_eq!(
+            vision_words(Screen::Unknown, Some(Search::Rested)),
+            ["unknown", "rested", "box"]
+        );
+        assert_eq!(
+            vision_words(Screen::CharacterSelect, Some(Search::Rested)),
+            ["character_select", "rested", "panel"]
+        );
+    }
+
+    #[test]
+    fn the_words_of_a_frame_with_no_search_are_fixed_or_none() {
+        use super::{Search, vision_words};
+        use d2rmm_agent_domain::presence::Screen;
+        assert_eq!(
+            vision_words(Screen::InGame, None),
+            ["in_game", "fixed", "box"]
+        );
+        assert_eq!(
+            vision_words(Screen::CharacterSelect, None),
+            ["character_select", "fixed", "panel"]
+        );
+        assert_eq!(
+            vision_words(Screen::Unknown, None),
+            ["unknown", "none", "box"]
+        );
+        assert_eq!(
+            vision_words(Screen::AutomapOpen, Some(Search::Track)),
+            ["automap", "track", "box"]
+        );
+    }
+
+    // NFR-03: the in-game HUD and the automap at client sizes other than 1920×1080 (tests only; they pin today's reading).
+
+    const FULL_SIZES: [(u32, u32); 8] = [
+        (1280, 720),
+        (1366, 768),
+        (1600, 900),
+        (1920, 1080),
+        (2560, 1440),
+        (3840, 2160),
+        (1920, 1200),
+        (2560, 1600),
+    ];
+    const WINDOWED_SIZES: [(u32, u32); 8] = [
+        (1280, 689),
+        (1366, 735),
+        (1600, 861),
+        (1920, 1033),
+        (2560, 1378),
+        (3840, 2067),
+        (1920, 1148),
+        (2560, 1531),
+    ];
+    const UNSUPPORTED_SIZES: [(u32, u32); 4] =
+        [(2560, 1080), (3440, 1440), (1280, 1024), (1024, 768)];
+
+    /// A line of the measured print (`print_x`, `print_y`, 1920 wide, `print_height` tall) as a client of `width`×`height`
+    /// draws it: scaled with the height; the HUD (`centred`) keeps its offset from the centre line, the top-right text its
+    /// distance from the right edge. The rule is the layout's (linear in the height); no real print of another size exists.
+    fn scaled_line(
+        text: &str,
+        print: (u32, u32, u32),
+        size: (u32, u32),
+        centred: bool,
+        box_size: (u32, u32),
+    ) -> TextLine {
+        let (print_x, print_y, print_height) = print;
+        let (width, height) = size;
+        let scale = f64::from(height) / f64::from(print_height);
+        let x = if centred {
+            f64::from(width) / 2.0 + (f64::from(print_x) - 960.0) * scale
+        } else {
+            f64::from(width) - (1920.0 - f64::from(print_x)) * scale
+        };
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x: x.round() as u32,
+                y: (f64::from(print_y) * scale).round() as u32,
+                width: (f64::from(box_size.0) * scale).round() as u32,
+                height: (f64::from(box_size.1) * scale).round() as u32,
+            },
+        }
+    }
+
+    /// The life label and the automap's difficulty line of a client: full screen from the 1920×1080 prints, windowed from the
+    /// 1920×1056 ones.
+    fn hud_of(width: u32, height: u32, windowed: bool) -> (TextLine, TextLine) {
+        let (life_at, print_height) = if windowed {
+            ((400, 846), 1056)
+        } else {
+            ((436, 880), 1080)
+        };
+        (
+            scaled_line(
+                "Life: 925 / 925",
+                (life_at.0, life_at.1, print_height),
+                (width, height),
+                true,
+                (160, 22),
+            ),
+            scaled_line(
+                "Difficulty: Hell",
+                (1600, 120, print_height),
+                (width, height),
+                false,
+                (150, 18),
+            ),
+        )
+    }
+
+    #[test]
+    fn the_hud_and_the_automap_read_at_every_supported_size_full_screen_or_windowed() {
+        for (windowed, sizes) in [(false, FULL_SIZES), (true, WINDOWED_SIZES)] {
+            for (width, height) in sizes {
+                let at = format!("{width}×{height} windowed={windowed}");
+                let (life, difficulty) = hud_of(width, height, windowed);
+                let in_game = reader(&Hud::new(vec![life.clone()])).read(&frame(width, height));
+                assert_eq!(in_game.screen, Screen::InGame, "{at}");
+                assert!(in_game.cards.is_empty(), "{at}");
+                let automap = reader(&Hud::new(vec![life, difficulty])).read(&frame(width, height));
+                assert_eq!(automap.screen, Screen::AutomapOpen, "{at}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_hud_and_the_automap_of_an_unsupported_size_read_unknown_and_ask_the_engine_nothing() {
+        for (width, height) in UNSUPPORTED_SIZES {
+            let (life, difficulty) = hud_of(width, height.min(1080), false);
+            let hud = Hud::new(vec![life, difficulty]);
+            let reading = reader(&hud).read(&frame(width, height));
+            assert_eq!(reading.screen, Screen::Unknown, "{width}×{height}");
+            assert!(hud.take_asked().is_empty(), "{width}×{height}");
+        }
+    }
+}
+
+/// A popup over a list the game dims (screen-recognition T9): the cards behind it are as readable as their pixels are bright.
+#[cfg(test)]
+mod dim_tests {
+    use std::sync::{Arc, Mutex};
+
+    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::layout::{ScreenRegion, screen_region};
+    use d2rmm_agent_domain::presence::Screen;
+    use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
+
+    use super::ScreenReader;
+    use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
+
+    /// How bright the brightest pixel of a region must be for the fake engine to read the text there.
+    const READABLE: u8 = 180;
+
+    /// A reader of a scene whose lines read only where the frame is bright; every area asked is recorded.
+    struct Dimmed {
+        lines: Vec<TextLine>,
+        asked: Mutex<Vec<Region>>,
+    }
+
+    impl Dimmed {
+        fn new(lines: Vec<TextLine>) -> Arc<Self> {
+            Arc::new(Self {
+                lines,
+                asked: Mutex::new(Vec::new()),
+            })
+        }
+
+        fn take_asked(&self) -> Vec<Region> {
+            std::mem::take(&mut *self.asked.lock().expect("asked"))
+        }
+
+        fn bright(image: &Rgba, area: Region) -> bool {
+            (area.y..area.bottom().min(image.height)).any(|y| {
+                (area.x..area.right().min(image.width)).any(|x| {
+                    let at = (y as usize * image.width as usize + x as usize) * 4;
+                    image.pixels[at] >= READABLE
+                })
+            })
+        }
+
+        fn inside(area: Region, line: &TextLine) -> bool {
+            let (x, y) = (line.region.middle_x(), line.region.middle_y());
+            area.x <= x && x < area.right() && area.y <= y && y < area.bottom()
+        }
+    }
+
+    impl TextReader for Dimmed {
+        fn read(&self, image: &Rgba, region: Region) -> Result<ReadText, ReadError> {
+            self.lines
+                .iter()
+                .find(|line| Self::inside(region, line) && Self::bright(image, line.region))
+                .map(|line| ReadText {
+                    text: line.text.clone(),
+                    confidence: 1.0,
+                })
+                .ok_or(ReadError::Failed)
+        }
+
+        fn read_lines(&self, image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.asked.lock().expect("asked").push(region);
+            self.lines
+                .iter()
+                .filter(|line| Self::inside(region, line) && Self::bright(image, line.region))
+                .cloned()
+                .collect()
+        }
+    }
+
+    fn line(text: &str, x: u32, y: u32, width: u32) -> TextLine {
+        TextLine {
+            text: text.to_string(),
+            region: Region {
+                x,
+                y,
+                width,
+                height: 18,
+            },
+        }
+    }
+
+    /// The popup's four lines and the two cards behind it, at the 1920×1080 client's places.
+    fn scene() -> Vec<TextLine> {
+        vec![
+            line("Select Difficulty", 900, 360, 216),
+            line("Normal", 900, 430, 200),
+            line("Nightmare", 900, 500, 200),
+            line("Hell", 900, 570, 200),
+            line("vukVuka", 1576, 91, 236),
+            line("Level 88 Sorceress", 1576, 114, 236),
+            line("vukaDao", 1576, 181, 236),
+            line("Level 11 Sorceress", 1576, 204, 236),
+        ]
+    }
+
+    /// A frame with the popup bright and the card column at `column` brightness.
+    fn frame(column: u8) -> Rgba {
+        let (width, height) = (1920u32, 1080u32);
+        let mut pixels = vec![255u8; width as usize * height as usize * 4];
+        let area = screen_region(ScreenRegion::CardColumn, width, height).expect("column");
+        for y in area.y..area.bottom() {
+            for x in area.x..area.right() {
+                let at = (y as usize * width as usize + x as usize) * 4;
+                pixels[at..at + 3].fill(column);
+            }
+        }
+        Rgba {
+            width,
+            height,
+            pixels,
+        }
+    }
+
+    fn read(reader: &Arc<Dimmed>, frame: &Rgba) -> crate::messages::FrameReading {
+        ScreenReader::new(
+            Arc::clone(reader) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        )
+        .read(frame)
+    }
+
+    #[test]
+    fn a_popup_over_a_bright_column_reads_both_cards_with_one_read_of_the_column() {
+        let reader = Dimmed::new(scene());
+        let reading = read(&reader, &frame(255));
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!(reading.cards.len(), 2);
+        let column = screen_region(ScreenRegion::CardColumn, 1920, 1080).expect("column");
+        let asked = reader.take_asked();
+        assert_eq!(asked.iter().filter(|area| **area == column).count(), 1);
+    }
+
+    #[test]
+    fn a_popup_over_a_column_too_dim_for_the_engine_reads_no_card() {
+        // Pinned before the change (the `slots0-options3` class): the dimmed text reads as nothing, so no slot is read.
+        let reader = Dimmed::new(scene());
+        let reading = read(&reader, &frame(70));
+        assert_eq!(reading.screen, Screen::CharacterSelect);
+        assert_eq!((reading.cards.len(), reading.slots_read), (0, 0));
+        assert_eq!(reading.popup_options, 3);
+    }
+}
+
+/// remote-config T16/T17: the configuration reaches the areas the reader asks the text port to read, and none configured
+/// reads exactly as `read` does.
+#[cfg(test)]
+mod config_threaded {
+    use std::sync::{Arc, Mutex};
+
+    use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::presence::Screen;
+    use d2rmm_agent_domain::remote_config::{Area, Effective};
+    use d2rmm_agent_domain::vision::{ReadText, Region, TextLine};
+
+    use super::ScreenReader;
+    use crate::ports::{FrameReader, ReadError, Rgba, TextReader};
+
+    /// Shows one Life line wherever it is asked about, and records every area asked.
+    struct Life {
+        asked: Mutex<Vec<Region>>,
+        shown: bool,
+    }
+
+    impl Life {
+        fn new(shown: bool) -> Arc<Self> {
+            Arc::new(Self {
+                asked: Mutex::new(Vec::new()),
+                shown,
+            })
+        }
+
+        fn take_asked(&self) -> Vec<Region> {
+            std::mem::take(&mut *self.asked.lock().expect("asked"))
+        }
+    }
+
+    impl TextReader for Life {
+        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+            Err(ReadError::Failed)
+        }
+
+        fn read_lines(&self, _image: &Rgba, region: Region) -> Vec<TextLine> {
+            self.asked.lock().expect("asked").push(region);
+            let line = Region {
+                x: 436,
+                y: 880,
+                width: 160,
+                height: 22,
+            };
+            let inside = region.x <= line.middle_x()
+                && line.middle_x() < region.right()
+                && region.y <= line.middle_y()
+                && line.middle_y() < region.bottom();
+            if self.shown && inside {
+                vec![TextLine {
+                    text: "Life: 925 / 925".to_string(),
+                    region: line,
+                }]
+            } else {
+                Vec::new()
+            }
+        }
+    }
+
+    fn frame() -> Rgba {
+        Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: vec![0; 1920 * 1080 * 4],
+        }
+    }
+
+    fn reader(text: &Arc<Life>) -> ScreenReader {
+        ScreenReader::new(
+            Arc::clone(text) as Arc<dyn TextReader + Send + Sync>,
+            Arc::new(LanguagePack::english()),
+        )
+    }
+
+    /// The box the second look reads around a line the first one found, for a tracking padding of `pad`.
+    fn tracked_box(pad: u32) -> Region {
+        let text = Life::new(true);
+        let screens = reader(&text);
+        let mut config = Effective::built_in();
+        config.thresholds.track_pad = pad;
+        assert_eq!(screens.read_with(&frame(), &config).screen, Screen::InGame);
+        text.take_asked();
+        assert_eq!(screens.read_with(&frame(), &config).screen, Screen::InGame);
+        text.take_asked()
+            .into_iter()
+            .find(|area| area.width < 400)
+            .expect("a tracked box is read")
+    }
+
+    #[test]
+    fn the_built_in_configuration_asks_the_same_areas_as_read_look_after_look() {
+        let plain = Life::new(true);
+        let configured = Life::new(true);
+        let (plain_reader, configured_reader) = (reader(&plain), reader(&configured));
+        for _ in 0..4 {
+            assert_eq!(
+                plain_reader.read(&frame()),
+                configured_reader.read_with(&frame(), &Effective::built_in())
+            );
+            assert_eq!(plain.take_asked(), configured.take_asked());
+        }
+    }
+
+    #[test]
+    fn a_configured_hud_band_is_the_area_searched_in_place_of_the_built_in_one() {
+        let mut config = Effective::built_in();
+        config.regions.hud_band = Some(Area {
+            x: 0.0,
+            y: 0.8,
+            width: 0.5,
+            height: 0.15,
+        });
+        let text = Life::new(false);
+        reader(&text).read_with(&frame(), &config);
+        let asked = text.take_asked();
+        assert!(
+            asked.contains(&Region {
+                x: 0,
+                y: 864,
+                width: 960,
+                height: 162
+            }),
+            "{asked:?}"
+        );
+        assert!(
+            !asked.iter().any(|area| area.width == 1920),
+            "the built-in band is not read: {asked:?}"
+        );
+    }
+
+    #[test]
+    fn a_configured_band_larger_than_the_built_in_one_is_not_read() {
+        let mut config = Effective::built_in();
+        config.regions.hud_band = Some(Area {
+            x: 0.0,
+            y: 0.0,
+            width: 1.0,
+            height: 1.0,
+        });
+        let text = Life::new(false);
+        reader(&text).read_with(&frame(), &config);
+        let asked = text.take_asked();
+        assert!(
+            asked.contains(&Region {
+                x: 0,
+                y: 810,
+                width: 1920,
+                height: 270
+            }),
+            "the built-in band is: {asked:?}"
+        );
+        assert!(
+            !asked.iter().any(|area| area.height == 1080),
+            "the whole client is not: {asked:?}"
+        );
+    }
+
+    #[test]
+    fn the_tracking_padding_comes_from_the_configuration_inside_its_range() {
+        let (built_in, wide, narrow) = (tracked_box(24), tracked_box(48), tracked_box(8));
+        // 24 is today's padding (25 px at 1080); 48 and 8 move each side by the difference scaled to the client.
+        assert_eq!(wide.width - built_in.width, 2 * (50 - 25));
+        assert_eq!(built_in.width - narrow.width, 2 * (25 - 8));
+        // Outside the range the agent's own limits hold, whatever the configuration says.
+        assert_eq!(tracked_box(1000), wide);
+        assert_eq!(tracked_box(0), narrow);
     }
 }

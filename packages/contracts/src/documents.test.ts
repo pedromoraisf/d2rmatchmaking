@@ -10,13 +10,17 @@ describe('contract documents', () => {
     });
   });
 
-  it('builds an AsyncAPI 3.0 document with the stream channel and its ten messages', () => {
+  it('builds an AsyncAPI 3.0 document with the stream channel and its fourteen messages', () => {
     const document = buildAsyncApiDocument();
     expect(document.asyncapi).toBe('3.0.0');
     expect(document.channels.stream.address).toBe('/v1/stream');
     expect(Object.keys(document.channels.stream.messages)).toStrictEqual([
       'RoomAssigned',
       'RoomStageChanged',
+      'AgentRoomAssigned',
+      'AgentRoomRunOpened',
+      'AgentReadyCheckStarted',
+      'AgentRoomStageChanged',
       'RoomRunOpened',
       'RoomMemberChanged',
       'AgentPresenceChanged',
@@ -27,14 +31,17 @@ describe('contract documents', () => {
       'ReadyCheckResolved',
     ]);
     expect(document.components.messages['RoomStageChanged']?.name).toBe('room.stage_changed');
+    expect(document.components.messages['AgentRoomStageChanged']?.name).toBe('room.stage_changed');
   });
 
   it('writes one JSON Schema per agent message', () => {
     expect(Object.keys(buildJsonSchemaFiles()).sort()).toStrictEqual([
+      'agent-config.json',
       'agent-event-ready-check-resolved.json',
       'agent-event-ready-check-started.json',
       'agent-event-room-assigned.json',
       'agent-event-room-run-opened.json',
+      'agent-event-room-stage-changed.json',
       'assignment.json',
       'claim-request.json',
       'claim.json',
@@ -65,5 +72,44 @@ describe('contract documents', () => {
   it('produces byte-identical output on every run', () => {
     expect(JSON.stringify(buildAsyncApiDocument())).toBe(JSON.stringify(buildAsyncApiDocument()));
     expect(JSON.stringify(buildJsonSchemaFiles())).toBe(JSON.stringify(buildJsonSchemaFiles()));
+  });
+});
+
+describe('the player name value (SNM-01)', () => {
+  it.each(['Sorc', 'S0rc', 'Il', 'Hammer_Smith', 'Ab', 'ThisNameIsFifte', 'a-b'])(
+    'accepts %s',
+    async (value) => {
+      const { PlayerNameValue } = await import('./http/lobby.ts');
+      expect(PlayerNameValue.safeParse(value).success).toBe(true);
+    },
+  );
+
+  it.each([
+    'S',
+    '',
+    'Sorc Sorc',
+    'Sorc2',
+    '0Sorc',
+    'Sorc1x_',
+    '_Sorc',
+    'Sor-c-c',
+    'Sor__c',
+    'ThisNameIsTooLongXX',
+    'Sörc',
+  ])('refuses %s', async (value) => {
+    const { PlayerNameValue } = await import('./http/lobby.ts');
+    expect(PlayerNameValue.safeParse(value).success).toBe(false);
+  });
+
+  it("lets the agent's stage change accept a member list, and no other agent event accept extra data", () => {
+    const files = buildJsonSchemaFiles();
+    const dataOf = (name: string) =>
+      (files[name]?.['properties'] as Record<string, Record<string, unknown>>)['data']?.[
+        'additionalProperties'
+      ];
+    expect(dataOf('agent-event-room-stage-changed.json')).toBe(true);
+    for (const name of ['agent-event-room-assigned.json', 'agent-event-room-run-opened.json']) {
+      expect(dataOf(name), name).not.toBe(true);
+    }
   });
 });

@@ -4,6 +4,7 @@
 import { fileURLToPath } from 'node:url';
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
+import { loadAgentConfig } from '../modules/agents/adapters/file/agent-config-file.ts';
 import { buildApp, type AppDatabase } from './app.ts';
 import { loadConfig, type Config } from './config.ts';
 import { previewRefusal } from './preview-guard.ts';
@@ -41,6 +42,8 @@ async function main(): Promise<void> {
   if (databaseUrl === undefined) {
     throw new Error('DATABASE_URL is required');
   }
+  // The committed agent configuration is read and validated once, before any connection: a bad file stops the start (RCF-12).
+  const agentConfig = loadAgentConfig();
   // Neon accepts TLS connections only; the certificate is verified, never skipped.
   const pool = new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: true } });
   const db = new Kysely<AppDatabase>({ dialect: new PostgresDialect({ pool }) });
@@ -50,6 +53,7 @@ async function main(): Promise<void> {
     config: {
       stagingEndpoints: config.stagingEndpoints,
       minAgentVersion: config.agentMinVersion,
+      telemetryTier: config.telemetryTier,
       siteOrigin: config.siteOrigin,
       trustProxyHops: config.trustProxyHops,
       roomDropToleranceSeconds: config.roomDropToleranceSeconds,
@@ -61,6 +65,7 @@ async function main(): Promise<void> {
     random: new NodeRandomSource(),
     ids: new RandomUuidGenerator(),
     telemetryBackend: { endpoint: config.telemetry.endpoint, headers: config.telemetry.headers },
+    agentConfig,
   });
   const address = await built.app.listen({ host: '0.0.0.0', port: config.port });
   await built.relay.sweep();

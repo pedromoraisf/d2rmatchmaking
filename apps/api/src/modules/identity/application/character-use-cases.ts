@@ -1,4 +1,5 @@
-import type { Clock, Outbox, UnitOfWork } from '../../../shared-kernel/index.ts';
+import type { Clock, Outbox, SpanDetail, UnitOfWork } from '../../../shared-kernel/index.ts';
+import { createCharacterNamesOf } from './character-name-of.ts';
 import { createCharacterOf } from './character-of.ts';
 import { createDeclareCharacter } from './declare-character.ts';
 import { createListMyCharacters } from './list-my-characters.ts';
@@ -10,6 +11,7 @@ export interface CharacterUseCasesDeps {
   readonly uow: UnitOfWork;
   readonly outbox: Outbox;
   readonly clock: Clock;
+  readonly spanDetail?: SpanDetail;
 }
 
 /** Builds the character use cases over their ports. */
@@ -19,6 +21,7 @@ export function createCharacterUseCases(deps: CharacterUseCasesDeps) {
     listMyCharacters: createListMyCharacters(deps),
     declareCharacter: createDeclareCharacter(deps),
     characterOf: createCharacterOf(deps),
+    characterNamesOf: createCharacterNamesOf(deps),
   };
 }
 

@@ -73,6 +73,9 @@ jobs:
   deploy:
     name: deploy
     needs: [verify]
+    # Staging's secrets and variables live in the GitHub environment `staging` (incident 2026-11-23); a preview has no
+    # environment and keeps the repository-level ones, so no workflow run creates an environment.
+    environment: ${{ inputs.environment == 'staging' && 'staging' || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:

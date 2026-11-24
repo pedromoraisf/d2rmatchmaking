@@ -2,8 +2,11 @@
 //! through the anti-corruption layer (design.md § Adapters, `http/gateway.rs`; AHM-16). It holds no rule of its own beyond
 //! the protocol check of the resume id.
 
-use d2rmm_agent_core::messages::{GameNameObservation, IssuedCode, Presence, ReadyCheckOpen};
-use d2rmm_agent_core::ports::{ApiError, ApiGateway, EventStream};
+use d2rmm_agent_core::messages::{
+    GameNameObservation, IssuedCode, OtherGameObservation, PlayerObservation, Presence,
+    ReadyCheckOpen,
+};
+use d2rmm_agent_core::ports::{ApiError, ApiGateway, ConfigGateway, EventStream, Fetched};
 use d2rmm_agent_core::secret::Secret;
 use d2rmm_agent_domain::characters::Card;
 use d2rmm_agent_domain::room_assignment::Assignment;
@@ -13,7 +16,8 @@ use crate::http::sse::{ready_check_open_from_body, valid_last_event_id};
 use crate::http::sse_stream::SseEventStream;
 use crate::http::translate::{
     assignment_from_contract, characters_to_contract, heartbeat_from_presence,
-    issued_code_from_contract, observation_to_contract,
+    issued_code_from_contract, observation_to_contract, other_game_observation_to_contract,
+    player_observation_to_contract,
 };
 
 /// The agent's API calls over HTTP. The client is built by the app and already configured (HTTPS, timeouts).
@@ -64,6 +68,29 @@ impl ApiGateway for HttpGateway {
             .await
     }
 
+    async fn post_player_observation(
+        &self,
+        token: &Secret,
+        observation: &PlayerObservation,
+    ) -> Result<(), ApiError> {
+        let body = player_observation_to_contract(observation).map_err(|_| ApiError::Invalid)?;
+        self.api
+            .post_observation(token, observation.room, &body)
+            .await
+    }
+
+    async fn post_other_game(
+        &self,
+        token: &Secret,
+        observation: &OtherGameObservation,
+    ) -> Result<(), ApiError> {
+        let body =
+            other_game_observation_to_contract(observation).map_err(|_| ApiError::Invalid)?;
+        self.api
+            .post_observation(token, observation.room, &body)
+            .await
+    }
+
     async fn post_characters(&self, token: &Secret, cards: &[Card]) -> Result<(), ApiError> {
         let body = characters_to_contract(cards).map_err(|_| ApiError::Invalid)?;
         self.api.post_characters(token, &body).await
@@ -94,5 +121,11 @@ impl ApiGateway for HttpGateway {
             response,
             resume.map(str::to_string),
         )))
+    }
+}
+
+impl ConfigGateway for HttpGateway {
+    async fn fetch_config(&self, token: &Secret, held_etag: Option<&str>) -> Fetched {
+        self.api.config(token, held_etag).await
     }
 }

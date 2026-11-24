@@ -6,20 +6,33 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use d2rmm_agent_domain::capture_cascade::CascadeParams;
 use d2rmm_agent_domain::characters::{Card, reconcile_names};
-use d2rmm_agent_domain::frame_content::summarize;
+use d2rmm_agent_domain::frame_content::{FrameContent, summarize};
 use d2rmm_agent_domain::presence::game_running;
+use d2rmm_agent_domain::remote_config::Effective;
 
+use crate::automap_name;
+use crate::chat_post;
+use crate::chat_step;
+use crate::detail;
 use crate::device_state::DeviceState;
-use crate::messages::{FrameReading, Screen};
+use crate::elsewhere;
+use crate::messages::{CaptureReport, FrameReading, Screen};
 use crate::party::{self, PartyLook, PartyPorts};
 use crate::ports::{
-    ApiError, ApiGateway, ConsentStore, FrameReader, FrameSource, ProcessSource, Rgba, TokenStore,
+    ApiError, ApiGateway, CaptureStatus, ConsentStore, FrameReader, FrameSource, ProcessSource,
+    Rgba, TokenStore,
 };
 use crate::view::{CaptureView, DiagnosticsView, FieldDetailView, PartyLookView, RejectedSlot};
 
 /// The interval between two looks at the game (CHR-03: at most once per second).
 pub const TICK: Duration = Duration::from_secs(1);
+
+/// The time to the next look: the configured interval, never under `TICK` (CHR-03, RCF-09).
+pub fn look_interval(configured_ms: u32) -> Duration {
+    Duration::from_millis(u64::from(configured_ms)).max(TICK)
+}
 
 /// The ports the screen loop uses (AHM-17): five trait objects and the gateway, and the Party step's group (AGN-01).
 pub struct ScreenPorts<G> {
@@ -39,8 +52,15 @@ pub async fn run<G: ApiGateway + Send + Sync + 'static>(
 ) {
     let mut posted = None;
     loop {
+        // The configuration in force at this look (RCF-08): the cascade's numbers and the time to the next look.
+        let cadence = device.config.borrow().cadence;
+        ports.frames.configure(CascadeParams {
+            demote_after: cadence.demote_after,
+            probe_every: cadence.probe_every,
+            rate_window: cadence.rate_window as usize,
+        });
         tick(&device, &ports, &mut posted).await;
-        tokio::time::sleep(TICK).await;
+        tokio::time::sleep(look_interval(cadence.look_interval_ms)).await;
     }
 }
 
@@ -51,17 +71,55 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
     posted: &mut Option<Vec<Card>>,
 ) {
     let Some(frame) = capture(ports) else {
-        device.set_screen(Screen::Unknown);
+        show_nothing_read(device);
+        let status = ports.frames.status();
+        device.set_capture_report(report_of(status));
+        // The window's size is looked up only when the game runs and gave nothing to read: not once a second while it is gone.
+        let window = if status.unusable {
+            ports.frames.window_size()
+        } else {
+            None
+        };
+        device.hub.set_capture(unseen_capture(status, window));
         return;
     };
+    let status = ports.frames.status();
+    // A source that already measured the frame (the `Capturer` does, to accept it) hands the measure over: it is taken once.
+    let content = status.content.unwrap_or_else(|| summarize(&frame.pixels));
+    device.set_capture_report(report_of(status));
+    if content.blank {
+        // A blank frame is never read: no OCR call is made for it, and the Party step does not see it (CAP-02, NFR-02).
+        show_nothing_read(device);
+        device.hub.set_capture(CaptureView {
+            reason: Some(NOTHING_SEEN),
+            ..capture_of(
+                content,
+                ports.frames.window_size(),
+                None,
+                ports.frames.status(),
+            )
+        });
+        return;
+    }
     let frame = Arc::new(frame);
-    let reading = read_screen(ports, &frame).await;
+    let config = device.config.borrow().clone();
+    let reading = read_screen(ports, &frame, config).await;
     device.set_screen(reading.screen);
     party::look(device, &ports.party, Arc::clone(&frame)).await;
+    // Once the presence is confirmed, the Party panel is read again to tell a player who left for another game (ARL-08).
+    elsewhere::look(device, &ports.party, Arc::clone(&frame)).await;
+    // The automap's name line and the chat's joined and left lines (game-name-reading), at most once a tick like the Party step.
+    automap_name::look(device, &ports.party, Arc::clone(&frame)).await;
+    let chat_events = chat_step::look_named(device, &ports.party, Arc::clone(&frame)).await;
+    chat_post::post(device, &ports.party.read, chat_events).await;
     device.hub.set_capture(capture_of(
-        &frame,
+        content,
         ports.frames.window_size(),
-        device.with_party(|progress| progress.last_look()),
+        device
+            .party_look_describes_screen()
+            .then(|| device.with_party(|progress| progress.last_look()))
+            .flatten(),
+        status,
     ));
     let mut diagnostics = diagnostics_of(&reading, &frame, previous_post(device));
     let FrameReading {
@@ -97,6 +155,22 @@ pub async fn tick<G: ApiGateway + Send + Sync>(
         }
         // Any other failure keeps the set unsent, so the next tick sends it again.
         Err(_) => {}
+    }
+}
+
+/// A look that read nothing: the screen is reported as `Unknown` and the diagnostics say the same, with no cards from an
+/// earlier frame. One value feeds the heartbeat and the window, so they never disagree (ARL-06, CHR-04).
+fn show_nothing_read(device: &DeviceState) {
+    device.set_screen(Screen::Unknown);
+    if let Some(shown) = device.hub.snapshot().diagnostics {
+        device.hub.set_diagnostics(DiagnosticsView {
+            screen: screen_code(Screen::Unknown),
+            cards_read: 0,
+            cards_settled: 0,
+            popup_options_found: 0,
+            rejected: Vec::new(),
+            ..shown
+        });
     }
 }
 
@@ -158,9 +232,16 @@ fn diagnostics_of(reading: &FrameReading, frame: &Rgba, post: &'static str) -> D
 }
 
 /// What the capture itself shows: the frame's brightness, the window's size and the last Party look. Numbers and booleans.
-fn capture_of(frame: &Rgba, window: Option<(u32, u32)>, party: Option<PartyLook>) -> CaptureView {
-    let content = summarize(&frame.pixels);
+fn capture_of(
+    content: FrameContent,
+    window: Option<(u32, u32)>,
+    party: Option<PartyLook>,
+    status: CaptureStatus,
+) -> CaptureView {
     CaptureView {
+        method: method_word(status),
+        read_rate_percent: status.read_rate_percent,
+        reason: None,
         brightness: content.brightness,
         blank: content.blank,
         window_width: window.map(|(width, _)| width),
@@ -178,13 +259,42 @@ fn capture_of(frame: &Rgba, window: Option<(u32, u32)>, party: Option<PartyLook>
     }
 }
 
+/// What the window shows when a look gave no frame: no brightness, the capture's status, and `nothing` as the reason when the
+/// game runs and no method gave a usable frame (CAP-02). A look that was not allowed shows no reason.
+fn unseen_capture(status: CaptureStatus, window: Option<(u32, u32)>) -> CaptureView {
+    CaptureView {
+        brightness: 0,
+        blank: status.unusable,
+        window_width: window.map(|(width, _)| width),
+        window_height: window.map(|(_, height)| height),
+        party: None,
+        method: method_word(status),
+        read_rate_percent: status.read_rate_percent,
+        reason: status.unusable.then_some(NOTHING_SEEN),
+    }
+}
+
+/// The reason code of a look that gave no usable frame while the game ran.
+const NOTHING_SEEN: &str = "nothing";
+
+/// What the heartbeat reports of a capture status (CAP-07).
+fn report_of(status: CaptureStatus) -> CaptureReport {
+    CaptureReport {
+        method: status.method,
+        read_rate_percent: status.read_rate_percent,
+    }
+}
+
+fn method_word(status: CaptureStatus) -> &'static str {
+    status.method.map_or("none", |method| method.word())
+}
+
 /// The game window's frame, when the player has consented, the game runs and a frame came. `None` otherwise: in each case
 /// nothing is captured past the check that failed (CHR-01, CHR-02, CHR-03).
 fn capture<G>(ports: &ScreenPorts<G>) -> Option<Rgba> {
-    if !ports.consent.load() {
-        return None;
-    }
-    if !game_running(&ports.processes.names()) {
+    if !ports.consent.load() || !game_running(&ports.processes.names()) {
+        // No capture session stays open without consent or a game (CAP-05).
+        ports.frames.release();
         return None;
     }
     ports.frames.capture()
@@ -193,19 +303,27 @@ fn capture<G>(ports: &ScreenPorts<G>) -> Option<Rgba> {
 /// What the frame shows: its screen, and its cards on the character selection screen. The OCR runs on a blocking thread, as
 /// the Party step's does, so a read never holds the async worker. The reader reads the card regions only for the selection
 /// screen (`domain::character_screen::read_screen`). A reader that panics shows nothing (`Unknown`).
-async fn read_screen<G>(ports: &ScreenPorts<G>, frame: &Arc<Rgba>) -> FrameReading {
-    let span = tracing::info_span!(
-        "agent.vision.read-characters",
-        screen = tracing::field::Empty,
-        cards = tracing::field::Empty,
-    );
+async fn read_screen<G>(
+    ports: &ScreenPorts<G>,
+    frame: &Arc<Rgba>,
+    config: Effective,
+) -> FrameReading {
+    let span = detail::characters_span();
+    let started = std::time::Instant::now();
     let reader = Arc::clone(&ports.reader);
     let frame = Arc::clone(frame);
-    let reading = tokio::task::spawn_blocking(move || reader.read(&frame))
+    let reading = tokio::task::spawn_blocking(move || reader.read_with(&frame, &config))
         .await
         .unwrap_or_else(|_| FrameReading::without_cards(Screen::Unknown));
     span.record("screen", tracing::field::debug(&reading.screen));
     span.record("cards", reading.cards.len());
+    detail::record_duration(&span, started.elapsed());
+    // The names on the selection screen: the full tier only (OBT-06).
+    detail::record_names(
+        &span,
+        detail::full_tier(),
+        reading.cards.iter().map(Card::name),
+    );
     reading
 }
 
@@ -220,23 +338,27 @@ mod tests {
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+    use d2rmm_agent_domain::capture_cascade::CaptureMethod;
     use d2rmm_agent_domain::characters::{Card, Class, Mode, Title};
 
     use d2rmm_agent_domain::character_screen::{RejectReason, Rejection};
 
-    use super::{ScreenPorts, capture_of, tick};
+    use super::{ScreenPorts, capture_of, tick, unseen_capture};
     use crate::device_state::DeviceState;
     use crate::fakes::{Call, FakeApiGateway, MemoryTokens, NoText, NullSink};
     use crate::groups::ReadPorts;
-    use crate::messages::{FrameReading, Screen};
+    use crate::messages::{CaptureReport, FrameReading, Screen};
     use crate::party::{FieldDetail, FieldState, PartyLook, PartyPorts};
     use crate::ports::{
-        ApiError, ConsentStore, FrameReader, FrameSource, PausedWallClock, ProcessSource, Rgba,
-        SequentialIds, StoreError, TokenStore,
+        ApiError, CaptureStatus, ConsentStore, FrameReader, FrameSource, PausedWallClock,
+        ProcessSource, ReadError, Rgba, SequentialIds, StoreError, TextReader, TokenStore,
     };
     use crate::secret::Secret;
     use crate::view::{CaptureView, DiagnosticsView, FieldDetailView, PartyLookView, RejectedSlot};
+    use d2rmm_agent_domain::frame_content::summarize;
     use d2rmm_agent_domain::language::LanguagePack;
+    use d2rmm_agent_domain::room_assignment::{Assignment, GameName, RoomId};
+    use d2rmm_agent_domain::vision::{ReadText, Region};
 
     const TOKEN: &str = "d2rmm_a_0123456789abcdefghijklmnopqrstuvwxyzABCDE";
 
@@ -257,12 +379,22 @@ mod tests {
     struct Reader {
         reading: Mutex<FrameReading>,
         reads: AtomicUsize,
+        /// The tracking padding of the configuration each look passed down (`read_with`).
+        pads: Mutex<Vec<u32>>,
     }
 
     impl FrameReader for Reader {
         fn read(&self, _frame: &Rgba) -> FrameReading {
             self.reads.fetch_add(1, Ordering::SeqCst);
             self.reading.lock().expect("the reading lock").clone()
+        }
+
+        fn read_with(&self, frame: &Rgba, config: &super::Effective) -> FrameReading {
+            self.pads
+                .lock()
+                .expect("the pads lock")
+                .push(config.thresholds.track_pad);
+            self.read(frame)
         }
     }
 
@@ -331,6 +463,7 @@ mod tests {
         let reader = Arc::new(Reader {
             reading: Mutex::new(reading),
             reads: AtomicUsize::new(0),
+            pads: Mutex::new(Vec::new()),
         });
         let consent = Arc::new(Consent(AtomicBool::new(consent)));
         let ports = ScreenPorts {
@@ -364,11 +497,27 @@ mod tests {
         }
     }
 
+    /// A frame with something drawn on it. It says it is 1920×1080 and holds a few hundred drawn pixels: the fake reader
+    /// never looks at them, and `summarize` samples them, so the frame is neither blank nor eight megabytes.
     fn frame() -> Option<Rgba> {
+        let mut pixels = Vec::new();
+        for at in 0..512_u32 {
+            let value = u8::try_from(40 + at % 150).expect("a byte");
+            pixels.extend_from_slice(&[value, value, value, 255]);
+        }
         Some(Rgba {
             width: 1920,
             height: 1080,
-            pixels: Vec::new(),
+            pixels,
+        })
+    }
+
+    /// A frame with no pixels drawn: a blank capture.
+    fn blank_frame() -> Option<Rgba> {
+        Some(Rgba {
+            width: 1920,
+            height: 1080,
+            pixels: vec![0; 2048],
         })
     }
 
@@ -493,6 +642,85 @@ mod tests {
         );
     }
 
+    /// A blank frame is never read (capture-cascade CAP-02, NFR-02). Before the cascade it was read like any other one
+    /// (once per look); a blank capture cannot hold a screen, so the read is pure cost and the screen reads `Unknown`.
+    #[tokio::test]
+    async fn a_blank_frame_is_captured_but_never_read() {
+        let rig = rig(true, true, blank_frame(), selecting(vec![card("Sorc")]));
+        rig.device.set_screen(Screen::CharacterSelect);
+
+        for _ in 0..600 {
+            look(&rig, &mut None).await;
+        }
+
+        assert_eq!(rig.frames.captures.load(Ordering::SeqCst), 600);
+        assert_eq!(
+            rig.reader.reads.load(Ordering::SeqCst),
+            0,
+            "no OCR call for a blank frame"
+        );
+        assert_eq!(*rig.device.screen.borrow(), Screen::Unknown);
+        assert!(
+            rig.gateway.calls().is_empty(),
+            "nothing is sent from a blank frame"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_heartbeat_reports_the_capture_status_of_the_last_look() {
+        let rig = rig(true, true, frame(), selecting(Vec::new()));
+        assert_eq!(rig.device.capture_report().method_word(), "none");
+
+        look(&rig, &mut None).await;
+
+        // A raw frame source has no cascade: no method, a rate of 0, until a `Capturer` says otherwise.
+        assert_eq!(rig.device.capture_report(), CaptureReport::default());
+    }
+
+    #[tokio::test]
+    async fn six_hundred_usable_looks_make_six_hundred_captures_and_six_hundred_reads() {
+        let rig = rig(true, true, frame(), selecting(Vec::new()));
+
+        for _ in 0..600 {
+            look(&rig, &mut None).await;
+        }
+
+        assert_eq!(rig.frames.captures.load(Ordering::SeqCst), 600);
+        assert_eq!(rig.reader.reads.load(Ordering::SeqCst), 600);
+    }
+
+    #[tokio::test]
+    async fn a_look_without_a_frame_shows_no_method_and_a_reason_only_when_the_game_runs() {
+        // The game runs and nothing came: the window says the capture shows nothing.
+        let running = rig(true, true, None, selecting(Vec::new()));
+        look(&running, &mut None).await;
+        let seen = running
+            .device
+            .hub
+            .snapshot()
+            .capture
+            .expect("a capture view");
+        assert_eq!(
+            (seen.method, seen.reason),
+            ("none", None),
+            "a raw source has no status to say it"
+        );
+
+        // Consent is not given: nothing is captured, and the view says no method and no reason.
+        let silent = rig(false, true, frame(), selecting(Vec::new()));
+        look(&silent, &mut None).await;
+        let view = silent
+            .device
+            .hub
+            .snapshot()
+            .capture
+            .expect("a capture view");
+        assert_eq!(
+            (view.method, view.reason, view.blank),
+            ("none", None, false)
+        );
+    }
+
     #[tokio::test]
     async fn withdrawing_consent_stops_the_capture_before_the_next_frame() {
         let rig = rig(true, true, frame(), selecting(vec![card("Sorc")]));
@@ -520,6 +748,62 @@ mod tests {
 
         assert_eq!(rig.frames.captures.load(Ordering::SeqCst), 0);
         assert!(rig.gateway.calls().is_empty());
+    }
+
+    /// A text reader that counts its reads and reads nothing.
+    struct CountingText(AtomicUsize);
+
+    impl TextReader for CountingText {
+        fn read(&self, _image: &Rgba, _region: Region) -> Result<ReadText, ReadError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(ReadError::EngineUnavailable)
+        }
+    }
+
+    /// The Party step looks at a frame the screen loop captured, and the loop captures only with the player's consent and
+    /// a running game (AGT-06, NFR-04): with a room held, a withdrawn consent or a closed game leaves the step with no
+    /// frame to read and nothing to send. The last case shows that the counter works. That the capture source opens the
+    /// game window alone is pinned by the window-capture allow-list rules in `scripts/test/agent-source-rules.test.mjs`.
+    #[tokio::test]
+    async fn the_party_step_reads_nothing_without_consent_or_without_the_game() {
+        for (consent, game, expected_reads) in [
+            (false, true, false),
+            (true, false, false),
+            (false, false, false),
+            (true, true, true),
+        ] {
+            let mut rig = rig(
+                consent,
+                game,
+                frame(),
+                FrameReading::without_cards(Screen::InGame),
+            );
+            let text = Arc::new(CountingText(AtomicUsize::new(0)));
+            rig.ports.party.read.reader = Arc::clone(&text) as Arc<dyn TextReader + Send + Sync>;
+            rig.device.replace_assignment(Some(Assignment {
+                room: RoomId::new("7d9f2c1e-0000-4000-8000-000000000001"),
+                run: std::num::NonZeroU64::new(1).expect("a non-zero run"),
+                expected_game_name: GameName::new("mmbaalh-12"),
+                members: Vec::new(),
+            }));
+
+            look(&rig, &mut None).await;
+
+            let reads = text.0.load(Ordering::SeqCst);
+            assert_eq!(
+                reads > 0,
+                expected_reads,
+                "consent {consent}, game {game}: {reads} reads"
+            );
+            if !expected_reads {
+                assert_eq!(
+                    rig.frames.captures.load(Ordering::SeqCst),
+                    0,
+                    "no frame captured"
+                );
+                assert!(rig.gateway.calls().is_empty(), "nothing is sent");
+            }
+        }
     }
 
     #[tokio::test]
@@ -701,12 +985,63 @@ mod tests {
         }
     }
 
+    /// Field test 2026-11-21 (ARL-06, CHR-04): the window said "Em jogo" while the site showed an unknown screen, because a
+    /// look that gave no usable frame reported `Unknown` and left the last good read in the diagnostics. The window and the
+    /// heartbeat now come from one value: a look that sees nothing shows `unknown` in both.
+    #[tokio::test]
+    async fn a_blank_frame_after_a_game_read_shows_the_reported_screen_in_the_diagnostics() {
+        let mut rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::InGame),
+        );
+        look(&rig, &mut None).await;
+        assert_eq!(diagnostics(&rig).screen, "inGame");
+        assert_eq!(*rig.device.screen.borrow(), Screen::InGame);
+
+        rig.ports.frames = Arc::new(Frames {
+            frame: blank_frame(),
+            captures: AtomicUsize::new(0),
+        });
+        look(&rig, &mut None).await;
+
+        assert_eq!(*rig.device.screen.borrow(), Screen::Unknown);
+        let shown = diagnostics(&rig);
+        assert_eq!(shown.screen, "unknown", "what the heartbeat reports");
+        assert_eq!((shown.cards_read, shown.cards_settled), (0, 0));
+        assert!(shown.rejected.is_empty());
+        assert_eq!(shown.post, "not-sent", "the last post is not a screen read");
+    }
+
+    #[tokio::test]
+    async fn a_look_without_a_frame_after_a_game_read_shows_the_reported_screen_in_the_diagnostics()
+    {
+        let mut rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::InGame),
+        );
+        look(&rig, &mut None).await;
+        assert_eq!(diagnostics(&rig).screen, "inGame");
+
+        rig.ports.frames = Arc::new(Frames {
+            frame: None,
+            captures: AtomicUsize::new(0),
+        });
+        look(&rig, &mut None).await;
+
+        assert_eq!(*rig.device.screen.borrow(), Screen::Unknown);
+        assert_eq!(diagnostics(&rig).screen, "unknown");
+    }
+
     #[tokio::test]
     async fn the_capture_shows_a_blank_frame_and_no_party_look_without_a_room() {
         let rig = rig(
             true,
             true,
-            frame(),
+            blank_frame(),
             FrameReading::without_cards(Screen::Unknown),
         );
 
@@ -719,9 +1054,45 @@ mod tests {
             .capture
             .expect("a frame was captured");
         assert!(capture.blank, "a frame with no pixels is blank");
+        assert_eq!(
+            capture.reason,
+            Some("nothing"),
+            "the window says the capture shows nothing"
+        );
         assert_eq!(capture.brightness, 0);
         assert_eq!((capture.window_width, capture.window_height), (None, None));
         assert_eq!(capture.party, None, "no room, no Party look");
+    }
+
+    /// Lesson "A diagnostic line in the agent window must reflect state changes": the Party line kept the look of the game
+    /// after the player left it (field test 2026-11-21: "panel open, name matches" on the character selection screen).
+    #[tokio::test]
+    async fn the_party_look_is_not_shown_once_the_screen_leaves_the_game() {
+        let rig = rig(
+            true,
+            true,
+            frame(),
+            FrameReading::without_cards(Screen::InGame),
+        );
+        rig.device.replace_assignment(Some(assignment()));
+        let party = |rig: &Rig| rig.device.hub.snapshot().capture.and_then(|c| c.party);
+
+        look(&rig, &mut None).await;
+        assert!(party(&rig).is_some(), "in the game the look is shown");
+
+        // The held run is done matching, so later looks do not replace the look the game left behind.
+        rig.device.set_paired(false);
+        *rig.reader.reading.lock().expect("the reading lock") = selecting(Vec::new());
+        look(&rig, &mut None).await;
+        assert_eq!(party(&rig), None, "left the game: no Party look");
+
+        look(&rig, &mut None).await;
+        assert_eq!(party(&rig), None, "and it stays hidden on the next look");
+
+        *rig.reader.reading.lock().expect("the reading lock") =
+            FrameReading::without_cards(Screen::InGame);
+        look(&rig, &mut None).await;
+        assert!(party(&rig).is_some(), "back in the game the look is shown");
     }
 
     #[tokio::test]
@@ -767,7 +1138,17 @@ mod tests {
             }),
         };
 
-        let capture = capture_of(&frame, Some((1936, 1063)), Some(look));
+        let capture = capture_of(
+            summarize(&frame.pixels),
+            Some((1936, 1063)),
+            Some(look),
+            CaptureStatus {
+                method: Some(CaptureMethod::GraphicsCapture),
+                read_rate_percent: 97,
+                unusable: false,
+                content: None,
+            },
+        );
 
         assert_eq!(
             capture,
@@ -786,7 +1167,128 @@ mod tests {
                         diff: None,
                     }),
                 }),
+                method: "graphics-capture",
+                read_rate_percent: 97,
+                reason: None,
             }
+        );
+    }
+
+    #[test]
+    fn a_look_that_gave_nothing_says_why_and_carries_the_window_size() {
+        let status = CaptureStatus {
+            method: None,
+            read_rate_percent: 0,
+            unusable: true,
+            content: None,
+        };
+        let view = unseen_capture(status, Some((1936, 1063)));
+        assert_eq!(
+            (view.method, view.reason, view.blank, view.window_width),
+            ("none", Some("nothing"), true, Some(1936))
+        );
+        let skipped = unseen_capture(CaptureStatus::default(), None);
+        assert_eq!((skipped.reason, skipped.blank), (None, false));
+    }
+
+    /// RCF-07: the look interval is today's value, one look a second (CHR-03), before the configuration can replace it.
+    #[test]
+    fn the_look_interval_is_pinned_to_one_second() {
+        assert_eq!(super::TICK, std::time::Duration::from_secs(1));
+    }
+
+    use super::look_interval;
+    use std::time::Duration;
+
+    #[test]
+    fn the_look_interval_is_the_configured_one_and_never_under_a_second() {
+        for (configured, expected) in [
+            (0, 1_000),
+            (1, 1_000),
+            (999, 1_000),
+            (1_000, 1_000),
+            (1_001, 1_001),
+            (2_500, 2_500),
+            (10_000, 10_000),
+        ] {
+            assert_eq!(
+                look_interval(configured),
+                Duration::from_millis(expected),
+                "{configured} ms"
+            );
+        }
+    }
+
+    /// RCF-09: at every interval of the range, 600 seconds make at most 600 looks, and each look makes one capture and, with a
+    /// frame, one read.
+    #[test]
+    fn at_every_interval_six_hundred_seconds_make_at_most_six_hundred_looks_and_reads() {
+        for (interval_ms, looks) in [
+            (0, 600),
+            (999, 600),
+            (1_000, 600),
+            (2_000, 300),
+            (10_000, 60),
+        ] {
+            let captured = std::thread::spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_time()
+                    .start_paused(true)
+                    .build()
+                    .expect("a paused runtime")
+                    .block_on(async move {
+                        let rig = rig(true, true, frame(), selecting(vec![]));
+                        rig.device.config.send_modify(|config| {
+                            config.cadence.look_interval_ms = interval_ms;
+                        });
+                        let (frames, reader) = (Arc::clone(&rig.frames), Arc::clone(&rig.reader));
+                        tokio::spawn(super::run(Arc::new(rig.device), rig.ports));
+                        // Looks fall at 0 s, then every interval: this stops half a second before the 600th second ends.
+                        tokio::time::sleep(Duration::from_millis(599_500)).await;
+                        (
+                            frames.captures.load(Ordering::SeqCst),
+                            reader.reads.load(Ordering::SeqCst),
+                        )
+                    })
+            })
+            .join()
+            .expect("the scenario ran");
+            assert_eq!(captured, (looks, looks), "interval {interval_ms} ms");
+        }
+    }
+
+    #[test]
+    fn each_look_reads_under_the_configuration_of_that_moment() {
+        // RCF-08: a configuration applied between two looks is the one the next look reads under, with no restart.
+        let pads = std::thread::spawn(|| {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .start_paused(true)
+                .build()
+                .expect("a paused runtime")
+                .block_on(async {
+                    let rig = rig(true, true, frame(), selecting(vec![]));
+                    rig.device.config.send_modify(|config| {
+                        config.thresholds.track_pad = 40;
+                    });
+                    let device = Arc::new(rig.device);
+                    let reader = Arc::clone(&rig.reader);
+                    tokio::spawn(super::run(Arc::clone(&device), rig.ports));
+                    tokio::time::sleep(Duration::from_millis(2_500)).await;
+                    device.config.send_modify(|config| {
+                        config.thresholds.track_pad = 12;
+                    });
+                    tokio::time::sleep(Duration::from_millis(3_000)).await;
+                    reader.pads.lock().expect("the pads lock").clone()
+                })
+        })
+        .join()
+        .expect("the scenario ran");
+        assert_eq!(pads.first(), Some(&40), "{pads:?}");
+        assert_eq!(pads.last(), Some(&12), "{pads:?}");
+        assert!(
+            pads.windows(2).all(|pair| pair[0] == 40 || pair[1] == 12),
+            "{pads:?}"
         );
     }
 }

@@ -21,6 +21,11 @@ export interface RoomState {
   needsReveal: boolean;
   // The Party panel showed the expected game name in this run (AGN-03).
   matched: boolean;
+  // The API accepted the observation for the held run (ARL-03). The core omits it while false.
+  confirmed?: boolean;
+  // The Party panel showed another game's name on two looks in a row after the presence was confirmed (ARL-08). The core
+  // omits it while false, and never sends the other name.
+  elsewhere?: boolean;
 }
 
 export interface RejectedSlot {
@@ -67,7 +72,35 @@ export interface CaptureDiagnostics {
   windowWidth: number | null;
   windowHeight: number | null;
   party: PartyLook | null;
+  // The method that gave the last usable frame, as the core's fixed word, or `none` (capture-cascade CAP-07).
+  method: CaptureMethodWord;
+  // The usable share of the last looks, a whole percent.
+  readRatePercent: number;
+  // Present when the game runs and no method gave a usable frame (CAP-02).
+  reason?: 'nothing';
 }
+
+export type CaptureMethodWord = 'print-window' | 'graphics-capture' | 'screen-crop' | 'none';
+
+// The key of each capture method's name in the locale files.
+const METHOD_KEYS: Record<CaptureMethodWord, string> = {
+  'print-window': 'diagnostics.capture.method.printWindow',
+  'graphics-capture': 'diagnostics.capture.method.graphicsCapture',
+  'screen-crop': 'diagnostics.capture.method.screenCrop',
+  none: 'diagnostics.capture.method.none',
+};
+
+// The remote configuration the agent runs, as a line of the diagnostics: `0` is the built-in defaults (remote-config RCF-08).
+export function configLabel(version: number): Label {
+  return { key: 'diagnostics.config', values: { version } };
+}
+
+// Why the OS did not let the agent register the hotkey it wants (AST-08, RDY-07): a closed set of codes from the core, no
+// OS text.
+export type HotkeyFailure = 'no-manager' | 'refused' | 'unmapped' | 'dispatch';
+
+// The last hotkey press the agent received from the OS; absent until the first one.
+export type HotkeyPress = 'accept' | 'unmatched';
 
 export interface AgentView {
   pairing: PairingState;
@@ -76,9 +109,17 @@ export interface AgentView {
   update: UpdateState;
   // A ready check is open for the account: the hotkey that accepts it is registered (RDY-07).
   readyCheckOpen: boolean;
+  // The keys that accept a ready check (RDY-07, AST-01), as the core spells them.
+  hotkey: string;
+  // Why the OS refused to register the hotkey while it is wanted (AST-08); absent when it is registered.
+  hotkeyUnavailable?: HotkeyFailure;
+  // The last hotkey press the OS delivered to the agent (proves delivery); absent until the first one.
+  lastPress?: HotkeyPress;
   diagnostics: Diagnostics | null;
   // Absent until the first frame was captured.
   capture?: CaptureDiagnostics;
+  // The version of the remote configuration the agent runs; absent for the built-in defaults, version 0 (RCF-08).
+  configVersion?: number;
 }
 
 export interface Label {
@@ -118,7 +159,12 @@ export function connectivityLabel(connectivity: Connectivity): Label {
 }
 
 export function roomLabel(room: RoomState | null): Label | null {
-  return room === null ? null : { key: 'room.waiting', values: { gameName: room.gameName } };
+  if (room === null) {
+    return null;
+  }
+  const key =
+    room.elsewhere === true ? 'room.elsewhere' : room.confirmed === true ? 'room.confirmed' : 'room.waiting';
+  return { key, values: { gameName: room.gameName } };
 }
 
 // The hint to reveal the game name: shown while the agent holds the room, the Party panel showed the masked name and no
@@ -128,8 +174,19 @@ export function revealLabel(room: RoomState | null): Label | null {
 }
 
 // The hotkey line while a ready check is open (RDY-07, en and pt-BR): the window names the key, and only while it is open.
-export function readyCheckLabel(open: boolean): Label | null {
-  return open ? { key: 'readyCheck.hotkey' } : null;
+export function readyCheckLabel(open: boolean, hotkey: string): Label | null {
+  return open ? { key: 'readyCheck.hotkey', values: { key: hotkey } } : null;
+}
+
+// The line for the hotkey the OS did not let the agent register, with the reason as a short code the player can read out
+// (AST-08). The player picks another combination.
+export function hotkeyUnavailableLabel(reason: HotkeyFailure | undefined, hotkey: string): Label | null {
+  return reason === undefined ? null : { key: 'readyCheck.unavailable', values: { key: hotkey, reason } };
+}
+
+// The diagnostics line with the last hotkey press the agent received, or that none came since it started.
+export function lastPressLabel(press: HotkeyPress | undefined): Label {
+  return { key: `diagnostics.hotkeyPress.${press ?? 'none'}` };
 }
 
 // The lines of the diagnostics section, one label each, in the order the window shows them.
@@ -146,14 +203,41 @@ export function diagnosticsLabels(diagnostics: Diagnostics): Label[] {
       key: 'diagnostics.rejected',
       values: { slot: rejected.slot + 1, reason: rejected.reason },
     })),
-    { key: 'diagnostics.post', values: { outcome: diagnostics.post } },
+    postLabel(diagnostics.post),
   ];
+}
+
+// The outcomes of the last character post the core publishes (`error_kind` and the two answers of `watch_screen`).
+const POST_OUTCOMES = new Set([
+  'not-sent',
+  'ok',
+  'unauthorized',
+  'upgrade-required',
+  'rate-limited',
+  'gone',
+  'pending',
+  'server',
+  'network',
+  'invalid',
+  'check-ended',
+]);
+
+// The "Last send" line: a known outcome has its own translated line; one this build does not know shows its code.
+function postLabel(outcome: string): Label {
+  return POST_OUTCOMES.has(outcome)
+    ? { key: `diagnostics.post.${outcome}` }
+    : { key: 'diagnostics.post.other', values: { outcome } };
 }
 
 // The capture lines of the diagnostics: the window size beside the frame (client) size, the frame content and the last Party
 // look of the held run. Shown after the lines `diagnosticsLabels` gives.
 export function captureLabels(capture: CaptureDiagnostics): Label[] {
-  const labels: Label[] = [];
+  const labels: Label[] = [{ key: METHOD_KEYS[capture.method] }];
+  if (capture.reason === 'nothing') {
+    labels.push({ key: 'diagnostics.capture.nothing' });
+  } else if (capture.method !== 'none') {
+    labels.push({ key: 'diagnostics.capture.rate', values: { percent: capture.readRatePercent } });
+  }
   if (capture.windowWidth !== null && capture.windowHeight !== null) {
     labels.push({
       key: 'diagnostics.window',

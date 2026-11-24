@@ -1,7 +1,7 @@
 // Checks on the agent's cargo-mutants config (ocr-protection, OCP-02, OCP-03, OCP-06).
 //   node scripts/agent/mutation-config.mjs [path/to/mutants.toml]
 // fails (exit 1) when a reading module is missing or outside `examine_globs`, or when an `exclude_re` entry has no
-// evidence comment. The functions are exported so the harness tests can check fixtures.
+// evidence comment or holds a literal line or column (unless its comment has a `Position-bound:` line). The functions are exported so the harness tests can check fixtures.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -70,7 +70,7 @@ export function readingModuleProblems(toml, modules = readingModules(), base = a
   return problems;
 }
 
-/** The `exclude_re` entries whose preceding comment lacks the `file:line`, the reason or the `Evidence:` line. */
+/** The `exclude_re` entries whose comment lacks the `file:line`, the reason or the `Evidence:` line, or whose regex holds a literal line. */
 export function exclusionProblems(toml) {
   const problems = [];
   for (const { value, comments } of entriesOf(toml, 'exclude_re')) {
@@ -81,6 +81,12 @@ export function exclusionProblems(toml) {
     const evidenceAt = text.findIndex((line) => /^Evidence:/.test(line));
     if (text.filter((_, index) => index !== evidenceAt).length < 2) missing.push('the reason');
     if (missing.length > 0) problems.push(`exclusion "${value}" lacks ${missing.join(', ')}`);
+    // A literal `:<digits>:` ties the regex to a line, and the mutant reappears in the nightly once lines move above it.
+    // Only a mutant whose name equals a sibling's in the same function may keep its position, and says so.
+    if (/:\d+:/.test(value) && !text.some((line) => /^Position-bound:\s*\S/.test(line)))
+      problems.push(
+        `exclusion "${value}" holds a literal line or column; use \\d+ or add a "Position-bound:" comment line`,
+      );
   }
   return problems;
 }
