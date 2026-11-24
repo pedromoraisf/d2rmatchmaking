@@ -149,14 +149,14 @@ reading code; each is killed by a pinning test or excluded with evidence as `ocr
 
 These wait; nothing in batches 1 and 2 depends on them.
 
-- [ ] T12 — Field matrix on the agent built from this branch (the per-PR test installer): windowed, borderless and full
-      screen; legacy graphics (G); low and high brightness; the screen shown by the site in each. The maintainer's log is
-      the proof (SCR-07). Needs the maintainer's PC.
-- [ ] T13 — **[R14]** Fix what the matrix shows: for each mode that reads wrongly, a drawn fixture first (as T5), then the
-      change, then the real-print proof. If the matrix brings new real prints, they join the encrypted zip by the
-      maintainer's hand (`apps/agent/ocr-lab/README.md`). Gate: as T3
-- [ ] T14 — CPU over a 30-minute field session below 2% with the tracker on, from the agent's CPU telemetry, and no FPS
-      drop the maintainer can notice (NFR-02, SCR-02). Needs the maintainer's PC.
+- [~] T12 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** Field matrix on the agent built from this branch (the per-PR test installer): windowed, borderless and full
+  screen; legacy graphics (G); low and high brightness; the screen shown by the site in each. The maintainer's log is
+  the proof (SCR-07). Needs the maintainer's PC.
+- [~] T13 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** **[R14]** Fix what the matrix shows: for each mode that reads wrongly, a drawn fixture first (as T5), then the
+  change, then the real-print proof. If the matrix brings new real prints, they join the encrypted zip by the
+  maintainer's hand (`apps/agent/ocr-lab/README.md`). Gate: as T3
+- [~] T14 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** CPU over a 30-minute field session below 2% with the tracker on, from the agent's CPU telemetry, and no FPS
+  drop the maintainer can notice (NFR-02, SCR-02). Needs the maintainer's PC.
 
 ## Batch 7 (CPU of the pt-BR fallback)
 

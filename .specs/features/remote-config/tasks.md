@@ -150,9 +150,9 @@ before and after counts written into the PR by the orchestrator. Never edit `scr
 
 ## Batch 4 — waits for the maintainer's PC
 
-- [ ] T20 — Field check on a per-PR installer: serve a configuration with a changed `probeEvery` and a changed region on the
-      staging API, and confirm in the agent window that the version and the effect change without a restart; then withdraw
-      the API and confirm the agent keeps the last good one. Needs the maintainer's PC.
+- [~] T20 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** Field check on a per-PR installer: serve a configuration with a changed `probeEvery` and a changed region on the
+  staging API, and confirm in the agent window that the version and the effect change without a restart; then withdraw
+  the API and confirm the agent keeps the last good one. Needs the maintainer's PC.
 - [x] T21 — Document the operation (RCF-12): `docs/engineering/remote-config.md` (the file, every field's range, how to raise the
       version, how a configuration is rolled back by a revert and a release) and a line in `AGENTS.md`'s map. Gate:
       `pnpm format:check && pnpm specs:check`

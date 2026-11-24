@@ -125,16 +125,16 @@ check is `node scripts/agent/win-check.mjs` (Docker, clippy for `x86_64-pc-windo
 
 These wait; nothing in batches 1 and 2 depends on them. They use the per-PR test installer built from this branch.
 
-- [ ] T13 — Field matrix (CAP-10, F1 post-close item h). On the maintainer's PC, in windowed, borderless and full-screen
-      modes, with legacy graphics (G) and at low and high brightness: for each cell, the method the agent window shows,
-      the screen the site shows, and "blank" or not. The log is method names and screens only. Needs the maintainer's PC.
-- [ ] T14 — `screen-crop` — **only if T13 shows a cell where `print-window` and `graphics-capture` are both blank.** Then
-      new `src/adapters/screen_crop.rs` (design, § Method adapters): client rectangle only, foreground-only, any doubt
-      returns no frame; add it to O1's allowlist first; security review of this method alone; drawn-fixture and
-      call-count tests as T4. If T13 shows no such cell, this task is closed unbuilt and the spec's Decisions say so.
-      Gate: as T10
-- [ ] T15 — CPU and FPS (CAP-10, NFR-02). A session of 30 minutes or more per working method, average agent CPU below 2%
-      and no FPS drop the maintainer notices; record the numbers beside T13's. Needs the maintainer's PC.
-- [ ] T16 — Fix what the field shows (CAP-06, CAP-10): for each cell that reads wrongly, a pinning test or drawn fixture
-      first, then the smallest change, then the call-count test. If it needs a reading module, return it to the
-      orchestrator (rule 14).
+- [~] T13 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** Field matrix (CAP-10, F1 post-close item h). On the maintainer's PC, in windowed, borderless and full-screen
+  modes, with legacy graphics (G) and at low and high brightness: for each cell, the method the agent window shows,
+  the screen the site shows, and "blank" or not. The log is method names and screens only. Needs the maintainer's PC.
+- [~] T14 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** `screen-crop` — **only if T13 shows a cell where `print-window` and `graphics-capture` are both blank.** Then
+  new `src/adapters/screen_crop.rs` (design, § Method adapters): client rectangle only, foreground-only, any doubt
+  returns no frame; add it to O1's allowlist first; security review of this method alone; drawn-fixture and
+  call-count tests as T4. If T13 shows no such cell, this task is closed unbuilt and the spec's Decisions say so.
+  Gate: as T10
+- [~] T15 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** CPU and FPS (CAP-10, NFR-02). A session of 30 minutes or more per working method, average agent CPU below 2%
+  and no FPS drop the maintainer notices; record the numbers beside T13's. Needs the maintainer's PC.
+- [~] T16 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** Fix what the field shows (CAP-06, CAP-10): for each cell that reads wrongly, a pinning test or drawn fixture
+  first, then the smallest change, then the call-count test. If it needs a reading module, return it to the
+  orchestrator (rule 14).
