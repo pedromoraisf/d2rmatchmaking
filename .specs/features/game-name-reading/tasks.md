@@ -170,14 +170,14 @@ failure message carries a name read from a real print.
 
 These wait; nothing in batches 1 and 2 depends on them.
 
-- [ ] T13 — Live normal and nightmare rooms on the agent built from this branch (the per-PR test installer): a room in
-      each, the Party panel revealed, the automap open, a second player joining and leaving, and the site's "Confirmed by
-      the agent" in each. The maintainer's log is the proof (GNR-09). Needs the maintainer's PC.
-- [ ] T14 — The field log for the 95% rate (brief exit criterion 3): at least 20 rooms across normal, nightmare and hell,
-      at least 95% reaching "Confirmed by the agent", from the agent's own log lines. Needs the maintainer's PC.
-- [ ] T15 — **[R14]** Fix what the live rooms show: for each room that did not confirm, a drawn fixture first (as T5), then
-      the change, then the real-print proof. If a live room brings a new print, it joins the encrypted zip by the
-      maintainer's hand (`apps/agent/ocr-lab/README.md`). Gate: as T6
+- [~] T13 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** Live normal and nightmare rooms on the agent built from this branch (the per-PR test installer): a room in
+  each, the Party panel revealed, the automap open, a second player joining and leaving, and the site's "Confirmed by
+  the agent" in each. The maintainer's log is the proof (GNR-09). Needs the maintainer's PC.
+- [~] T14 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** The field log for the 95% rate (brief exit criterion 3): at least 20 rooms across normal, nightmare and hell,
+  at least 95% reaching "Confirmed by the agent", from the agent's own log lines. Needs the maintainer's PC.
+- [~] T15 — **CLOSED BY THE MAINTAINER (2026-11-24): field validation cut to two live journeys.** **[R14]** Fix what the live rooms show: for each room that did not confirm, a drawn fixture first (as T5), then
+  the change, then the real-print proof. If a live room brings a new print, it joins the encrypted zip by the
+  maintainer's hand (`apps/agent/ocr-lab/README.md`). Gate: as T6
 
 ## O1 note
 
