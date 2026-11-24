@@ -87,8 +87,9 @@ Names only, never values. Nothing below costs money: every service and database 
 - Copy the **deploy hook URL** of each service (Settings → Deploy Hook).
 - **`SITE_ORIGIN` of `d2rmm-api-production`** is a secret name too (`sync: false`): set it in Render to the exact
   origin of the production site, `https://d2rmatchmaking.pages.dev`. The file never names it, so production cannot
-  inherit staging's. Staging's `SITE_ORIGIN` stays `https://d2rmatchmaking.pages.dev` in `render.yaml` until the
-  cutover (item 5).
+  inherit staging's. Staging's `SITE_ORIGIN` is `https://staging.d2rmatchmaking.pages.dev` in `render.yaml` and in
+  Render since [incident 2026-11-23](incidents/2026-11-23-staging-environment.md); sign-in on
+  `d2rmatchmaking.pages.dev` works again only once production exists.
 
 ### 2. Neon
 
@@ -105,20 +106,24 @@ Names only, never values. Nothing below costs money: every service and database 
 
 ### 4. GitHub
 
-| Where                                 | Kind     | Name                                         | Value is                                                                                    |
-| ------------------------------------- | -------- | -------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| environment `production` (exists)     | secret   | `NEON_DATABASE_URL`                          | the production Neon connection string                                                       |
-| environment `production`              | secret   | `RENDER_DEPLOY_HOOK`                         | the deploy hook of `d2rmm-api-production`                                                   |
-| environment `production`              | variable | `API_BASE_URL`                               | the production service URL (https origin)                                                   |
-| environment `production`              | variable | `D2RMM_ENV`                                  | `production` (the marker a promotion requires, see below)                                   |
-| repository (already set, for staging) | secret   | `NEON_DATABASE_URL`, `RENDER_DEPLOY_HOOK`    | staging's; keep them                                                                        |
-| repository (already set, for staging) | variable | `API_BASE_URL`                               | the staging service URL; keep it                                                            |
-| repository                            | variable | `PRODUCTION_API_URL`                         | the production service URL, an `https://` origin (anything else is ignored), for keep-awake |
-| repository                            | variable | `KEEP_AWAKE_WINDOW` (optional)               | `HH:MM-HH:MM <IANA zone>`; default 16:00-02:00 America/Sao_Paulo                            |
-| repository                            | variable | `API_STAGES_LIVE` (set last, at the cutover) | `true`                                                                                      |
+| Where                             | Kind     | Name                                         | Value is                                                                                    |
+| --------------------------------- | -------- | -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| environment `production` (exists) | secret   | `NEON_DATABASE_URL`                          | the production Neon connection string                                                       |
+| environment `production`          | secret   | `RENDER_DEPLOY_HOOK`                         | the deploy hook of `d2rmm-api-production`                                                   |
+| environment `production`          | variable | `API_BASE_URL`                               | the production service URL (https origin)                                                   |
+| environment `production`          | variable | `D2RMM_ENV`                                  | `production` (the marker a promotion requires, see below)                                   |
+| environment `staging` (exists)    | secret   | `NEON_DATABASE_URL`                          | the staging Neon connection string (its own database, never production's)                   |
+| environment `staging`             | secret   | `RENDER_DEPLOY_HOOK`                         | the deploy hook of `d2rmm-api`                                                              |
+| environment `staging`             | variable | `API_BASE_URL`                               | `https://d2rmm-api.onrender.com`                                                            |
+| environment `staging`             | variable | `STAGING_API_URL`, `SITE_ORIGIN`             | `https://d2rmm-api.onrender.com`, `https://staging.d2rmatchmaking.pages.dev` (staging bots) |
+| repository                        | variable | `PRODUCTION_API_URL`                         | the production service URL, an `https://` origin (anything else is ignored), for keep-awake |
+| repository                        | variable | `KEEP_AWAKE_WINDOW` (optional)               | `HH:MM-HH:MM <IANA zone>`; default 16:00-02:00 America/Sao_Paulo                            |
+| repository                        | variable | `API_STAGES_LIVE` (set last, at the cutover) | `true`                                                                                      |
 
-The environments `staging` and `preview` are optional: when they exist, `stage-deploy` gets an `environment:` and the
-staging secrets move into them. Inside `production`, the environment's secret wins over the repository one of the same
+The environment `staging` exists (since 2026-11-21) and `stage-deploy` runs in it, so everything staging needs lives
+there. Nothing for staging was ever set at repository level, although this table once said it was; the old
+`deploy-api.yml` deploys `d2rmm-api` with the `production` environment's secrets (see the
+[incident](incidents/2026-11-23-staging-environment.md)). Inside `production`, the environment's secret wins over the repository one of the same
 name, which is how a promotion reaches production's database and service with the same workflow.
 `D2RMM_ENV=production` exists only in that environment. The promote job fails before it migrates or deploys unless
 it reads that value, so a missing production secret can never fall back to staging's repository-level one.
@@ -127,8 +132,7 @@ it reads that value, so a missing production secret can never fall back to stagi
 
 - Pages variable `API_ORIGIN`, per Pages environment: _Production_ → the production service URL; _Preview_ → the
   staging service URL. Nothing else changes in Pages.
-- At the cutover, set staging's `SITE_ORIGIN` to `https://staging.d2rmatchmaking.pages.dev` (the next change to
-  `render.yaml` records it).
+- Staging's `SITE_ORIGIN` is already `https://staging.d2rmatchmaking.pages.dev` (`render.yaml` and Render).
 
 ### Cutover order (once 1 to 4 exist)
 

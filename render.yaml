@@ -23,8 +23,9 @@ services:
         value: staging
       - key: ENABLE_STAGING_ENDPOINTS
         value: 'true'
+      # The staging site's own origin: the Battle.net callback and the same-origin guard use it (incident 2026-11-23).
       - key: SITE_ORIGIN
-        value: https://d2rmatchmaking.pages.dev
+        value: https://staging.d2rmatchmaking.pages.dev
       - key: DATABASE_URL
         sync: false
       - key: OTEL_EXPORTER_OTLP_ENDPOINT

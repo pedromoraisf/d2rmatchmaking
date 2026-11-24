@@ -242,7 +242,7 @@ for staging sign-in) is out of scope and would be a new secret, the maintainer's
 
 Today the staging API **is** the service the maintainer already uses: `https://d2rmm-api.onrender.com`, whose
 `GET /v1/config` answers `stagingEndpoints: true`; the production service does not exist yet. The `staging` environment
-variables are `STAGING_API_URL=https://d2rmm-api.onrender.com` and `SITE_ORIGIN=https://d2rmatchmaking.pages.dev`. The
+variables are `STAGING_API_URL=https://d2rmm-api.onrender.com` and `SITE_ORIGIN=https://staging.d2rmatchmaking.pages.dev`. The
 script still trusts `/v1/config`, never the name of the host, because that host may change (SBT-02). The maintainer adds
 the two variables; the repository settings are theirs.
 
