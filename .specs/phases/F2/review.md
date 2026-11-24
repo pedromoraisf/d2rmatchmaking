@@ -142,4 +142,4 @@ Merged after the numbers above were taken, so the PR count above is from the dra
 
 ## Approval
 
-<!-- **Approved**: <date> - user: "<maintainer's words>" -->
+**Approved**: 2026-11-24 - user: "O documento da PR eu aprovo"
