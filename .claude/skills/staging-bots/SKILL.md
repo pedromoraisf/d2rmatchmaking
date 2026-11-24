@@ -20,7 +20,7 @@ message to what they do next.
 | hardcore    | `true` / `false`                             | default `false`                                                     |
 | rules       | `gm` / `bm`                                  | PvP only, default `gm`                                              |
 | activity    | `baal` / `chaos` / `cows` / `tz` / `heralds` | Leveling only, required; `heralds` needs `hell` and `rotw`          |
-| minutes     | 1 … the script's maximum                     | default 20; the bots leave after it                                 |
+| minutes     | 1 … 60                                       | default 15; the bots leave after it                                 |
 
 Tell the user, for Leveling: pick the role **Teleporter** (bots never take it, so the user hosts) and a minimum level
 **≤ 90** (bots are level 90; the hell floor 70 is the simple choice). The site never lets the minimum exceed the user's
