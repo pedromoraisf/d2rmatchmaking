@@ -18,7 +18,7 @@
       }
     },
     "mutation.api.application": {
-      "value": 78.67,
+      "value": 100,
       "direction": "higher",
       "floor": 70,
       "tolerance": 0.02,
