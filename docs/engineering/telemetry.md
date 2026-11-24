@@ -125,8 +125,12 @@ A field test is read in this order: the ticket (`d2r.ticket.id`) to the match, t
 and the agent's reads, the run (`d2r.run.id`) to the observation that confirmed it. On staging the span of
 `lobby.record-observation` also shows what the agent read (`d2r.observation.read_text`).
 
-TraceQL result, run once on `grafanacloud-traces` after the staging deploy: _to be filled by the orchestrator (query, trace
-count, date)_.
+TraceQL result, run once on `grafanacloud-traces` after the staging deploy of `b6710f23` (2026-11-24, 04:05–04:30 UTC):
+`{ span.d2r.room.id = "ef9adfce-47b8-45d7-821c-119dbfc68498" && resource.d2r.telemetry.tier = "full" }` returned **5
+traces**, all rooted in `d2rmm-api` (`POST` requests of the ready check, the room's stages and the bots' observations),
+each span carrying `d2r.room.id` and `d2r.telemetry.tier = full`. The room was a PvP duel of two staging bots
+(`scripts/staging/bots.mjs`, `BOTS_HUMAN_FIRST=false`), so it holds no agent or site spans: those come from the field
+test.
 
 ### Egress must be re-measured
 
