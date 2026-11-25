@@ -151,6 +151,10 @@ get`.** Pull the public images with an empty config (`DOCKER_CONFIG=<dir holding
   real deploy is a task gate, not a later surprise. Docs say where a setting lives only after someone saw it there
   (incident 2026-11-23, `docs/engineering/incidents/`).
 
+- **Check a journey from an empty database, and in each supported game language.** Data saved by earlier builds can
+  hide a reading that no longer works, and a reading proven on English prints says nothing about pt-BR (incident
+  2026-11-24, `docs/engineering/incidents/`).
+
 ## Agent reading
 
 - **Prove OCR on the real font with every glyph the server can generate, not on one fixed name.** Why: presence failed

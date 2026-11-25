@@ -18,6 +18,10 @@ As at the end of F2: the orchestrator runs in the cloud, at most 3 workers at a 
 
 ## Exit criteria
 
+- [ ] **First: the pt-BR selection screen is read** (regression found 2026-11-24 on a fresh staging database): with the
+      game in pt-BR the agent recognises the character selection screen and reads the cards, so a new player can add
+      characters — proof: `ocr-real` PASS on the maintainer's new pt-BR selection prints, `ocr-variations` not regressing,
+      and one fresh account on staging adding a character from a pt-BR client.
 - [ ] **J5 — score and dispute**: in a PvP duel, a round counts only when both agents' readings of the death message
       match; a divergence first tries pairing the two sides' data, then goes to the room's moderator, who decides with
       prints as evidence; leaving an active duel is a loss by W.O. — proof: `@FR-19`, `@FR-20`, `@FR-21`, `@FR-30`
@@ -41,6 +45,7 @@ As at the end of F2: the orchestrator runs in the cloud, at most 3 workers at a 
 
 | Feature               | Size   | Depends on   | Parallel | Covers              |
 | --------------------- | ------ | ------------ | -------- | ------------------- |
+| `pt-br-select-screen` | Small  | —            | yes      | FR-02 (regression)  |
 | `pvp-score`           | Large  | —            | yes      | FR-19, FR-21        |
 | `death-reading`       | Large  | —            | yes      | FR-19 (agent side)  |
 | `elo-rating`          | Medium | `pvp-score`  | no       | FR-22, FR-24        |
@@ -50,6 +55,11 @@ As at the end of F2: the orchestrator runs in the cloud, at most 3 workers at a 
 | `agent-telemetry-fix` | Small  | —            | yes      | F2 carry-over (OBS) |
 | `staging-bots-score`  | Small  | `pvp-score`  | no       | test support (J5)   |
 
+- **`pt-br-select-screen`** (agent, runs first): the agent never recognises the selection screen of a pt-BR client
+  ("Tela: não reconhecida" in every capture mode; English works). No real pt-BR selection print was ever in
+  `real-prints.zip`, so `ocr-real` could not see it, and the persisted characters of the old staging database hid it.
+  `ocr-check` learns a pt-BR selection print (its own file name), the fix follows rule 14 (drawn fixture first, then
+  the real-print proof), and the journey is re-checked from an empty database.
 - **`pvp-score`** (Lobby Room): `ScoreReport` per round from each side's observation; a round counts when the two
   readings match (FR-19); leaving an active duel is a W.O. loss, leveling has no penalty (FR-21, INV-13); emits
   `MatchResultConfirmed` and `MemberAbandoned` through the outbox. Route `POST /lobby-rooms/{id}/score-reports`
@@ -110,6 +120,11 @@ As at the end of F2: the orchestrator runs in the cloud, at most 3 workers at a 
    of a duel death message, kept on your PC like the others, would let `ocr-real` guard it. Options: a. you capture
    5–10 when convenient; b. drawn fixtures only. Recommendation: **a**, at no fixed time; the feature does not wait for
    them.
+
+6. **pt-BR selection prints (needed for the first item).** Two prints from your pt-BR client, kept on your PC: the
+   selection screen with your characters listed, and the same with the difficulty popup open. When the fix PR names
+   the files, you add them to `real-prints.zip` (7-Zip, AES-256, the same password) and I take it from there. Until
+   then, playing with the client in English works.
 
 ## Out of scope
 
