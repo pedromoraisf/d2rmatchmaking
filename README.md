@@ -2,6 +2,8 @@
 
 Community matchmaking for **Diablo II: Resurrected** on PC — like the CS community platforms, for D2R.
 
+https://github.com/user-attachments/assets/3d9cd55c-5955-46b6-877f-122a41c772d6
+
 - **PvP** queues (1v1, 2v2, 6-player arena; GM or BM rules) with ELO per character and difficulty.
 - **Leveling** queues (Baal, Chaos, Cows, Terror Zones, Heralds) that guarantee a teleporter and a BO.
 - **Live rooms** you can browse and join, filtered by mode, difficulty, region, ladder and era.
