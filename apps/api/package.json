@@ -35,7 +35,7 @@
     "@d2rmm/telemetry": "workspace:*",
     "@fastify/cookie": "^11.1.5",
     "@fastify/swagger": "^9.9.2",
-    "@opentelemetry/api": "~1.9.1",
+    "@opentelemetry/api": "~1.10.0",
     "@opentelemetry/api-logs": "0.223.0",
     "@opentelemetry/context-async-hooks": "2.12.0",
     "@opentelemetry/instrumentation": "0.223.0",
