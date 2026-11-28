@@ -9,12 +9,13 @@ maintainer's approval, and the open decisions below are his.
 
 ## Where the design lives
 
-| What               | Where                                                                                                                                                    |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Design canvas      | <https://claude.ai/artifact/NSA2uCwtGDwJGDP8tgU7DG> (private to the maintainer). Nine artboards, most of them clickable in Play mode                     |
-| Logo, version 0    | `docs/brand/logo/svg` and `docs/brand/logo/png` on the maintainer's machine, **not committed**. A vector redraw of the mascot from the maintainer's reel |
-| Hero video drafts  | `~/Downloads/d2rmm-hero/` on the maintainer's machine, outside the repository (see "Hero video")                                                         |
-| Requirements added | `docs/product/prd.md` FR-33…FR-36 and J6; AD-177 in `.specs/STATE.md`                                                                                    |
+| What               | Where                                                                                                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Design canvas      | <https://claude.ai/artifact/NSA2uCwtGDwJGDP8tgU7DG> (private to the maintainer). Nine artboards, most of them clickable in Play mode                 |
+| Canvas source      | `docs/design/` (artboards, index and the list of assets; see its README)                                                                             |
+| Logo, version 0    | `docs/brand/logo/svg` (eight vector masters). A vector redraw of the mascot from the maintainer's reel. PNG exports stay on the maintainer's machine |
+| Hero video drafts  | On the maintainer's machine, outside the repository (see "Hero video")                                                                               |
+| Requirements added | `docs/product/prd.md` FR-33…FR-36 and J6; AD-177 in `.specs/STATE.md`                                                                                |
 
 ## The product in one paragraph
 
@@ -35,8 +36,8 @@ launches with, because at the start there are few players and a queue would be e
 - **Colour**: ground `#070504`, panel `#110D0A`, bronze frames `#6B5230`, gold `#E3B866` (primary), bone `#EFE6D2`
   (text), blood `#C8281E` (accept, PvP), ember `#FF6A2B` (live, forming), verified green `#7BD88F` (confirmed by the
   agent).
-- **Not decided**: turning this into tokens and components in `apps/web`, and committing the logo. Both wait for the
-  maintainer to approve the identity.
+- **Not decided**: turning this into tokens and components in `apps/web`, and adopting the logo in the site and the
+  agent. Both wait for the maintainer to approve the identity.
 
 ## Screens in the canvas
 

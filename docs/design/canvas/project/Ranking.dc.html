@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Season ranking</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Alegreya+Sans:wght@400;500;700&family=Saira+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#070504}
+a{color:#e3b866}a:hover{color:#f6dfa6}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: radial-gradient(ellipse at 50% 0%, #2b0d0a 0%, #0c0807 42%, #070504 78%); color: #efe6d2; font-family: 'Alegreya Sans', system-ui, sans-serif; font-size: 16px; line-height: 1.4">
+
+  <header style="border-bottom: 1px solid #2f2417; background: #0b0807">
+    <div style="max-width: 1320px; margin: 0 auto; padding: 12px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 36px">
+      <a href="Home.dc.html" style="display: flex; align-items: center; gap: 12px; text-decoration: none; min-height: 44px">
+        <img src="/_blob/9cd99226fca0d8adc6528c37fac72fe2" alt="" style="width: 44px; height: 44px">
+        <span style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 17px; letter-spacing: 0.1em; color: #e3b866; white-space: nowrap">D2R MATCH MAKING</span>
+      </a>
+      <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 4px 28px; flex: 1 1 300px">
+        <a href="Rooms.dc.html" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; color: #cfc4ae; min-height: 44px; display: inline-flex; align-items: center">OPEN ROOMS</a>
+        <a href="Ranking.dc.html" aria-current="page" style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; color: #f6dfa6; min-height: 44px; display: inline-flex; align-items: center; border-bottom: 2px solid #e3b866">RANKING</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px">
+        <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.16em; color: #7bd88f"><span style="width: 8px; height: 8px; border-radius: 50%; background: #7bd88f"></span>AGENT CONNECTED</div>
+        <a href="Profile.dc.html" aria-label="Your profile and characters" style="display: flex; align-items: center; gap: 10px; border: 1px solid #3a2c1c; padding: 6px 14px 6px 6px; min-height: 44px; box-sizing: border-box; text-decoration: none; color: #efe6d2">
+          <div style="width: 32px; height: 32px; border: 1px solid #a98545; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; color: #e3b866">SO</div>
+          <div style="line-height: 1.15"><div style="font-weight: 700; font-size: 15px">Vukvuka</div><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 500; font-size: 13px; letter-spacing: 0.1em; color: #a89c88">SORCERESS · 88 · LADDER</div></div>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1120px; margin: 0 auto; padding: 40px 32px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 32px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.26em; color: #e3b866">SEASON 1 · PVP DUELS</div>
+        <h1 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 44px; letter-spacing: 0.08em; line-height: 1.1">RANKING</h1>
+      </div>
+      <div style="display: flex; align-items: center; gap: 18px; border: 1px solid #a98545; background: #0e0a08; padding: 12px 20px">
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.22em; color: #a89c88; line-height: 1.3">YOUR<br>POSITION</div>
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 40px; line-height: 1; color: #f6dfa6">{{ myRank }}</div>
+        <div style="line-height: 1.2"><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 20px">{{ myElo }} <span style="font-size: 13px; letter-spacing: 0.16em; color: #a89c88">ELO</span></div><div style="font-size: 14px; color: #a89c88">Vukvuka · Sorceress 88</div></div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 32px; border-bottom: 1px solid #2f2417">
+      <div role="tablist" aria-label="Difficulty" style="display: flex; flex-wrap: wrap; gap: 4px 30px">
+        <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="3">
+          <button role="tab" aria-selected="{{ tab.selected }}" onClick="{{ tab.pick }}" style="background: none; border: none; border-bottom: 3px solid {{ tab.line }}; min-height: 48px; padding: 0 4px; color: {{ tab.ink }}; font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.14em">{{ tab.label }}</button>
+        </sc-for>
+      </div>
+      <div role="group" aria-label="Class" style="display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 8px">
+        <sc-for list="{{ classes }}" as="chip" hint-placeholder-count="8">
+          <button onClick="{{ chip.pick }}" aria-pressed="{{ chip.pressed }}" aria-label="{{ chip.name }}" style="min-height: 44px; min-width: 48px; padding: 0 10px; background: {{ chip.fill }}; border: 1px solid {{ chip.line }}; color: {{ chip.ink }}; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.1em">{{ chip.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px">
+      <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3">
+        <div style="position: relative; border: 1px solid {{ p.line }}; outline: 1px solid #2a2016; outline-offset: 5px; margin: 5px; background: radial-gradient(ellipse at 50% 0%, {{ p.glow }} 0%, #0e0a08 62%); padding: 22px 24px; display: flex; align-items: center; gap: 18px">
+          <div style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 60px; line-height: 1; color: {{ p.rankInk }}; width: 46px; text-align: center">{{ p.rank }}</div>
+          <div style="flex: 1; min-width: 0; line-height: 1.25">
+            <div style="font-weight: 700; font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ p.name }} <span style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 0.16em; color: #e3b866">{{ p.you }}</span></div>
+            <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.12em; color: #a89c88">{{ p.character }}</div>
+            <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 34px; line-height: 1.1; color: #efe6d2">{{ p.elo }} <span style="font-size: 14px; letter-spacing: 0.16em; color: #a89c88">ELO</span></div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="border: 1px solid #6b5230; background: #0e0a08; overflow-x: auto">
+      <div role="table" aria-label="Ranking" style="min-width: 680px">
+        <div role="row" style="display: grid; grid-template-columns: 56px minmax(0, 1.4fr) minmax(0, 1.4fr) 110px 110px 110px; gap: 12px; align-items: center; padding: 11px 20px; border-bottom: 1px solid #2f2417; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.22em; color: #a89c88">
+          <div role="columnheader">#</div><div role="columnheader">PLAYER</div><div role="columnheader">CHARACTER</div><div role="columnheader" style="text-align: right">W – L</div><div role="columnheader" style="text-align: right">WIN RATE</div><div role="columnheader" style="text-align: right">ELO</div>
+        </div>
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="7">
+          <div role="row" style="display: grid; grid-template-columns: 56px minmax(0, 1.4fr) minmax(0, 1.4fr) 110px 110px 110px; gap: 12px; align-items: center; padding: 11px 20px; border-bottom: 1px solid #1f1810; background: {{ r.fill }}">
+            <div role="cell" style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 20px; color: #a89c88">{{ r.rank }}</div>
+            <div role="cell" style="font-weight: 700; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ r.name }} <span style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 0.16em; color: #e3b866">{{ r.you }}</span></div>
+            <div role="cell" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.1em; color: #cfc4ae">{{ r.character }}</div>
+            <div role="cell" style="text-align: right; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 18px; color: #cfc4ae">{{ r.record }}</div>
+            <div role="cell" style="text-align: right; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 18px; color: #cfc4ae">{{ r.rate }}</div>
+            <div role="cell" style="text-align: right; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px">{{ r.elo }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 22px 20px; color: #a89c88; text-align: center">No other ranked characters of this class yet.</div>
+      </sc-if>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; font-size: 14px; color: #a89c88">
+      <span>Each character has its own rating in each difficulty. Ratings reset when a new season opens.</span>
+      <span>Names and ratings are sample data.</span>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1260}}'>
+class Component extends DCLogic {
+renderVals() {
+const s = this.state || {};
+const diff = s.diff ?? 'hell';
+const cls = s.cls ?? 'all';
+
+const players = [
+{ name: 'PalaHammer', cls: 'Paladin', level: 94, elo: { normal: 1480, nightmare: 1602, hell: 1742 }, w: 61, l: 19 },
+{ name: 'Sorc_88', cls: 'Sorceress', level: 92, elo: { normal: 1512, nightmare: 1577, hell: 1698 }, w: 54, l: 22 },
+{ name: 'xNecro', cls: 'Necromancer', level: 91, elo: { normal: 1455, nightmare: 1630, hell: 1655 }, w: 48, l: 23 },
+{ name: 'Vukvuka', cls: 'Sorceress', level: 88, elo: { normal: 1390, nightmare: 1402, hell: 1611 }, w: 37, l: 18, you: true },
+{ name: 'ColdBlood', cls: 'Amazon', level: 90, elo: { normal: 1534, nightmare: 1548, hell: 1580 }, w: 44, l: 27 },
+{ name: 'IronHowl', cls: 'Barbarian', level: 95, elo: { normal: 1421, nightmare: 1590, hell: 1564 }, w: 52, l: 35 },
+{ name: 'Moonclaw', cls: 'Druid', level: 92, elo: { normal: 1467, nightmare: 1511, hell: 1541 }, w: 33, l: 21 },
+{ name: 'ShadowVeil', cls: 'Assassin', level: 89, elo: { normal: 1498, nightmare: 1489, hell: 1522 }, w: 29, l: 20 },
+{ name: 'Javazon_BR', cls: 'Amazon', level: 93, elo: { normal: 1402, nightmare: 1533, hell: 1498 }, w: 41, l: 33 },
+{ name: 'BoneLord', cls: 'Necromancer', level: 96, elo: { normal: 1376, nightmare: 1466, hell: 1473 }, w: 26, l: 22 },
+{ name: 'HolyBolt', cls: 'Paladin', level: 90, elo: { normal: 1445, nightmare: 1420, hell: 1450 }, w: 22, l: 20 },
+{ name: 'WindDruid', cls: 'Druid', level: 87, elo: { normal: 1359, nightmare: 1438, hell: 1431 }, w: 18, l: 19 },
+];
+
+const fmt = (n) => String(n).replace(/(\d)(?=(\d{3})+$)/g, '$1 ');
+const ranked = players.slice().sort((a, b) => b.elo[diff] - a.elo[diff]).map((p, i) => ({ ...p, rank: i + 1 }));
+const me = ranked.find((p) => p.you);
+const visible = ranked.filter((p) => cls === 'all' || p.cls === cls);
+
+const view = (p) => ({
+rank: p.rank,
+name: p.name,
+you: p.you ? 'YOU' : '',
+character: (p.cls + ' · ' + p.level).toUpperCase(),
+elo: fmt(p.elo[diff]),
+record: p.w + ' – ' + p.l,
+rate: Math.round((p.w / (p.w + p.l)) * 100) + '%',
+fill: p.you ? 'rgba(227, 184, 102, 0.1)' : 'transparent',
+});
+const podiumLook = [
+{ line: '#e3b866', glow: '#4a3410', rankInk: '#f6dfa6' },
+{ line: '#a98545', glow: '#2b2114', rankInk: '#e3b866' },
+{ line: '#6b5230', glow: '#211a11', rankInk: '#c9a45c' },
+];
+
+const classList = [['all', 'ALL', 'All classes'], ['Amazon', 'AM', 'Amazon'], ['Assassin', 'AS', 'Assassin'], ['Barbarian', 'BA', 'Barbarian'], ['Druid', 'DR', 'Druid'], ['Necromancer', 'NE', 'Necromancer'], ['Paladin', 'PA', 'Paladin'], ['Sorceress', 'SO', 'Sorceress']];
+
+return {
+myRank: '#' + me.rank,
+myElo: fmt(me.elo[diff]),
+tabs: [['normal', 'NORMAL'], ['nightmare', 'NIGHTMARE'], ['hell', 'HELL']].map(([key, label]) => ({
+label,
+selected: key === diff ? 'true' : 'false',
+line: key === diff ? '#e3b866' : 'transparent',
+ink: key === diff ? '#f6dfa6' : '#a89c88',
+pick: () => this.setState({ diff: key }),
+})),
+classes: classList.map(([key, label, name]) => ({
+label, name,
+pressed: key === cls ? 'true' : 'false',
+fill: key === cls ? '#e3b866' : 'transparent',
+line: key === cls ? '#e3b866' : '#3a2c1c',
+ink: key === cls ? '#1a0f06' : '#cfc4ae',
+pick: () => this.setState({ cls: key }),
+})),
+podium: visible.slice(0, 3).map((p, i) => ({ ...view(p), ...podiumLook[i] })),
+rows: visible.slice(3).map(view),
+noRows: visible.length <= 3,
+};
+}
+}
+</script>
+</body>
+</html>

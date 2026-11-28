@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Profile and characters</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Alegreya+Sans:wght@400;500;700&family=Saira+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#070504}
+a{color:#e3b866}a:hover{color:#f6dfa6}
+button{font:inherit;cursor:pointer}
+button:disabled{cursor:not-allowed}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: radial-gradient(ellipse at 50% 0%, #2b0d0a 0%, #0c0807 42%, #070504 78%); color: #efe6d2; font-family: 'Alegreya Sans', system-ui, sans-serif; font-size: 16px; line-height: 1.4">
+
+  <header style="border-bottom: 1px solid #2f2417; background: #0b0807">
+    <div style="max-width: 1320px; margin: 0 auto; padding: 12px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 36px">
+      <a href="Home.dc.html" style="display: flex; align-items: center; gap: 12px; text-decoration: none; min-height: 44px">
+        <img src="/_blob/9cd99226fca0d8adc6528c37fac72fe2" alt="" style="width: 44px; height: 44px">
+        <span style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 17px; letter-spacing: 0.1em; color: #e3b866; white-space: nowrap">D2R MATCH MAKING</span>
+      </a>
+      <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 4px 28px; flex: 1 1 300px">
+        <a href="Rooms.dc.html" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; color: #cfc4ae; min-height: 44px; display: inline-flex; align-items: center">OPEN ROOMS</a>
+        <a href="Ranking.dc.html" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; color: #cfc4ae; min-height: 44px; display: inline-flex; align-items: center">RANKING</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px">
+        <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.16em; color: #7bd88f"><span style="width: 8px; height: 8px; border-radius: 50%; background: #7bd88f"></span>AGENT CONNECTED</div>
+        <a href="Profile.dc.html" aria-current="page" aria-label="Your profile and characters" style="display: flex; align-items: center; gap: 10px; border: 1px solid #e3b866; padding: 6px 14px 6px 6px; min-height: 44px; box-sizing: border-box; text-decoration: none; color: #efe6d2">
+          <div style="width: 32px; height: 32px; border: 1px solid #a98545; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; color: #e3b866">SO</div>
+          <div style="line-height: 1.15"><div style="font-weight: 700; font-size: 15px">{{ activeName }}</div><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 500; font-size: 13px; letter-spacing: 0.1em; color: #a89c88">{{ activeMeta }}</div></div>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1120px; margin: 0 auto; padding: 40px 32px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 32px">
+
+    <div style="display: flex; flex-wrap: wrap; align-items: stretch; gap: 24px">
+      <div style="flex: 1 1 380px; min-width: 0; display: flex; align-items: center; gap: 22px">
+        <img src="/_blob/11d9289375f06dad07c575c69eeaa255" alt="" style="width: 104px; height: 104px; flex: none">
+        <div style="min-width: 0">
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.26em; color: #e3b866">PROFILE</div>
+          <h1 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 40px; letter-spacing: 0.06em; line-height: 1.15; overflow-wrap: anywhere">VUKADAO<span style="color: #a89c88; font-size: 24px">#1234</span></h1>
+          <div style="font-size: 15px; color: #a89c88">Signed in with Battle.net · <a href="Home.dc.html">Sign out</a></div>
+        </div>
+      </div>
+      <section aria-label="Desktop agent" style="flex: 1 1 380px; min-width: 0; border: 1px solid #2f2417; background: #0e0a08; padding: 18px 22px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px">
+        <div style="line-height: 1.3">
+          <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.2em; color: #7bd88f"><span style="width: 8px; height: 8px; border-radius: 50%; background: #7bd88f"></span>DESKTOP AGENT · CONNECTED</div>
+          <div style="font-weight: 700; font-size: 17px">This PC · paired</div>
+          <div style="font-size: 14px; color: #a89c88">Read-only. Last seen a few seconds ago.</div>
+        </div>
+        <a href="Home.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px; border: 1px solid #6b5230; color: #cfc4ae; font-family: 'Cinzel', serif; font-weight: 700; font-size: 13px; letter-spacing: 0.16em; text-decoration: none">PAIR ANOTHER PC</a>
+      </section>
+    </div>
+
+    <section style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px">
+        <h2 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 24px; letter-spacing: 0.12em; color: #efe6d2">YOUR CHARACTERS</h2>
+        <div style="font-size: 15px; color: #a89c88">The agent reads name, class and level from the game. You declare the rest once.</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 22px; align-items: start">
+
+        <!-- Complete character -->
+        <article style="border: 1px solid {{ a.line }}; outline: 1px solid #2a2016; outline-offset: 5px; margin: 5px; background: #0e0a08; padding: 22px; display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; align-items: center; gap: 14px">
+            <div style="width: 52px; height: 52px; flex: none; border: 1px solid #a98545; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; color: #e3b866">SO</div>
+            <div style="flex: 1; min-width: 0; line-height: 1.2">
+              <h3 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 20px; letter-spacing: 0.08em">VUKVUKA</h3>
+              <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.12em; color: #a89c88">SORCERESS · LEVEL 88 · SOFTCORE</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.18em; color: #7bd88f"><span style="width: 8px; height: 8px; border-radius: 50%; background: #7bd88f"></span>READY TO QUEUE</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px">
+            <span style="padding: 6px 12px; border: 1px solid #3a2c1c; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.1em; color: #cfc4ae">LADDER</span>
+            <span style="padding: 6px 12px; border: 1px solid #3a2c1c; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.1em; color: #cfc4ae">REIGN OF THE WARLOCK</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: #2f2417; border: 1px solid #2f2417">
+            <div style="background: #100c09; padding: 10px 12px"><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 0.18em; color: #a89c88">NORMAL</div><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 24px">1 390</div></div>
+            <div style="background: #100c09; padding: 10px 12px"><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 0.18em; color: #e9a23b">NIGHTMARE</div><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 24px">1 402</div></div>
+            <div style="background: #100c09; padding: 10px 12px"><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 0.18em; color: #ff7a5c">HELL</div><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 24px">1 611</div></div>
+          </div>
+          <button onClick="{{ a.pick }}" aria-pressed="{{ a.pressed }}" style="min-height: 48px; background: {{ a.fill }}; border: 1px solid #a98545; color: {{ a.ink }}; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em">{{ a.label }}</button>
+        </article>
+
+        <!-- Character with missing details -->
+        <article style="border: 1px solid {{ b.line }}; outline: 1px solid #2a2016; outline-offset: 5px; margin: 5px; background: #0e0a08; padding: 22px; display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; align-items: center; gap: 14px">
+            <div style="width: 52px; height: 52px; flex: none; border: 1px solid #a98545; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; color: #e3b866">SO</div>
+            <div style="flex: 1; min-width: 0; line-height: 1.2">
+              <h3 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 20px; letter-spacing: 0.08em">VUKADAO</h3>
+              <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.12em; color: #a89c88">SORCERESS · LEVEL 11 · SOFTCORE</div>
+            </div>
+          </div>
+          <div aria-live="polite" style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.18em; color: {{ b.statusInk }}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ b.statusInk }}"></span>{{ b.status }}</div>
+
+          <sc-if value="{{ b.editing }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-direction: column; gap: 16px">
+              <div style="font-size: 15px; color: #cfc4ae">Declare ladder and era to queue with this character.</div>
+              <fieldset>
+                <legend style="padding: 0 0 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.22em; color: #a89c88">LADDER</legend>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px">
+                  <sc-for list="{{ b.ladder }}" as="chip" hint-placeholder-count="2">
+                    <button onClick="{{ chip.pick }}" aria-pressed="{{ chip.pressed }}" style="min-height: 44px; padding: 0 14px; background: {{ chip.fill }}; border: 1px solid {{ chip.line }}; color: {{ chip.ink }}; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.1em">{{ chip.label }}</button>
+                  </sc-for>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend style="padding: 0 0 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.22em; color: #a89c88">ERA</legend>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px">
+                  <sc-for list="{{ b.era }}" as="chip" hint-placeholder-count="3">
+                    <button onClick="{{ chip.pick }}" aria-pressed="{{ chip.pressed }}" style="min-height: 44px; padding: 0 14px; background: {{ chip.fill }}; border: 1px solid {{ chip.line }}; color: {{ chip.ink }}; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.1em">{{ chip.label }}</button>
+                  </sc-for>
+                </div>
+              </fieldset>
+              <button onClick="{{ b.save }}" disabled="{{ b.saveDisabled }}" style="min-height: 48px; border: none; background: {{ b.saveFill }}; color: {{ b.saveInk }}; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em">SAVE</button>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ b.saved }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 16px">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+                <span style="padding: 6px 12px; border: 1px solid #3a2c1c; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.1em; color: #cfc4ae">{{ b.ladderLabel }}</span>
+                <span style="padding: 6px 12px; border: 1px solid #3a2c1c; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.1em; color: #cfc4ae">{{ b.eraLabel }}</span>
+                <button onClick="{{ b.edit }}" style="min-height: 44px; padding: 0 8px; background: none; border: none; color: #e3b866; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.16em; text-decoration: underline">EDIT</button>
+              </div>
+              <div style="border: 1px solid #2f2417; background: #100c09; padding: 12px 14px; font-size: 15px; color: #a89c88">Unranked. The rating appears after the first ranked duel.</div>
+              <button onClick="{{ b.pick }}" aria-pressed="{{ b.pressed }}" style="min-height: 48px; background: {{ b.fill }}; border: 1px solid #a98545; color: {{ b.ink }}; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em">{{ b.label }}</button>
+            </div>
+          </sc-if>
+        </article>
+
+        <!-- Where new characters come from -->
+        <div style="border: 1px dashed #4a3a24; margin: 5px; padding: 28px 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; min-height: 220px">
+          <svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#a98545" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7s10 7 10 7s-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <div style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.12em; color: #cfc4ae">ANOTHER CHARACTER?</div>
+          <div style="max-width: 260px; font-size: 15px; color: #a89c88">Enter a game with it once. The agent sees it and it shows up here.</div>
+        </div>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 24px; letter-spacing: 0.12em; color: #efe6d2">PREFERENCES</h2>
+      <div style="border: 1px solid #2f2417; background: #0e0a08; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1px">
+        <div style="padding: 16px 22px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px">
+          <div><div style="font-weight: 700">Language</div><div style="font-size: 14px; color: #a89c88">Site and agent</div></div>
+          <div role="group" aria-label="Language" style="display: flex; gap: 8px">
+            <sc-for list="{{ langs }}" as="chip" hint-placeholder-count="2">
+              <button onClick="{{ chip.pick }}" aria-pressed="{{ chip.pressed }}" style="min-height: 44px; padding: 0 14px; background: {{ chip.fill }}; border: 1px solid {{ chip.line }}; color: {{ chip.ink }}; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.1em">{{ chip.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="padding: 16px 22px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px">
+          <div><div style="font-weight: 700">Accept a match without leaving the game</div><div style="font-size: 14px; color: #a89c88">Global shortcut handled by the agent</div></div>
+          <span style="font-family: ui-monospace, Menlo, monospace; color: #efe6d2; border: 1px solid #3a2c1c; padding: 8px 12px">Ctrl+Shift+A</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+renderVals() {
+const s = this.state || {};
+const active = s.active ?? 'a';
+const ladder = s.ladder ?? null;
+const era = s.era ?? null;
+const saved = s.saved ?? false;
+const lang = s.lang ?? 'en';
+
+const chip = (on, label, pick) => ({
+label,
+pressed: on ? 'true' : 'false',
+fill: on ? '#e3b866' : 'transparent',
+line: on ? '#e3b866' : '#3a2c1c',
+ink: on ? '#1a0f06' : '#cfc4ae',
+pick,
+});
+const playAs = (key) => ({
+pressed: active === key ? 'true' : 'false',
+fill: active === key ? 'rgba(227, 184, 102, 0.14)' : 'transparent',
+ink: active === key ? '#f6dfa6' : '#e3b866',
+label: active === key ? 'PLAYING AS THIS CHARACTER' : 'PLAY AS THIS CHARACTER',
+line: active === key ? '#a98545' : '#6b5230',
+pick: () => this.setState({ active: key }),
+});
+
+const ladderNames = { ladder: 'LADDER', nonladder: 'NON-LADDER' };
+const eraNames = { classic: 'CLASSIC', expansion: 'EXPANSION', warlock: 'REIGN OF THE WARLOCK' };
+const missing = (ladder ? 0 : 1) + (era ? 0 : 1);
+const canSave = missing === 0;
+
+return {
+activeName: active === 'a' ? 'Vukvuka' : 'Vukadao',
+activeMeta: active === 'a' ? 'SORCERESS · 88 · LADDER' : 'SORCERESS · 11 · ' + (ladderNames[ladder] ?? ''),
+a: playAs('a'),
+b: {
+...playAs('b'),
+line: saved ? (active === 'b' ? '#a98545' : '#6b5230') : '#ff8a4f',
+status: saved ? 'READY TO QUEUE' : missing === 2 ? '2 DETAILS MISSING' : missing === 1 ? '1 DETAIL MISSING' : 'READY TO SAVE',
+statusInk: saved ? '#7bd88f' : '#ff8a4f',
+editing: !saved,
+saved,
+ladder: Object.keys(ladderNames).map((k) => chip(ladder === k, ladderNames[k], () => this.setState({ ladder: k }))),
+era: Object.keys(eraNames).map((k) => chip(era === k, eraNames[k], () => this.setState({ era: k }))),
+saveDisabled: !canSave,
+saveFill: canSave ? 'linear-gradient(180deg, #f6dfa6 0%, #e3b866 45%, #b8873a 100%)' : '#2a2016',
+saveInk: canSave ? '#1a0f06' : '#a89c88',
+save: () => this.setState({ saved: true }),
+edit: () => this.setState({ saved: false, active: 'a' }),
+ladderLabel: ladderNames[ladder] ?? '',
+eraLabel: eraNames[era] ?? '',
+},
+langs: [chip(lang === 'en', 'ENGLISH', () => this.setState({ lang: 'en' })), chip(lang === 'pt', 'PORTUGUÊS', () => this.setState({ lang: 'pt' }))],
+};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Room, before the game starts</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Alegreya+Sans:wght@400;500;700&family=Saira+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#070504}
+a{color:#e3b866}a:hover{color:#f6dfa6}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: radial-gradient(ellipse at 50% 0%, #2b0d0a 0%, #0c0807 45%, #070504 80%); color: #efe6d2; font-family: 'Alegreya Sans', system-ui, sans-serif; font-size: 16px; line-height: 1.4">
+
+  <header style="border-bottom: 1px solid #2f2417; background: #0b0807">
+    <div style="max-width: 1320px; margin: 0 auto; padding: 12px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 36px">
+      <a href="Home.dc.html" style="display: flex; align-items: center; gap: 12px; text-decoration: none; min-height: 44px">
+        <img src="/_blob/9cd99226fca0d8adc6528c37fac72fe2" alt="" style="width: 44px; height: 44px">
+        <span style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 17px; letter-spacing: 0.1em; color: #e3b866; white-space: nowrap">D2R MATCH MAKING</span>
+      </a>
+      <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 4px 28px; flex: 1 1 300px">
+        <a href="Rooms.dc.html" aria-current="page" style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; color: #f6dfa6; min-height: 44px; display: inline-flex; align-items: center; border-bottom: 2px solid #e3b866">OPEN ROOMS</a>
+        <a href="Ranking.dc.html" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; color: #cfc4ae; min-height: 44px; display: inline-flex; align-items: center">RANKING</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px">
+        <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.16em; color: #7bd88f"><span style="width: 8px; height: 8px; border-radius: 50%; background: #7bd88f"></span>AGENT CONNECTED</div>
+        <a href="Profile.dc.html" aria-label="Your profile and characters" style="display: flex; align-items: center; gap: 10px; border: 1px solid #3a2c1c; padding: 6px 14px 6px 6px; min-height: 44px; box-sizing: border-box; text-decoration: none; color: #efe6d2">
+          <div style="width: 32px; height: 32px; border: 1px solid #a98545; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; color: #e3b866">SO</div>
+          <div style="line-height: 1.15"><div style="font-weight: 700; font-size: 15px">Vukvuka</div><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 500; font-size: 13px; letter-spacing: 0.1em; color: #a89c88">SORCERESS · 88 · LADDER</div></div>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1040px; margin: 0 auto; padding: 40px 32px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 26px">
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 28px">
+      <div style="display: flex; align-items: center; gap: 16px">
+        <img src="/_blob/5c5fbf763163410258c30bcaaa382e35" alt="" style="width: 72px; height: 72px">
+        <div>
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #e3b866">YOUR ROOM · BAAL RUNS · HELL · LADDER</div>
+          <h1 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 32px; letter-spacing: 0.08em; line-height: 1.15">{{ headline }}</h1>
+        </div>
+      </div>
+      <a href="Rooms.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 22px; border: 1px solid #6b5230; color: #cfc4ae; font-family: 'Cinzel', serif; font-weight: 700; font-size: 13px; letter-spacing: 0.16em; text-decoration: none">LEAVE ROOM</a>
+    </div>
+
+    <ol aria-label="Room progress" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px">
+      <sc-for list="{{ steps }}" as="step" hint-placeholder-count="4">
+        <li style="padding: 12px 14px; border-top: 3px solid {{ step.line }}; background: #0e0a08; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.16em; color: {{ step.ink }}">{{ step.label }}</li>
+      </sc-for>
+    </ol>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 26px; align-items: stretch">
+
+      <section style="flex: 1 1 420px; min-width: 0; border: 1px solid #a98545; outline: 1px solid #3a2c1c; outline-offset: 6px; margin: 6px; background: #0e0a08; padding: 30px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+        <div>
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.24em; color: #a89c88">GAME NAME · NO PASSWORD</div>
+          <div style="font-family: ui-monospace, Menlo, monospace; font-weight: 700; font-size: clamp(34px, 6vw, 52px); letter-spacing: 0.02em; color: #f6dfa6; line-height: 1.15">mmbaalh-34</div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px">
+          <button onClick="{{ copy }}" style="min-height: 52px; padding: 0 30px; border: none; background: linear-gradient(180deg, #f6dfa6 0%, #e3b866 45%, #b8873a 100%); color: #1a0f06; font-family: 'Cinzel', serif; font-weight: 700; font-size: 15px; letter-spacing: 0.16em; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)">COPY GAME NAME</button>
+          <span aria-live="polite" style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.14em; color: #7bd88f">{{ copiedText }}</span>
+        </div>
+        <ol style="margin: 0; padding: 18px 0 0; list-style: none; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid #2f2417">
+          <sc-for list="{{ howTo }}" as="line" hint-placeholder-count="3">
+            <li style="display: flex; gap: 14px"><span style="flex: none; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px; line-height: 1.1; color: #e3b866; width: 18px">{{ line.n }}</span><span>{{ line.text }}</span></li>
+          </sc-for>
+        </ol>
+      </section>
+
+      <section aria-label="Party" style="flex: 1 1 380px; min-width: 0; border: 1px solid #2f2417; background: #0e0a08; margin: 6px 0; box-sizing: border-box; display: flex; flex-direction: column">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #2f2417">
+          <div style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; color: #e3b866">PARTY</div>
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 20px">{{ inGame }}<span style="font-size: 14px; letter-spacing: 0.14em; color: #a89c88"> / 8 IN GAME</span></div>
+        </div>
+        <sc-for list="{{ members }}" as="m" hint-placeholder-count="8">
+          <div style="display: flex; align-items: center; gap: 12px; padding: 9px 20px; border-bottom: 1px solid #1f1810">
+            <div style="width: 34px; height: 34px; flex: none; box-sizing: border-box; border: 1px {{ m.tileLine }}; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; color: #e3b866">{{ m.code }}</div>
+            <div style="flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px">
+              <span style="font-weight: 700; color: {{ m.nameInk }}">{{ m.name }}</span>
+              <span style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.12em; color: #a89c88">{{ m.level }}</span>
+              <span style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 0.16em; color: #e3b866">{{ m.tag }}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.14em; color: {{ m.ink }}">{{ m.status }}</div>
+          </div>
+        </sc-for>
+        <div style="padding: 12px 20px; font-size: 14px; color: #a89c88">Presence is confirmed by each player's desktop agent.</div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["member","host"],"default":"member","section":"Room"},"roomStage":{"editor":"enum","options":["waiting","created","active"],"default":"created","section":"Room"},"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+renderVals() {
+const s = this.state || {};
+const role = this.props.role ?? 'member';
+const stage = this.props.roomStage ?? 'created';
+const host = role === 'host';
+const stageIndex = { waiting: 1, created: 2, active: 3 }[stage] ?? 2;
+
+const others = [
+{ code: 'SO', name: 'Sorceress', level: 94 },
+{ code: 'PA', name: 'Paladin', level: 91 },
+{ code: 'NE', name: 'Necromancer', level: 96 },
+{ code: 'AM', name: 'Amazon', level: 90 },
+{ code: 'BA', name: 'Barbarian', level: 89 },
+{ code: 'DR', name: 'Druid', level: 92 },
+{ code: 'AS', name: 'Assassin', level: 86 },
+];
+const you = { code: 'SO', name: 'Sorceress', level: 88, you: true };
+// From the list you join a room that still has free slots; from quick match the party is complete.
+const party = host ? [you].concat(others) : others.slice(0, 5).concat([you]);
+const inGameCount = stage === 'active' ? party.length : stage === 'created' ? 3 : 0;
+
+const members = party.map((p, i) => {
+const inGame = i < inGameCount;
+return {
+code: p.code, name: p.name, level: 'LEVEL ' + p.level,
+tag: [i === 0 ? 'HOST' : '', p.you ? 'YOU' : ''].filter(Boolean).join(' · '),
+status: inGame ? 'IN GAME' : stage === 'waiting' ? 'WAITING' : 'JOINING',
+ink: inGame ? '#7bd88f' : '#ff8a4f',
+nameInk: '#efe6d2',
+tileLine: 'solid #6b5230',
+};
+});
+for (let i = party.length; i < 8; i++) members.push({ code: '', name: 'Open slot', level: '', tag: '', status: 'OPEN', ink: '#a89c88', nameInk: '#a89c88', tileLine: 'dashed #4a3a24' });
+
+const labels = ['PARTY FORMED', 'WAITING FOR THE HOST', 'GAME CREATED', 'ACTIVE'];
+const steps = labels.map((label, i) => ({
+label,
+line: i < stageIndex ? '#6b5230' : i === stageIndex ? '#e3b866' : '#2f2417',
+ink: i < stageIndex ? '#a89c88' : i === stageIndex ? '#f6dfa6' : '#8a7f6c',
+}));
+
+const hostLines = [
+'You are the host. Create a public game with this exact name and no password.',
+'In the game, open the Party panel so the agent can read the game name.',
+'If the game is not created within 3 minutes, the room expires and everyone is released.',
+];
+const memberLines = [
+'In the game lobby, join the game with this exact name. There is no password.',
+'Open the Party panel so the agent can confirm you are inside.',
+'This screen updates on its own as soon as the agent sees you in the game.',
+];
+const headlines = host
+? { waiting: 'CREATE THE GAME', created: 'GAME CREATED. PARTY JOINING.', active: 'EVERYONE IS IN. GOOD HUNTING.' }
+: { waiting: 'WAITING FOR THE HOST', created: 'YOU ARE IN. JOIN THE GAME.', active: 'EVERYONE IS IN. GOOD HUNTING.' };
+
+return {
+headline: headlines[stage] ?? headlines.created,
+steps,
+howTo: (host ? hostLines : memberLines).map((text, i) => ({ n: i + 1, text })),
+members,
+inGame: inGameCount,
+copy: () => this.setState({ copied: true }),
+copiedText: s.copied ? 'GAME NAME COPIED' : '',
+};
+}
+}
+</script>
+</body>
+</html>

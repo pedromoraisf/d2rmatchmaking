@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Open rooms with filters</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Alegreya+Sans:wght@400;500;700&family=Saira+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#070504}
+a{color:#e3b866}a:hover{color:#f6dfa6}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #070504; color: #efe6d2; font-family: 'Alegreya Sans', system-ui, sans-serif; font-size: 16px; line-height: 1.4">
+
+  <header style="border-bottom: 1px solid #2f2417; background: #0b0807">
+    <div style="max-width: 1320px; margin: 0 auto; padding: 12px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 36px">
+      <a href="Home.dc.html" style="display: flex; align-items: center; gap: 12px; text-decoration: none; min-height: 44px">
+        <img src="/_blob/9cd99226fca0d8adc6528c37fac72fe2" alt="" style="width: 44px; height: 44px">
+        <span style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 17px; letter-spacing: 0.1em; color: #e3b866; white-space: nowrap">D2R MATCH MAKING</span>
+      </a>
+      <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 4px 28px; flex: 1 1 300px">
+        <a href="Rooms.dc.html" aria-current="page" style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; color: #f6dfa6; min-height: 44px; display: inline-flex; align-items: center; border-bottom: 2px solid #e3b866">OPEN ROOMS</a>
+        <a href="Ranking.dc.html" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; color: #cfc4ae; min-height: 44px; display: inline-flex; align-items: center">RANKING</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px">
+        <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.16em; color: #7bd88f"><span style="width: 8px; height: 8px; border-radius: 50%; background: #7bd88f"></span>AGENT CONNECTED</div>
+        <a href="Profile.dc.html" aria-label="Your profile and characters" style="display: flex; align-items: center; gap: 10px; border: 1px solid #3a2c1c; padding: 6px 14px 6px 6px; min-height: 44px; box-sizing: border-box; text-decoration: none; color: #efe6d2">
+          <div style="width: 32px; height: 32px; border: 1px solid #a98545; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; color: #e3b866">SO</div>
+          <div style="line-height: 1.15"><div style="font-weight: 700; font-size: 15px">Vukvuka</div><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 500; font-size: 13px; letter-spacing: 0.1em; color: #a89c88">SORCERESS · 88 · LADDER</div></div>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1320px; margin: 0 auto; padding: 36px 32px 56px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 32px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <h1 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 38px; letter-spacing: 0.08em; line-height: 1.1; color: #efe6d2">OPEN ROOMS</h1>
+        <div aria-live="polite" style="display: flex; align-items: center; gap: 10px; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; color: #a89c88">
+          <span style="width: 9px; height: 9px; border-radius: 50%; background: #ff6a2b; box-shadow: 0 0 10px #ff6a2b"></span>
+          <span><span style="color: #efe6d2">{{ roomCount }}</span> ROOMS · <span style="color: #efe6d2">{{ playerCount }}</span> PLAYERS INSIDE</span>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px">
+        <a href="Room.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border: 1px solid #a98545; color: #e3b866; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em; text-decoration: none">CREATE ROOM</a>
+        <button onClick="{{ quick }}" aria-pressed="{{ quickPressed }}" style="min-height: 48px; padding: 0 28px; border: none; background: linear-gradient(180deg, #f6dfa6 0%, #e3b866 45%, #b8873a 100%); color: #1a0f06; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)">{{ quickLabel }}</button>
+      </div>
+    </div>
+
+    <!-- Quick match: queues with the current filters, on this same screen -->
+    <sc-if value="{{ searching }}" hint-placeholder-val="{{ false }}">
+      <section aria-live="polite" aria-label="Quick match" style="border: 1px solid {{ queueInk }}; background: #120d0a; padding: 14px 22px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 28px">
+        <div style="display: flex; align-items: center; gap: 16px; min-width: 0">
+          <img src="/_blob/5c5fbf763163410258c30bcaaa382e35" alt="" style="width: 56px; height: 56px; flex: none">
+          <div style="min-width: 0; line-height: 1.3">
+            <div style="display: flex; align-items: center; gap: 10px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 17px; letter-spacing: 0.2em; color: {{ queueInk }}"><span style="width: 9px; height: 9px; flex: none; border-radius: 50%; background: {{ queueInk }}; box-shadow: 0 0 10px {{ queueInk }}"></span>{{ queueTitle }}</div>
+            <div style="font-size: 16px; color: #efe6d2">{{ queueCriteria }}</div>
+            <div style="font-size: 14px; color: #a89c88">{{ queueNote }}</div>
+          </div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+          <sc-if value="{{ found }}" hint-placeholder-val="{{ false }}">
+            <a href="Match.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 28px; background: linear-gradient(180deg, #dd3b2d 0%, #a51d14 100%); color: #fff6ea; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em; text-decoration: none; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)">OPEN READY CHECK</a>
+          </sc-if>
+          <button onClick="{{ cancel }}" style="min-height: 48px; padding: 0 22px; background: none; border: 1px solid #6b5230; color: #cfc4ae; font-family: 'Cinzel', serif; font-weight: 700; font-size: 13px; letter-spacing: 0.16em">CANCEL</button>
+        </div>
+      </section>
+    </sc-if>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 32px">
+
+      <aside aria-label="Filters" style="flex: 1 1 240px; max-width: 300px; display: flex; flex-direction: column; gap: 22px; border: 1px solid #2f2417; background: #0e0a08; padding: 22px; box-sizing: border-box">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+          <div style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; color: #e3b866">FILTERS</div>
+          <button onClick="{{ clear }}" style="background: none; border: none; padding: 0; min-height: 44px; color: #a89c88; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.16em; text-decoration: underline">CLEAR</button>
+        </div>
+        <sc-for list="{{ groups }}" as="group" hint-placeholder-count="4">
+          <div role="group" aria-label="{{ group.label }}" style="display: flex; flex-direction: column; gap: 10px">
+            <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.22em; color: #a89c88">{{ group.label }}</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px">
+              <sc-for list="{{ group.chips }}" as="chip" hint-placeholder-count="4">
+                <button onClick="{{ chip.pick }}" aria-pressed="{{ chip.pressed }}" style="min-height: 44px; padding: 0 14px; background: {{ chip.fill }}; border: 1px solid {{ chip.line }}; color: {{ chip.ink }}; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.1em">{{ chip.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <div style="border-top: 1px solid #2f2417; padding-top: 16px; display: flex; flex-direction: column; gap: 6px">
+          <sc-for list="{{ toggles }}" as="toggle" hint-placeholder-count="2">
+            <button role="switch" aria-checked="{{ toggle.checked }}" onClick="{{ toggle.flip }}" style="display: flex; align-items: center; gap: 12px; min-height: 44px; background: none; border: none; padding: 0; text-align: left; color: #efe6d2; font-family: 'Alegreya Sans', sans-serif; font-size: 16px">
+              <span aria-hidden="true" style="flex: none; width: 22px; height: 22px; box-sizing: border-box; border: 1px solid {{ toggle.line }}; background: {{ toggle.fill }}; display: flex; align-items: center; justify-content: center; color: #1a0f06; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px">{{ toggle.mark }}</span>
+              <span>{{ toggle.label }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </aside>
+
+      <section aria-label="Rooms" style="flex: 999 1 620px; min-width: 0; overflow-x: auto">
+        <div style="min-width: 780px; border: 1px solid #6b5230; outline: 1px solid #2a2016; outline-offset: 5px; margin: 6px; background: #0e0a08">
+          <div style="display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(0, 1.1fr) minmax(0, 1.25fr) minmax(0, 1.35fr) 116px; gap: 16px; align-items: center; padding: 12px 20px; border-bottom: 1px solid #2f2417; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.22em; color: #a89c88">
+            <div>ROOM</div><div>HOST · SEEN BY</div><div>PARTY</div><div>STATUS</div><div></div>
+          </div>
+
+          <!-- Origin 1: rooms created in D2R Match Making. Gold, solid, confirmed by every player's agent. -->
+          <sc-if value="{{ hasNative }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 20px; background: #17110b; border-bottom: 1px solid #2f2417">
+              <img src="/_blob/11d9289375f06dad07c575c69eeaa255" alt="" style="width: 28px; height: 28px; flex: none">
+              <span style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.22em; color: #e3b866">D2RMM ROOMS</span>
+              <span style="font-size: 14px; color: #a89c88">Created here. Every player runs the agent, so the party is confirmed.</span>
+              <span style="margin-left: auto; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; color: #e3b866">{{ nativeCount }}</span>
+            </div>
+          </sc-if>
+
+          <sc-for list="{{ rooms }}" as="room" hint-placeholder-count="8">
+            <div style="display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(0, 1.1fr) minmax(0, 1.25fr) minmax(0, 1.35fr) 116px; gap: 16px; align-items: center; padding: 13px 20px; border-bottom: 1px solid #1f1810">
+              <div style="display: flex; align-items: center; gap: 14px; min-width: 0">
+                <div style="width: 46px; height: 46px; flex: none; border: 1px solid #a98545; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; color: #e3b866">{{ room.code }}</div>
+                <div style="min-width: 0">
+                  <div style="font-weight: 700; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ room.title }}</div>
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.12em; color: #a89c88">
+                    <span style="font-family: ui-monospace, Menlo, monospace; letter-spacing: 0; color: #cfc4ae">{{ room.name }}</span>
+                    <span style="color: {{ room.diffInk }}">{{ room.diff }}</span>
+                    <span>{{ room.ladder }}</span>
+                    <span>{{ room.core }}</span>
+                    <span>{{ room.levels }}</span>
+                  </div>
+                </div>
+              </div>
+              <div style="min-width: 0; line-height: 1.2">
+                <div style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ room.hostClass }}</div>
+                <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.12em; color: #a89c88">LEVEL {{ room.hostLevel }}</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px">
+                <div aria-hidden="true" style="display: flex; gap: 3px">
+                  <sc-for list="{{ room.pips }}" as="pip" hint-placeholder-count="8">
+                    <span style="width: 9px; height: 20px; box-sizing: border-box; border: 1px solid {{ pip.line }}; background: {{ pip.fill }}"></span>
+                  </sc-for>
+                </div>
+                <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px; line-height: 1">{{ room.count }}<span style="font-size: 15px; color: #a89c88">/8</span></div>
+              </div>
+              <div style="line-height: 1.2">
+                <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.14em; color: {{ room.statusInk }}"><span style="width: 8px; height: 8px; flex: none; border-radius: 50%; background: {{ room.statusInk }}"></span>{{ room.status }}</div>
+                <div style="font-size: 14px; color: #a89c88; padding-left: 16px">{{ room.statusNote }}</div>
+              </div>
+              <div style="display: flex; justify-content: flex-end">
+                <sc-if value="{{ room.open }}" hint-placeholder-val="{{ true }}">
+                  <a href="Room.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; width: 104px; background: linear-gradient(180deg, #f6dfa6 0%, #e3b866 45%, #b8873a 100%); color: #1a0f06; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em; text-decoration: none; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)">JOIN</a>
+                </sc-if>
+                <sc-if value="{{ room.closed }}" hint-placeholder-val="{{ false }}">
+                  <span style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; width: 104px; box-sizing: border-box; border: 1px solid #2f2417; color: #a89c88; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em">FULL</span>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+
+          <!-- Origin 2: regular game lobbies, reported by the agent of a player who is inside. Bone, dashed, unconfirmed. -->
+          <sc-if value="{{ hasSpotted }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 20px; background: #111112; border-bottom: 1px solid #2a2a2c">
+              <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#cfc4ae" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="M2 12s4-7 10-7s10 7 10 7s-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <span style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.22em; color: #efe6d2">SPOTTED IN GAME</span>
+              <span style="font-size: 14px; color: #a89c88">Regular game lobbies, seen by the agent of a player inside. Not run by D2RMM.</span>
+              <span style="margin-left: auto; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; color: #efe6d2">{{ spottedCount }}</span>
+            </div>
+          </sc-if>
+
+          <sc-for list="{{ spotted }}" as="game" hint-placeholder-count="4">
+            <div style="display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(0, 1.1fr) minmax(0, 1.25fr) minmax(0, 1.35fr) 116px; gap: 16px; align-items: center; padding: 13px 20px; border-bottom: 1px solid #1d1d1f; background: #0b0b0c">
+              <div style="display: flex; align-items: center; gap: 14px; min-width: 0">
+                <div style="width: 46px; height: 46px; flex: none; box-sizing: border-box; border: 1px dashed #8a8273; display: flex; align-items: center; justify-content: center; color: #cfc4ae">
+                  <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7s10 7 10 7s-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </div>
+                <div style="min-width: 0">
+                  <div style="font-family: ui-monospace, Menlo, monospace; font-weight: 700; font-size: 17px; color: #efe6d2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ game.name }}</div>
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.12em; color: #a89c88">
+                    <span style="border: 1px dashed #8a8273; padding: 0 6px; color: #cfc4ae">SPOTTED</span>
+                    <span style="color: {{ game.guessInk }}">{{ game.guess }}</span>
+                    <span style="color: {{ game.diffInk }}">{{ game.diff }}</span>
+                    <span>{{ game.ladder }}</span>
+                    <span>{{ game.core }}</span>
+                  </div>
+                </div>
+              </div>
+              <div style="min-width: 0; line-height: 1.2">
+                <div style="font-size: 15px; color: #cfc4ae">{{ game.seenBy }}</div>
+                <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.12em; color: #a89c88">HOST UNKNOWN</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px">
+                <div aria-hidden="true" style="display: flex; gap: 3px">
+                  <sc-for list="{{ game.pips }}" as="pip" hint-placeholder-count="8">
+                    <span style="width: 9px; height: 20px; box-sizing: border-box; border: 1px solid {{ pip.line }}; background: {{ pip.fill }}"></span>
+                  </sc-for>
+                </div>
+                <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px; line-height: 1; color: #cfc4ae">{{ game.count }}<span style="font-size: 15px; color: #a89c88">/8</span></div>
+              </div>
+              <div style="line-height: 1.2">
+                <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.14em; color: {{ game.seenInk }}"><span style="width: 8px; height: 8px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px solid {{ game.seenInk }}"></span>{{ game.seen }}</div>
+                <div style="font-size: 14px; color: #a89c88; padding-left: 16px">{{ game.seenNote }}</div>
+              </div>
+              <div style="display: flex; justify-content: flex-end">
+                <button onClick="{{ game.copy }}" style="min-height: 44px; width: 104px; background: none; border: 1px solid {{ game.copyLine }}; color: {{ game.copyInk }}; font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; letter-spacing: 0.14em">{{ game.copyLabel }}</button>
+              </div>
+            </div>
+          </sc-for>
+
+          <sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 56px 24px 60px; text-align: center">
+              <img src="/_blob/11d9289375f06dad07c575c69eeaa255" alt="" style="width: 120px; height: 120px; opacity: 0.9">
+              <div style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 22px; letter-spacing: 0.1em; color: #efe6d2">NO ROOM MATCHES THESE FILTERS</div>
+              <div style="max-width: 420px; color: #cfc4ae">Open one yourself and it shows up here for everyone, or use quick match and we build the party from these filters.</div>
+              <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; padding-top: 8px">
+                <a href="Room.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 26px; background: linear-gradient(180deg, #f6dfa6 0%, #e3b866 45%, #b8873a 100%); color: #1a0f06; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em; text-decoration: none; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)">CREATE ROOM</a>
+                <button onClick="{{ quick }}" style="min-height: 48px; padding: 0 24px; background: none; border: 1px solid #a98545; color: #e3b866; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em">QUICK MATCH</button>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding: 12px 20px; font-size: 14px; color: #a89c88">
+            <span>D2RMM rooms are confirmed by every player's agent. Spotted games are shown as one agent last saw them, and you join them from the game lobby.</span>
+            <span>Updated live</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+renderVals() {
+const s = this.state || {};
+const f = { src: s.src ?? 'all', act: s.act ?? 'all', diff: s.diff ?? 'any', ladder: s.ladder ?? 'any', core: s.core ?? 'any', free: s.free ?? false, mine: s.mine ?? false };
+const myLevel = 88;
+
+const data = [
+{ code: 'BA', act: 'baal', title: 'Baal runs · tele sorc hosting, 10 runs', name: 'mmbaalh-34', diff: 'hell', ladder: 'ladder', core: 'sc', hostClass: 'Sorceress', hostLevel: 94, count: 6, status: 'ingame', note: 'Confirmed 12 min ago', min: 60, max: 99 },
+{ code: 'CH', act: 'chaos', title: 'Chaos Sanctuary · need a hammerdin', name: 'mmchaosh-12', diff: 'hell', ladder: 'ladder', core: 'sc', hostClass: 'Paladin', hostLevel: 91, count: 5, status: 'forming', note: 'Waiting for the host', min: 70, max: 99 },
+{ code: 'TZ', act: 'tz', title: 'Terror zones · following the zone', name: 'mmtzh-9', diff: 'hell', ladder: 'ladder', core: 'sc', hostClass: 'Necromancer', hostLevel: 96, count: 7, status: 'ingame', note: 'Confirmed 34 min ago', min: 85, max: 99 },
+{ code: 'PV', act: 'pvp', title: 'PvP duels · ranked 1v1', name: 'mmpvph-3', diff: 'hell', ladder: 'nonladder', core: 'sc', hostClass: 'Amazon', hostLevel: 90, count: 2, status: 'forming', note: 'Waiting for players', min: 80, max: 99 },
+{ code: 'LV', act: 'leveling', title: 'Leveling · Hell rush, Act 3', name: 'mmlvlh-4', diff: 'hell', ladder: 'ladder', core: 'sc', hostClass: 'Assassin', hostLevel: 86, count: 6, status: 'forming', note: 'Waiting for the host', min: 70, max: 99 },
+{ code: 'CH', act: 'chaos', title: 'Chaos Sanctuary · hardcore, play safe', name: 'mmchaosh-13', diff: 'hell', ladder: 'ladder', core: 'hc', hostClass: 'Paladin', hostLevel: 93, count: 4, status: 'ingame', note: 'Confirmed 5 min ago', min: 80, max: 99 },
+{ code: 'BA', act: 'baal', title: 'Baal runs · leechers welcome', name: 'mmbaalnm-18', diff: 'nightmare', ladder: 'nonladder', core: 'sc', hostClass: 'Sorceress', hostLevel: 72, count: 3, status: 'forming', note: 'Waiting for players', min: 40, max: 75 },
+{ code: 'LV', act: 'leveling', title: 'Leveling · Act 1 to Act 5, fresh start', name: 'mmlvln-21', diff: 'normal', ladder: 'ladder', core: 'sc', hostClass: 'Druid', hostLevel: 14, count: 4, status: 'forming', note: 'Waiting for players', min: 1, max: 30 },
+{ code: 'CW', act: 'cows', title: 'Cow Level · full clear, no king', name: 'mmcowsh-7', diff: 'hell', ladder: 'ladder', core: 'sc', hostClass: 'Barbarian', hostLevel: 89, count: 8, status: 'full', note: 'Confirmed 2 min ago', min: 60, max: 99 },
+{ code: 'PV', act: 'pvp', title: 'PvP duels · team 4v4', name: 'mmpvph-5', diff: 'hell', ladder: 'ladder', core: 'sc', hostClass: 'Barbarian', hostLevel: 95, count: 8, status: 'full', note: 'Confirmed 1 min ago', min: 85, max: 99 },
+];
+
+const diffLabel = { normal: 'NORMAL', nightmare: 'NIGHTMARE', hell: 'HELL' };
+const diffInk = { normal: '#cfc4ae', nightmare: '#e9a23b', hell: '#ff7a5c' };
+const statusLabel = { ingame: 'IN GAME', forming: 'FORMING', full: 'FULL' };
+const statusInk = { ingame: '#7bd88f', forming: '#ff8a4f', full: '#a89c88' };
+
+// Regular game lobbies reported by an agent: only what the agent can read from inside the game.
+// Activity is a guess from the game name; difficulty may be unknown; ladder and core come from the reporter's character.
+const seenData = [
+{ name: 'baal-07', act: 'baal', diff: 'hell', ladder: 'ladder', core: 'sc', count: 7, agents: 2, seen: 'SEEN 40 S AGO', fresh: true },
+{ name: 'chaos tp pls', act: 'chaos', diff: 'hell', ladder: 'ladder', core: 'sc', count: 5, agents: 1, seen: 'SEEN 1 MIN AGO', fresh: true },
+{ name: 'nm rush a4', act: 'leveling', diff: 'nightmare', ladder: 'ladder', core: 'hc', count: 4, agents: 1, seen: 'SEEN 3 MIN AGO', fresh: true },
+{ name: 'Cows 4 all', act: 'cows', diff: 'hell', ladder: 'nonladder', core: 'sc', count: 8, agents: 1, seen: 'SEEN 2 MIN AGO', fresh: true },
+{ name: 'xfer quick', act: null, diff: null, ladder: 'ladder', core: 'sc', count: 2, agents: 1, seen: 'SEEN 6 MIN AGO', fresh: false },
+];
+const guessNames = { baal: 'LIKELY BAAL RUNS', chaos: 'LIKELY CHAOS', cows: 'LIKELY COWS', tz: 'LIKELY TERROR ZONE', leveling: 'LIKELY LEVELING', pvp: 'LIKELY PVP' };
+const seenVisible = f.src === 'native' ? [] : seenData.filter((g) =>
+(f.act === 'all' || g.act === f.act) &&
+(f.diff === 'any' || g.diff === f.diff) &&
+(f.ladder === 'any' || g.ladder === f.ladder) &&
+(f.core === 'any' || g.core === f.core) &&
+(!f.free || g.count < 8) &&
+(!f.mine || (g.ladder === 'ladder' && g.core === 'sc'))
+);
+const spotted = seenVisible.map((g) => {
+const pips = [];
+for (let i = 0; i < 8; i++) pips.push(i < g.count ? { fill: '#a89c88', line: '#a89c88' } : { fill: 'transparent', line: '#3a3a3c' });
+const copied = s.copiedName === g.name;
+const full = g.count >= 8;
+return {
+name: g.name,
+guess: g.act ? guessNames[g.act] : 'ACTIVITY UNKNOWN', guessInk: g.act ? '#cfc4ae' : '#a89c88',
+diff: g.diff ? diffLabel[g.diff] : 'DIFFICULTY UNKNOWN', diffInk: g.diff ? diffInk[g.diff] : '#a89c88',
+ladder: g.ladder === 'ladder' ? 'LADDER' : 'NON-LADDER',
+core: g.core === 'sc' ? 'SOFTCORE' : 'HARDCORE',
+seenBy: g.agents === 1 ? '1 agent inside' : g.agents + ' agents inside',
+count: g.count, pips,
+seen: g.seen, seenInk: g.fresh ? '#efe6d2' : '#a89c88',
+seenNote: !g.fresh ? 'May have ended' : full ? 'Looked full' : 'Open when last seen',
+copyLabel: copied ? 'COPIED' : 'COPY NAME', copyInk: copied ? '#7bd88f' : '#efe6d2', copyLine: copied ? '#3f6b4a' : '#8a8273',
+copy: () => this.setState({ copiedName: g.name }),
+};
+});
+
+const visible = f.src === 'spotted' ? [] : data.filter((r) =>
+(f.act === 'all' || r.act === f.act) &&
+(f.diff === 'any' || r.diff === f.diff) &&
+(f.ladder === 'any' || r.ladder === f.ladder) &&
+(f.core === 'any' || r.core === f.core) &&
+(!f.free || r.count < 8) &&
+(!f.mine || (myLevel >= r.min && myLevel <= r.max && r.ladder === 'ladder' && r.core === 'sc'))
+);
+
+const rooms = visible.map((r) => {
+const pips = [];
+for (let i = 0; i < 8; i++) pips.push(i < r.count ? { fill: '#e3b866', line: '#e3b866' } : { fill: 'transparent', line: '#4a3a24' });
+return {
+code: r.code, title: r.title, name: r.name,
+diff: diffLabel[r.diff], diffInk: diffInk[r.diff],
+ladder: r.ladder === 'ladder' ? 'LADDER' : 'NON-LADDER',
+core: r.core === 'sc' ? 'SOFTCORE' : 'HARDCORE',
+levels: r.max >= 99 ? 'LVL ' + r.min + '+' : 'LVL ' + r.min + '–' + r.max,
+hostClass: r.hostClass, hostLevel: r.hostLevel,
+count: r.count, pips,
+status: statusLabel[r.status], statusInk: statusInk[r.status], statusNote: r.note,
+open: r.count < 8, closed: r.count >= 8,
+};
+});
+
+const chip = (key, value, label) => {
+const on = f[key] === value;
+return {
+label,
+pressed: on ? 'true' : 'false',
+fill: on ? '#e3b866' : 'transparent',
+line: on ? '#e3b866' : '#3a2c1c',
+ink: on ? '#1a0f06' : '#cfc4ae',
+pick: () => this.setState({ [key]: value }),
+};
+};
+const toggle = (key, label) => ({
+label,
+checked: f[key] ? 'true' : 'false',
+fill: f[key] ? '#e3b866' : 'transparent',
+line: f[key] ? '#e3b866' : '#6b5230',
+mark: f[key] ? '✓' : '',
+flip: () => this.setState({ [key]: !f[key] }),
+});
+
+const searching = s.searching ?? false;
+const found = s.found ?? false;
+const actNames = { all: 'Any activity', baal: 'Baal runs', chaos: 'Chaos Sanctuary', cows: 'Cow Level', tz: 'Terror zones', leveling: 'Leveling', pvp: 'PvP duels' };
+const diffNames = { any: 'any difficulty', normal: 'Normal', nightmare: 'Nightmare', hell: 'Hell' };
+const criteria = [actNames[f.act], diffNames[f.diff], f.ladder === 'nonladder' ? 'Non-ladder' : 'Ladder', f.core === 'hc' ? 'Hardcore' : 'Softcore', 'as Sorceress 88'].join(' · ');
+
+return {
+searching,
+found,
+quickLabel: searching ? 'SEARCHING' : 'QUICK MATCH',
+quickPressed: searching ? 'true' : 'false',
+quick: () => {
+if (searching) return;
+this.setState({ searching: true, found: false });
+clearTimeout(this.queueTimer);
+this.queueTimer = setTimeout(() => this.setState({ found: true }), 3500);
+},
+cancel: () => {
+clearTimeout(this.queueTimer);
+this.setState({ searching: false, found: false });
+},
+queueInk: found ? '#7bd88f' : '#ff8a4f',
+queueTitle: found ? 'PARTY FOUND' : 'SEARCHING FOR A PARTY',
+queueCriteria: criteria,
+queueNote: found ? 'Everyone has 60 seconds to accept.' : 'Quick match uses the filters on this screen. Keep browsing while we search.',
+rooms,
+spotted,
+hasNative: rooms.length > 0,
+hasSpotted: spotted.length > 0,
+nativeCount: rooms.length,
+spottedCount: spotted.length,
+empty: rooms.length + spotted.length === 0,
+roomCount: rooms.length + spotted.length,
+playerCount: visible.reduce((n, r) => n + r.count, 0) + seenVisible.reduce((n, g) => n + g.count, 0),
+clear: () => this.setState({ src: 'all', act: 'all', diff: 'any', ladder: 'any', core: 'any', free: false, mine: false }),
+groups: [
+{ label: 'SOURCE', chips: [chip('src', 'all', 'ALL'), chip('src', 'native', 'D2RMM'), chip('src', 'spotted', 'SPOTTED IN GAME')] },
+{ label: 'ACTIVITY', chips: [chip('act', 'all', 'ALL'), chip('act', 'baal', 'BAAL'), chip('act', 'chaos', 'CHAOS'), chip('act', 'cows', 'COWS'), chip('act', 'tz', 'TERROR ZONES'), chip('act', 'leveling', 'LEVELING'), chip('act', 'pvp', 'PVP')] },
+{ label: 'DIFFICULTY', chips: [chip('diff', 'any', 'ANY'), chip('diff', 'normal', 'NORMAL'), chip('diff', 'nightmare', 'NIGHTMARE'), chip('diff', 'hell', 'HELL')] },
+{ label: 'LADDER', chips: [chip('ladder', 'any', 'ANY'), chip('ladder', 'ladder', 'LADDER'), chip('ladder', 'nonladder', 'NON-LADDER')] },
+{ label: 'CORE', chips: [chip('core', 'any', 'ANY'), chip('core', 'sc', 'SOFTCORE'), chip('core', 'hc', 'HARDCORE')] },
+],
+toggles: [toggle('free', 'Only rooms with a free slot'), toggle('mine', 'Only rooms my character can join')],
+};
+}
+}
+</script>
+</body>
+</html>
