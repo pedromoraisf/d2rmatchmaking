@@ -32,6 +32,11 @@ Where the work runs is what F2 settled (`docs/engineering/cloud-sessions.md`):
 
 Every item needs a proof in the phase review.
 
+- [ ] **First: the pt-BR selection screen is read** (regression found 2026-11-24 on a fresh staging database,
+      `docs/engineering/incidents/2026-11-24-pt-br-selection-screen.md`): with the game in pt-BR the agent recognises
+      the character selection screen and reads the cards, so a new player can add characters. Proof: `ocr-real` green
+      on the maintainer's two pt-BR selection prints, `ocr-variations` not regressing, and one fresh account on
+      staging adding a character from a pt-BR client.
 - [ ] **The room list is the main screen (FR-25).** A signed-in player sees the open rooms of their region, filters by
       origin, activity, difficulty, ladder and core, "only rooms with a free slot" and "only rooms my character can
       join", sees the empty state with its two calls, and the list updates live within NFR-01. Every row carries its
@@ -68,29 +73,43 @@ Every item needs a proof in the phase review.
       and a ceiling, a source-rule test that nothing is sent, unit tests on drawn fixtures.
 - [ ] **Load (NFR-14).** The nightly's journey includes the room list: 100 or more players, 0 errors, and bytes per
       player-hour at or below **125,000** (416,567 at the end of F2). Proof: the nightly report.
+- [ ] **Telemetry carry-overs from F2 closed**: the agent's spans carry `service.name` and their trace ids keep 32
+      hex digits; the telemetry egress decision (input 6) is applied. Proof: a TraceQL query on staging and the
+      nightly egress figure.
+- [ ] **Journeys are checked from an empty database, in English and pt-BR** (lessons, 2026-11-24). Proof: the
+      maintainer's staging run starts from a fresh account in each language.
 - [ ] **Nightly green three nights in a row** on `phase/F3` before the review: acceptance, load, quality ratchet, and
       mutation with no unexplained survivor in the code F3 adds. Proof: the three run links.
 
 ## Features
 
-| Feature                 | Size    | Depends on                | Parallel | Canvas  | Covers                                                 |
-| ----------------------- | ------- | ------------------------- | -------- | ------- | ------------------------------------------------------ |
-| `design-system`         | Medium  | ADR 041 accepted          | first    | 01      | NFR-12, NFR-13                                         |
-| `game-search-reading`   | Complex | the real prints (input 1) | yes      | —       | FR-33, NFR-02, NFR-03, NFR-04                          |
-| `room-list`             | Large   | — (site: `design-system`) | yes      | 03      | FR-25, NFR-01, NFR-14                                  |
-| `open-rooms`            | Large   | `room-list`               | after it | 03, 03b | FR-37, FR-26, FR-14, FR-15, FR-31, FR-08, FR-09, FR-32 |
-| `quick-match`           | Medium  | `open-rooms`              | after it | 03, 04  | FR-06, FR-07, FR-12, FR-13                             |
-| `room-screens`          | Medium  | `design-system`           | yes      | 03b, 05 | FR-18, FR-15, FR-16, FR-17                             |
-| `profile`               | Medium  | `design-system`           | yes      | 07      | FR-02, FR-04, FR-05                                    |
-| `site-home`             | Medium  | `design-system`           | yes      | 02      | FR-01, FR-03, FR-29 (entry points)                     |
-| `agent-window-identity` | Small   | `design-system`           | yes      | —       | NFR-12                                                 |
-| `stream-budget`         | Medium  | `room-list`               | after it | —       | NFR-14                                                 |
+| Feature                 | Size    | Depends on                 | Parallel | Canvas  | Covers                                                 |
+| ----------------------- | ------- | -------------------------- | -------- | ------- | ------------------------------------------------------ |
+| `pt-br-select-screen`   | Small   | two pt-BR prints (input 7) | first    | —       | FR-02 (regression)                                     |
+| `agent-telemetry-fix`   | Small   | —                          | yes      | —       | NFR-09 (F2 carry-over)                                 |
+| `design-system`         | Medium  | ADR 041 accepted           | first    | 01      | NFR-12, NFR-13                                         |
+| `game-search-reading`   | Complex | the real prints (input 1)  | yes      | —       | FR-33, NFR-02, NFR-03, NFR-04                          |
+| `room-list`             | Large   | — (site: `design-system`)  | yes      | 03      | FR-25, NFR-01, NFR-14                                  |
+| `open-rooms`            | Large   | `room-list`                | after it | 03, 03b | FR-37, FR-26, FR-14, FR-15, FR-31, FR-08, FR-09, FR-32 |
+| `quick-match`           | Medium  | `open-rooms`               | after it | 03, 04  | FR-06, FR-07, FR-12, FR-13                             |
+| `room-screens`          | Medium  | `design-system`            | yes      | 03b, 05 | FR-18, FR-15, FR-16, FR-17                             |
+| `profile`               | Medium  | `design-system`            | yes      | 07      | FR-02, FR-04, FR-05                                    |
+| `site-home`             | Medium  | `design-system`            | yes      | 02      | FR-01, FR-03, FR-29 (entry points)                     |
+| `agent-window-identity` | Small   | `design-system`            | yes      | —       | NFR-12                                                 |
+| `stream-budget`         | Medium  | `room-list`                | after it | —       | NFR-14                                                 |
 
 Primary in F3 (roadmap): FR-25, FR-26, FR-33, FR-37. The other requirements were proved in F1 or F2; F3 revises their
 wording or their interface (AD-180…AD-182) and its review proves the revised behaviour.
 
 What each feature is:
 
+- **`pt-br-select-screen`** (agent, runs first): the agent never recognises the selection screen of a pt-BR client
+  ("Tela: não reconhecida" in every capture mode; English works). No real pt-BR selection print was ever in the
+  real-print archive, and the saved characters of the old staging database hid it. `ocr-check` learns a pt-BR
+  selection print, the fix follows rule 14 (drawn fixture first, then the real-print proof), and the journey is
+  checked again from an empty database.
+- **`agent-telemetry-fix`**: the agent's resource carries `service.name`; its trace ids keep leading zeros; the
+  egress decision (input 6) is applied.
 - **`design-system`**: `packages/design-tokens` (tokens, self-hosted fonts), `apps/web/src/shared/ui` components, the
   page shell with the header (Open rooms, agent status, profile chip; Ranking stays out until F5), the lint rule and
   the contrast tests, the breakpoints every screen uses on a phone.
@@ -112,7 +131,7 @@ What each feature is:
 - **`agent-window-identity`**: the desktop agent's window on the shared tokens.
 - **`stream-budget`**: the cuts that bring bytes per player-hour to the target, with the list in the load journey.
 
-Order of dispatch: `design-system` and `room-list` (API part) first, `game-search-reading` as soon as the prints
+Order of dispatch: `pt-br-select-screen` when its two prints arrive, `design-system` and `room-list` (API part) first, `game-search-reading` as soon as the prints
 arrive; then the screens in parallel, three workers at a time.
 
 ### Not designed yet, and the feature that designs it
@@ -153,6 +172,13 @@ Each is drawn by its feature from the tokens and components, described in the PR
     removed at 10, removed only by "does not exist", owned by Lobby Room in memory.
 - The 125,000 bytes per player-hour target that F2 deferred is an F3 exit criterion (AD-186; F2 brief Revision 4).
 - Mutation only in the nightly; zero wrong readings before correct readings; no real print in the repository.
+- Field validation on the game PC is kept short: the maintainer validates journeys on staging with the staging bots,
+  and broader field runs happen after launch if errors call for them (maintainer, 2026-11-24: "Qualquer coisa
+  pós-lançamento, depois de todas as fases, se chegarmos a cenário de bastante erro, refazemos a jornada desta forma
+  ou de outras."). Staging follows `phase/F3` during the phase (`docs/engineering/delivery.md`).
+- This brief replaces the draft of 2026-11-24 for an F3 "Competition" (commits 8749509c and a3d07c60 on `phase/F3`).
+  Its competition features, its questions on seasons and dispute prints and its 1v1 options are the input of the F5
+  kickoff; its pt-BR regression, telemetry fix and egress question are carried here.
 
 ## What I need from you
 
@@ -170,6 +196,15 @@ Each is drawn by its feature from the tokens and components, described in the PR
    `.quality-baseline.json` after the first green run, as F2 did for the Party panel. The baseline is yours (rule 4).
 5. **The hero art.** Default: a scene drawn in code around the mascot. If you want an illustration of your own
    (nothing made from Blizzard art), hand it over before `site-home` starts.
+
+6. **Telemetry egress (AD-128, asked in the 2026-11-24 draft).** T12 measured a share of about 1.89 of the 5 GiB
+   budget at the production ratio, the agent's vision spans being about 43 %. Options: (a) in production, export only
+   the agent's room-path spans and sample the per-frame vision spans at 1 % (staging keeps 100 %); (b) lower every
+   production ratio to 1 %; (c) accept the share until there are players. Recommendation: (a), because the room path
+   is what diagnoses a failed confirmation and the per-frame spans are where the bytes are.
+7. **Two pt-BR selection prints**, for the first item: the selection screen with your characters listed, and the same
+   with the difficulty popup open, added to the encrypted real-print archive with the game-search prints of input 1.
+   Until the fix, playing with the client in English works.
 
 ## Out of scope
 
