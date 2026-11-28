@@ -1578,6 +1578,15 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-09
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-177
+
+- **Decision**: add rooms spotted in game to the PRD as FR-33…FR-36 and journey J6: the agent reads the D2R game-search screen (new OCR), regular public games it sees are listed next to platform rooms with their origin shown, and a spotted room is removed when a player who tried to join it by name is told the game is unavailable. "Importing public games from outside the platform" leaves the out-of-MVP list; managing those games stays out. The four requirements are parked on F3 in the roadmap until the replanning.
+- **Reason**: maintainer's decision of 2026-11-28, taken while designing the final product before F3 (`docs/product/direction-2026-11.md`). At launch the platform has few rooms of its own; spotted rooms fill the list and give the filters something to filter.
+- **Trade-off**: a second kind of room that the platform does not control, with unconfirmed data; new reading logic on a screen the agent did not read before, which needs real prints (rule 14); privacy of players who never installed the agent. Five open questions were added to the PRD. Reversal: drop FR-33…FR-36 and restore the out-of-MVP line.
+- **Scope**: project
+- **Date**: 2026-11-28
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

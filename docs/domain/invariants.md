@@ -25,3 +25,14 @@ Decided 2026-11-10 by the maintainer: declining a ready check carries no penalty
 acontecer nada"). Open (pending the maintainer, before F3): how step 2 of INV-11 avoids a 1v1 host deciding their own
 dispute. Until answered, specs that touch them take the
 conservative default and record an assumed decision.
+
+## Proposed (not in force until their feature is specified)
+
+Added with FR-33…FR-36 on 2026-11-28. They take an ID and a row in the table above when the spec is approved.
+
+- A spotted room is never presented as a platform room. It carries its origin everywhere it is listed, and none of
+  the platform's guarantees (confirmed party, host, ready check, score) apply to it. (FR-34, FR-35)
+- A spotted room leaves the list when an agent reports that joining it by name failed because the game is
+  unavailable, or when its last sighting is older than the configured limit. One report is enough. (FR-36)
+- A sighting never carries the character name or BattleTag of a player who does not use the platform. (PRD open
+  question, conservative default)

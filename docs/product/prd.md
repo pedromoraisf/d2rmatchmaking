@@ -2,6 +2,8 @@
 
 Oct 29, 2026 · @Pedro
 
+Revisão de 28 nov 2026: salas avistadas no jogo (FR-33 a FR-36, jornada J6). O contexto e as decisões de desenho estão em [`direction-2026-11.md`](direction-2026-11.md).
+
 O D2R Match Making é uma plataforma da comunidade que forma grupos de PvP e de leveling para Diablo II: Resurrected. Ela respeita dificuldade, ladder e era, entrega o nome da partida e confirma a presença de cada jogador por um agente desktop que só lê a tela, sem tocar no jogo.
 
 ## Problema e oportunidade
@@ -56,7 +58,8 @@ As metas abaixo são hipóteses iniciais, para calibrar com os dados do beta.
 - Placar de PvP com confirmação dos dois lados e disputa por print.
 - ELO por personagem e dificuldade e ranking raso: PvP por ELO e leveling por runs, um ranking por dificuldade.
 - Salas ao vivo com filtro de modo e dificuldade e checagem de compatibilidade do personagem.
-- Agente desktop para Windows: pareamento, heartbeat, leitura do nome da partida e do chat, atalhos de aceitar, preencher e reportar, e atualização automática.
+- Salas avistadas no jogo: partidas públicas comuns do D2R, vistas pelo agente de um jogador, listadas junto das salas da plataforma com a origem sempre indicada. Elas enchem a lista enquanto a plataforma tem poucas salas próprias.
+- Agente desktop para Windows: pareamento, heartbeat, leitura do nome da partida e do chat, leitura da tela de busca de partidas, atalhos de aceitar, preencher e reportar, e atualização automática.
 
 **Fora do MVP:**
 
@@ -65,7 +68,7 @@ As metas abaixo são hipóteses iniciais, para calibrar com os dados do beta.
 - Trade e comércio de itens.
 - Agente para macOS ou Linux.
 - Suporte a jogadores de console. O MVP é só para PC; a estratégia de console fica para depois do MVP.
-- Importar partidas públicas de fora da plataforma pelo nome.
+- Gerir partidas de fora da plataforma: uma sala avistada só é listada, sem fila, ready check, host, placar ou ranking.
 
 **Nunca:** leitura ou escrita de memória do jogo, injeção de código, interceptação de rede e automação que confirme ações no jogo pelo jogador.
 
@@ -107,6 +110,10 @@ Prioridade: **Must** entra no MVP, **Should** entra se couber antes do beta, **C
 | FR-30 | Lobby Room | Moderação hierárquica: o host modera a sala e resolve disputas vendo os prints e o histórico de rounds; na falta dele, o papel passa aos demais membros por ordem de entrada | Should |
 | FR-31 | Matchmaking | Entrar na fila só com agente pareado e online, conta vinculada à Battle.net e site conectado | Must |
 | FR-32 | Lobby Room | Se o site ou o agente de um membro perder conexão além da tolerância configurada, o membro sai da sala de forma controlada; se for o host, o papel de host passa ao próximo membro por ordem de entrada | Must |
+| FR-33 | Agente | Ler a tela de busca de partidas do D2R: a lista de partidas públicas, os detalhes da partida selecionada e a resposta do jogo quando o jogador tenta entrar numa partida (por exemplo, partida inexistente ou cheia) | Must |
+| FR-34 | Salas ao vivo | Avistar partidas comuns do D2R: quando o agente de um jogador vê uma partida que não é sala da plataforma, na tela de busca ou de dentro da partida, envia os metadados lidos e o servidor passa a listá-la como sala avistada | Must |
+| FR-35 | Salas ao vivo | Listar as salas avistadas junto das salas da plataforma, sempre com a origem indicada (avistada no jogo, não gerida pela plataforma), com filtro por origem; a ação numa sala avistada é copiar o nome para entrar pelo jogo | Must |
+| FR-36 | Salas ao vivo | Remover a sala avistada da listagem quando o agente de um jogador que tentou entrar por ela lê que a partida está indisponível, e quando ela fica sem novo avistamento além do prazo configurado | Must |
 
 ## Requisitos não funcionais
 
@@ -153,6 +160,13 @@ Prioridade: **Must** entra no MVP, **Should** entra se couber antes do beta, **C
 
 **J5. Disputa de placar:** as leituras divergem e o ELO congela. Primeiro a plataforma pareia os dados dos agentes dos dois lados; se ainda houver diferença, o moderador da sala decide pela hierarquia (o host, depois os demais por ordem de entrada), com prints como evidência.
 
+**J6. Entrar por uma sala avistada**
+
+1. Um jogador com o agente abre a tela de busca de partidas do D2R ou entra numa partida comum; o agente lê o que a tela mostra e envia ao servidor.
+2. A partida aparece no site na seção de salas avistadas, com a origem indicada e o momento do último avistamento.
+3. Outro jogador filtra a lista, copia o nome da sala avistada e entra por ela no jogo.
+4. Se o jogo responde que a partida não está disponível, o agente desse jogador lê a resposta e a sala some da listagem para todos.
+
 ## Restrições e premissas
 
 - **Sem API do jogo.** A Blizzard não oferece API pública do D2R. A partida é sempre criada pelo jogador, no próprio jogo.
@@ -191,3 +205,8 @@ O walking skeleton vem antes de qualquer feature: ele prova a arquitetura, os pi
 - [x] O beta fechado inclui as três regiões do jogo: Américas, Europa e Ásia (decidido).
 - [x] Qual licença open source? Decidido: MIT, aprovada pela OSI, o que mantém a assinatura gratuita da SignPath Foundation.
 - [x] Haverá penalidade de reputação por abandono? Decidido: só no PvP; sair de uma sessão de leveling não gera penalidade.
+- [ ] Salas avistadas: partidas com senha entram na listagem? O agente não sabe, de dentro da partida, se ela tem senha.
+- [ ] Salas avistadas: quais dados aparecem? Quem está na partida sem usar a plataforma não consentiu em ser listado; a proposta é mostrar só o nome da partida e a contagem de jogadores.
+- [ ] Salas avistadas: o jogador pode desligar o envio de avistamentos do próprio agente?
+- [ ] Salas avistadas: qual o prazo sem novo avistamento para a sala sair da lista?
+- [ ] Vídeo do hero com personagens do Diablo II: liberado pelo mantenedor em 28 nov 2026, mas conflita com a restrição "sem logos ou imagens da Blizzard". Falta decidir qual das duas regras fica.

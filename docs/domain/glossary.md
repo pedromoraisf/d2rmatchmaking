@@ -29,3 +29,14 @@ Use these names in code (types, functions, events, tables), tests and UI keys. U
 | `RuneRank`        | Named ELO band (Tal … Zod)                                                                                                                                                                                                                                                                              |
 | `Season`          | Platform ranking season                                                                                                                                                                                                                                                                                 |
 | `WalkOver` (W.O.) | Leaving an active duel counts as a loss (PvP only)                                                                                                                                                                                                                                                      |
+
+## Proposed terms (not in code yet)
+
+Added with FR-33…FR-36 on 2026-11-28. The feature spec confirms or renames them.
+
+| Term (code)   | Meaning                                                                                                                                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RoomOrigin`  | `platform` \| `spotted`. Where a listed room comes from. Shown on every row of the room list and never mixed: a platform room is a `LobbyRoom`; a spotted room is only a listing           |
+| `SpottedRoom` | A regular D2R public game that some player's agent saw, in the game-search screen or from inside the game. It has no members, host, ready check, generated name, score or ranking          |
+| `Sighting`    | One agent's report of a spotted room: the game name as read and whatever else the screen showed (player count, difficulty when readable), plus the reporter's ladder and core              |
+| `JoinAttempt` | What the agent reads when its player tries to join a game by name from the game-search screen: joined, or the game's answer that it is unavailable. An unavailable answer removes the room |

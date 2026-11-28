@@ -23,8 +23,12 @@ is recorded as an AD in STATE.md).
 | F0    | FR-03, FR-29, NFR-07, NFR-08, NFR-09, NFR-10, NFR-11, NFR-14                                                                                                |
 | F1    | FR-01, FR-02, FR-04, FR-05, FR-06, FR-07, FR-08, FR-09, FR-10, FR-11, FR-12, FR-13, FR-14, FR-15, FR-16, FR-17, FR-18, FR-31, FR-32, NFR-01, NFR-12, NFR-13 |
 | F2    | FR-27, FR-28, NFR-02, NFR-03, NFR-04, NFR-06                                                                                                                |
-| F3    | FR-19, FR-20, FR-21, FR-22, FR-23, FR-24, FR-25, FR-26, FR-30                                                                                               |
+| F3    | FR-19, FR-20, FR-21, FR-22, FR-23, FR-24, FR-25, FR-26, FR-30, FR-33, FR-34, FR-35, FR-36                                                                   |
 | F4    | NFR-05                                                                                                                                                      |
+
+FR-33…FR-36 (rooms spotted in game, added to the PRD on 2026-11-28, AD-177) are parked on F3 so that every
+requirement has a primary phase. The replanning that follows `docs/product/direction-2026-11.md` decides their final
+phase, and whether the phases are reordered around the room list.
 
 Before F3 kickoff, the maintainer settles the 1v1 dispute conflict of interest (see `docs/domain/invariants.md`). The
 ready-check decliner penalty was settled on 2026-11-10 (no penalty for now).
