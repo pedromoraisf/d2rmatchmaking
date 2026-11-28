@@ -103,6 +103,11 @@ What this means for the agent:
 
 ## Open decisions (the maintainer's)
 
+Status on 2026-11-28, after the replanning: the maintainer approved the visual identity ("Aprovo a identidade").
+Decisions 1 to 7 were closed with the conservative option shown to him and adopted without objection (AD-183,
+AD-185, PRD "Questões em aberto", ADR 039 and ADR 040 as Proposed); decision 8 waits for the F5 kickoff. The list
+below is kept as it was asked.
+
 1. Do games with a password get listed? From inside a game the agent cannot tell whether it has one.
 2. Which data of a spotted room is shown? Players in that game who do not use the platform never agreed to be listed.
    The design shows the game name and a player count only, and "host unknown".

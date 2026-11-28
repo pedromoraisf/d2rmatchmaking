@@ -50,6 +50,6 @@ with the one the upload returns, and publish the files of `canvas/project/` unde
 
 ## Logo
 
-`docs/brand/logo/svg/` holds the eight vector masters of the mascot (version 0, not yet approved as the identity):
+`docs/brand/logo/svg/` holds the eight vector masters of the mascot (version 0; the identity was approved by the maintainer on 2026-11-28, AD-185):
 primary, wink, rage, gold, no sticker border, one colour in cream and in black, and the app icon. PNG exports up to
 4096 px, the lockups with the wordmark and the script that generates the variations stay on the maintainer's machine.

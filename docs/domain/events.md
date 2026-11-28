@@ -19,3 +19,17 @@ Written to `platform.outbox` in the same transaction as the state change (ADR 00
 `queue.updated`, `ready_check.started`, `ready_check.resolved`, `room.assigned`, `room.stage_changed`,
 `room.run_opened`, `match.result`. Each has an `id` for `Last-Event-ID` resume; keep-alive comment every 25 s.
 Documented in `packages/contracts/asyncapi.json` (generated, ADR 020).
+
+## Proposed with the room list (F3, F4)
+
+Names and payloads are settled by the feature specs (contracts first, rule 2). The list must stay inside the stream
+budget (NFR-14, AD-128), so it is a snapshot plus coarse changes, never one event per presence change.
+
+| Event                | Publisher  | Consumers | Payload (minimum)                                                                  | Phase |
+| -------------------- | ---------- | --------- | ---------------------------------------------------------------------------------- | ----- |
+| `RoomListed`         | Lobby Room | SSE       | roomId, origin, activity, difficulty, region, ladder, core, tags[], members, slots | F3    |
+| `RoomListingChanged` | Lobby Room | SSE       | roomId, members, slots, stage                                                      | F3    |
+| `RoomUnlisted`       | Lobby Room | SSE       | roomId, reason (`full` \| `closed` \| `expired` \| `not-found` \| `stale`)         | F3    |
+| `SpottedRoomSeen`    | Lobby Room | SSE       | name, origin `spotted`, region, ladder, core, difficulty?, players, lastSeenAt     | F4    |
+
+`SpottedRoomSeen` is transient, like `AgentPresenceChanged` (AD-056): spotted rooms are not in Postgres (ADR 039).

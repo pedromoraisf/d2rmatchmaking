@@ -22,17 +22,34 @@ IDs are stable — cite them in specs (`INV-03`).
 | INV-15 | Ratings are per character × difficulty × season.                                                                                                                                    | Ranking                  | ADR 018                   |
 
 Decided 2026-11-10 by the maintainer: declining a ready check carries no penalty for now (INV-05, "Não. Hoje não deve
-acontecer nada"). Open (pending the maintainer, before F3): how step 2 of INV-11 avoids a 1v1 host deciding their own
+acontecer nada"). Open (pending the maintainer, before F5): how step 2 of INV-11 avoids a 1v1 host deciding their own
 dispute. Until answered, specs that touch them take the
-conservative default and record an assumed decision.
+conservative default (the round is voided, no ELO) and record an assumed decision.
+
+## Revised by the replanning of 2026-11-28 (in force when the F3 specs are approved)
+
+The table above keeps the wording F1 proved until each F3 feature's spec lands; the spec edits the row.
+
+- INV-03 also guards creating a room and joining one from the list, not only queueing. (FR-31, AD-181)
+- INV-04: joining or creating a room cancels the account's quick-match ticket. (AD-184)
+- INV-05 applies only to parties formed by quick match; a join from the list has no ready check. (FR-12, FR-26)
+- INV-06: a leveling room stays `active` when a member joins it from the list; the new member is unconfirmed until
+  their agent sees them. A PvP room accepts joins only before `active`. (FR-26, AD-180)
 
 ## Proposed (not in force until their feature is specified)
 
-Added with FR-33…FR-36 on 2026-11-28. They take an ID and a row in the table above when the spec is approved.
+Added with FR-33…FR-36 on 2026-11-28 and settled with the conservative defaults of AD-183. They take an ID and a row
+in the table above when the spec is approved.
 
+- A room created from the list has its creator as host, carries only predefined tags (no free text), and is listed
+  while it has a free slot. (FR-37)
+- The room list shows a player only rooms of their own region. (FR-08, FR-25)
 - A spotted room is never presented as a platform room. It carries its origin everywhere it is listed, and none of
   the platform's guarantees (confirmed party, host, ready check, score) apply to it. (FR-34, FR-35)
-- A spotted room leaves the list when an agent reports that joining it by name failed because the game is
-  unavailable, or when its last sighting is older than the configured limit. One report is enough. (FR-36)
-- A sighting never carries the character name or BattleTag of a player who does not use the platform. (PRD open
-  question, conservative default)
+- A spotted room enters the list only from a sighting on the game-search screen; a sighting from inside a game only
+  refreshes a room already listed. (FR-34)
+- A spotted room leaves the list when an agent reports that joining it by name failed because the game does not
+  exist, or when its last sighting is older than 10 minutes (remote config). One report is enough. A "full" answer
+  only marks it full; an unrecognised answer changes nothing. (FR-36)
+- A sighting never carries the character name or BattleTag of a player who does not use the platform, and an agent
+  sends sightings only after its player chose to. (FR-34, ADR 040)
