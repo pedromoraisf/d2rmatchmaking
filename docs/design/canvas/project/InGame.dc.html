@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>In game, run in progress</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Alegreya+Sans:wght@400;500;700&family=Saira+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#070504}
+a{color:#e3b866}a:hover{color:#f6dfa6}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: radial-gradient(ellipse at 50% 0%, #10251a 0%, #0a0d0a 40%, #070504 78%); color: #efe6d2; font-family: 'Alegreya Sans', system-ui, sans-serif; font-size: 16px; line-height: 1.4">
+
+  <header style="border-bottom: 1px solid #2f2417; background: #0b0807">
+    <div style="max-width: 1320px; margin: 0 auto; padding: 12px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 36px">
+      <a href="Home.dc.html" style="display: flex; align-items: center; gap: 12px; text-decoration: none; min-height: 44px">
+        <img src="/_blob/9cd99226fca0d8adc6528c37fac72fe2" alt="" style="width: 44px; height: 44px">
+        <span style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 17px; letter-spacing: 0.1em; color: #e3b866; white-space: nowrap">D2R MATCH MAKING</span>
+      </a>
+      <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 4px 28px; flex: 1 1 300px">
+        <a href="Rooms.dc.html" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; color: #cfc4ae; min-height: 44px; display: inline-flex; align-items: center">OPEN ROOMS</a>
+        <a href="Ranking.dc.html" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; color: #cfc4ae; min-height: 44px; display: inline-flex; align-items: center">RANKING</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px">
+        <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.16em; color: #7bd88f"><span style="width: 8px; height: 8px; border-radius: 50%; background: #7bd88f"></span>AGENT CONNECTED</div>
+        <a href="Profile.dc.html" aria-label="Your profile and characters" style="display: flex; align-items: center; gap: 10px; border: 1px solid #3a2c1c; padding: 6px 14px 6px 6px; min-height: 44px; box-sizing: border-box; text-decoration: none; color: #efe6d2">
+          <div style="width: 32px; height: 32px; border: 1px solid #a98545; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; color: #e3b866">SO</div>
+          <div style="line-height: 1.15"><div style="font-weight: 700; font-size: 15px">Vukvuka</div><div style="font-family: 'Saira Condensed', sans-serif; font-weight: 500; font-size: 13px; letter-spacing: 0.1em; color: #a89c88">SORCERESS · 88 · LADDER</div></div>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1120px; margin: 0 auto; padding: 40px 32px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px 32px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; align-items: center; gap: 10px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.24em; color: #7bd88f"><span style="width: 10px; height: 10px; border-radius: 50%; background: #7bd88f; box-shadow: 0 0 12px #7bd88f"></span>IN GAME · BAAL RUNS · HELL · LADDER</div>
+        <h1 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 44px; letter-spacing: 0.08em; line-height: 1.1">RUN {{ run }}</h1>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px">
+        <div role="timer" style="text-align: right; line-height: 1">
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 56px; color: #f6dfa6">{{ clock }}</div>
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.22em; color: #a89c88; padding-top: 4px">THIS RUN</div>
+        </div>
+        <a href="Rooms.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 22px; border: 1px solid #6b5230; color: #cfc4ae; font-family: 'Cinzel', serif; font-weight: 700; font-size: 13px; letter-spacing: 0.16em; text-decoration: none">LEAVE ROOM</a>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 26px; align-items: stretch">
+
+      <section style="flex: 1 1 440px; min-width: 0; border: 1px solid #a98545; outline: 1px solid #3a2c1c; outline-offset: 6px; margin: 6px; background: #0e0a08; padding: 30px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+        <div>
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.24em; color: #a89c88">CURRENT GAME · NO PASSWORD</div>
+          <div style="font-family: ui-monospace, Menlo, monospace; font-weight: 700; font-size: clamp(34px, 6vw, 52px); letter-spacing: 0.02em; color: #f6dfa6; line-height: 1.15">{{ gameName }}</div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px">
+          <button onClick="{{ copy }}" style="min-height: 48px; padding: 0 24px; background: none; border: 1px solid #a98545; color: #e3b866; font-family: 'Cinzel', serif; font-weight: 700; font-size: 14px; letter-spacing: 0.16em">COPY GAME NAME</button>
+          <span aria-live="polite" style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.14em; color: #7bd88f">{{ copiedText }}</span>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 12px; border-top: 1px solid #2f2417; padding-top: 18px">
+          <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7bd88f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px"><path d="M2 12s4-7 10-7s10 7 10 7s-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <div><div style="font-weight: 700">{{ agentLine }}</div><div style="font-size: 15px; color: #a89c88">The agent reads the game name from the Party panel. Nothing else on your screen is captured.</div></div>
+        </div>
+        <div style="border: 1px solid #2f2417; background: #100c09; padding: 18px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px">
+          <div>
+            <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.24em; color: #a89c88">NEXT RUN</div>
+            <div style="font-family: ui-monospace, Menlo, monospace; font-weight: 700; font-size: 24px; color: #cfc4ae">{{ nextName }}</div>
+          </div>
+          <button onClick="{{ nextRun }}" style="min-height: 52px; padding: 0 28px; border: none; background: linear-gradient(180deg, #f6dfa6 0%, #e3b866 45%, #b8873a 100%); color: #1a0f06; font-family: 'Cinzel', serif; font-weight: 700; font-size: 15px; letter-spacing: 0.16em; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)">START NEXT RUN</button>
+        </div>
+      </section>
+
+      <section aria-label="Party" style="flex: 1 1 380px; min-width: 0; border: 1px solid #2f2417; background: #0e0a08; margin: 6px 0; box-sizing: border-box; display: flex; flex-direction: column">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #2f2417">
+          <div style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; color: #e3b866">PARTY</div>
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 20px">{{ inGame }}<span style="font-size: 14px; letter-spacing: 0.14em; color: #a89c88"> / 8 IN GAME</span></div>
+        </div>
+        <sc-for list="{{ members }}" as="m" hint-placeholder-count="8">
+          <div style="display: flex; align-items: center; gap: 12px; padding: 9px 20px; border-bottom: 1px solid #1f1810">
+            <div style="width: 34px; height: 34px; flex: none; border: 1px solid #6b5230; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; color: #e3b866">{{ m.code }}</div>
+            <div style="flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px">
+              <span style="font-weight: 700">{{ m.name }}</span>
+              <span style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.12em; color: #a89c88">LEVEL {{ m.level }}</span>
+              <span style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 0.16em; color: #e3b866">{{ m.tag }}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.14em; color: {{ m.ink }}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ m.ink }}"></span>{{ m.status }}</div>
+          </div>
+        </sc-for>
+        <div style="padding: 12px 20px; font-size: 14px; color: #a89c88">A free slot opens in the room list when someone leaves.</div>
+      </section>
+    </div>
+
+    <section aria-label="Runs of this room" style="border: 1px solid #2f2417; background: #0e0a08">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #2f2417">
+        <div style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; color: #e3b866">RUNS</div>
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.16em; color: #a89c88">ROOM OPEN FOR {{ roomAge }}</div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1px; background: #1f1810">
+        <sc-for list="{{ runs }}" as="r" hint-placeholder-count="3">
+          <div style="background: #0e0a08; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px">
+            <div style="line-height: 1.2">
+              <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.16em; color: {{ r.ink }}">RUN {{ r.n }}</div>
+              <div style="font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: #a89c88">{{ r.name }}</div>
+            </div>
+            <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px; color: {{ r.ink }}">{{ r.time }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1160}}'>
+class Component extends DCLogic {
+renderVals() {
+const s = this.state || {};
+const run = s.run ?? 3;
+const fresh = s.fresh ?? false;
+const base = 31;
+const times = ['6:41', '5:58', '6:12', '5:47', '6:03', '5:51', '6:20', '5:39'];
+
+const party = [
+{ code: 'SO', name: 'Sorceress', level: 88, tag: 'HOST · YOU' },
+{ code: 'SO', name: 'Sorceress', level: 94, tag: '' },
+{ code: 'PA', name: 'Paladin', level: 91, tag: '' },
+{ code: 'NE', name: 'Necromancer', level: 96, tag: '' },
+{ code: 'AM', name: 'Amazon', level: 90, tag: '' },
+{ code: 'BA', name: 'Barbarian', level: 89, tag: '' },
+{ code: 'DR', name: 'Druid', level: 92, tag: '' },
+{ code: 'AS', name: 'Assassin', level: 86, tag: '' },
+];
+const members = party.map((p, i) => {
+let status = 'IN GAME';
+let ink = '#7bd88f';
+if (fresh && i > 0) { status = 'JOINING'; ink = '#ff8a4f'; }
+if (!fresh && i === 6) { status = 'LEFT THE GAME'; ink = '#a89c88'; }
+return { code: p.code, name: p.name, level: p.level, tag: p.tag, status, ink };
+});
+
+const runs = [];
+for (let n = 1; n <= run; n++) {
+const current = n === run;
+runs.push({ n, name: 'mmbaalh-' + (base + n), time: current ? 'NOW' : times[(n - 1) % times.length], ink: current ? '#7bd88f' : '#cfc4ae' });
+}
+
+return {
+run,
+clock: fresh ? '00:08' : '04:12',
+gameName: 'mmbaalh-' + (base + run),
+nextName: 'mmbaalh-' + (base + run + 1),
+copy: () => this.setState({ copied: true }),
+copiedText: s.copied ? 'GAME NAME COPIED' : '',
+agentLine: fresh ? 'Waiting for your agent to see the new game' : 'Confirmed by your agent 8 seconds ago',
+nextRun: () => this.setState({ run: run + 1, fresh: true, copied: false }),
+members,
+inGame: members.filter((m) => m.status === 'IN GAME').length,
+runs,
+roomAge: (run * 7 + 2) + ' MIN',
+};
+}
+}
+</script>
+</body>
+</html>

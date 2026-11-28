@@ -1578,6 +1578,98 @@ AD-001…AD-025 mirror the accepted ADRs in `docs/adr/` (one line each; the ADR 
 - **Date**: 2026-11-09
 - **Status**: active (pending phase review: .specs/phases/F0/decisions.md)
 
+### AD-177
+
+- **Decision**: add rooms spotted in game to the PRD as FR-33…FR-36 and journey J6: the agent reads the D2R game-search screen (new OCR), regular public games it sees are listed next to platform rooms with their origin shown, and a spotted room is removed when a player who tried to join it by name is told the game is unavailable. "Importing public games from outside the platform" leaves the out-of-MVP list; managing those games stays out. The four requirements are parked on F3 in the roadmap until the replanning.
+- **Reason**: maintainer's decision of 2026-11-28, taken while designing the final product before F3 (`docs/product/direction-2026-11.md`). At launch the platform has few rooms of its own; spotted rooms fill the list and give the filters something to filter.
+- **Trade-off**: a second kind of room that the platform does not control, with unconfirmed data; new reading logic on a screen the agent did not read before, which needs real prints (rule 14); privacy of players who never installed the agent. Five open questions were added to the PRD. Reversal: drop FR-33…FR-36 and restore the out-of-MVP line.
+- **Scope**: project
+- **Date**: 2026-11-28
+- **Status**: active
+
+AD-178…AD-186 record the replanning of 2026-11-28 (ORQ012). The proposal, with the conservative option marked on each of 16 questions, was shown to the maintainer, who answered: "Aprovo a identidade. Sobre as prints vou fazer na sequência. Depois que atualizar todos os documentos, vá para o planejamento da F3". Decisions he did not answer one by one carry `(assumed)`; the approval of the F3 brief confirms them.
+
+### AD-178 (assumed)
+
+- **Decision**: the roadmap has seven phases. The old F3 (Competition) becomes F5 with FR-19…FR-24 and FR-30; the old F4 (Closed beta) becomes F6 with NFR-05. The new F3 is "Open rooms" and the new F4 is "Spotted rooms".
+- **Reason**: `docs/product/direction-2026-11.md`: the room list is what the product launches with, because a queue and a ranking are empty with few players. The score and ELO need full rooms first.
+- **Trade-off**: ranked PvP arrives two phases later; the Ranking screen (canvas 06) stays out of the menu until F5. Reversal: reorder the rows of `ROADMAP.md`.
+- **Scope**: project / roadmap
+- **Date**: 2026-11-28
+- **Status**: active (pending the F3 brief approval)
+
+### AD-179 (assumed)
+
+- **Decision**: FR-34, FR-35 and FR-36 move from F3 to F4. FR-33 (reading the game-search screen) stays in F3 as an agent-only feature that sends nothing to the server.
+- **Reason**: spotted rooms depend on the maintainer's real prints, new reading logic under rule 14 and two ADRs; in one phase a delay in any of them would hold the redesign. Reading took the longest in F2, so it starts early.
+- **Trade-off**: F3 ships a reading with no consumer until F4; the list's contract carries `RoomOrigin` from F3 so F4 only adds a section. Reversal: move the rows back.
+- **Scope**: project / roadmap
+- **Date**: 2026-11-28
+- **Status**: active (pending the F3 brief approval)
+
+### AD-180
+
+- **Decision**: the room list is the main screen and its requirements stay in F3: FR-25 is reworded (filters by origin, activity, difficulty, ladder, core, free slot, joinable by my character), FR-26 goes from Should to Must and means a direct join with no queue and no ready check, and FR-37 is added (create an open room from the list). A leveling room accepts joins while `active`; a PvP room only while it forms (assumed, question 13).
+- **Reason**: decisions 1 and 2 of the design session (`direction-2026-11.md`); the canvas shows "Create room" and "Join" on rooms in game.
+- **Trade-off**: INV-06 is revised (a room stays active with an unconfirmed newcomer). Reversal: a domain rule, no data migration.
+- **Scope**: project / PRD, lobby-room
+- **Date**: 2026-11-28
+- **Status**: active
+
+### AD-181
+
+- **Decision**: quick match replaces the matchmaking page. FR-06 and FR-07 are reworded (the button on the room list queues with the filters on the screen and the active character), FR-12 limits the ready check to parties formed by quick match, FR-14 names both origins of a room, and FR-31 also guards creating and joining a room. Quick match needs an activity and a difficulty chosen; what the filters lack (PvP format and rules, leveling role and minimum level) is asked in one short step (assumed, question 14).
+- **Reason**: decisions 3 and 4 of the design session.
+- **Trade-off**: the `/matchmaking` page built in F1 is removed; its rules (FR-08…FR-11, FR-13) are unchanged. Reversal: restore the page.
+- **Scope**: project / PRD, matchmaking, web
+- **Date**: 2026-11-28
+- **Status**: active
+
+### AD-182
+
+- **Decision**: FR-02 is reworded: ladder and era are declared on the profile screen, and a character without them cannot enter a room or a queue. FR-18 is reworded: the host starts the next run with one button and the next game name is already shown. Characters still come from the character-select screen (the profile copy "enter a game with it once" is corrected), and an account still has one agent (AD-037), so "Pair another PC" replaces the paired agent (assumed, question 16).
+- **Reason**: decision 5 of the design session and the two assumptions made while drawing.
+- **Trade-off**: none beyond copy. Reversal: wording.
+- **Scope**: project / PRD, identity, lobby-room
+- **Date**: 2026-11-28
+- **Status**: active
+
+### AD-183 (assumed)
+
+- **Decision**: the spotted-room questions close with the conservative options. (1) A game is listed only from a sighting on the game-search screen; a sighting from inside a game only refreshes a listed room. (2) A row shows the game name (through a blocked-terms list), the player count, the difficulty when readable and the reporter's ladder and core; never a character name. (3) Sending sightings is off until the player chooses in the capture terms, with no pre-ticked option, and a switch stays on the profile. (4) "May have ended" at 5 minutes, removal at 10, both in remote config. (5) Only "the game does not exist" removes a room; "full" marks it full; an unrecognised answer does nothing. (6) Lobby Room owns `SpottedRoom`, in memory (ADR 039, Proposed).
+- **Reason**: PRD open questions and `direction-2026-11.md` open decisions 1 to 6; players inside those games never agreed to be listed.
+- **Trade-off**: with opt-in, fewer agents report and the list fills more slowly; the orchestrator recommended a sixth context for (6) and recorded it as ADR 039's alternative. Reversal: constants, a default and a module move; no data migration (nothing is stored).
+- **Scope**: project / PRD, F4
+- **Date**: 2026-11-28
+- **Status**: active (pending the F3 brief approval; ADR 039 and ADR 040 are the maintainer's to accept)
+
+### AD-184 (assumed)
+
+- **Decision**: the room list is for signed-in players only, shows only the player's region with no region filter, and uses the glossary's activities (Heralds included; no generic "leveling" rush and no 4v4, which the canvas sample data shows). A room created from the list has predefined tags and no free text until moderation exists (F6). Joining or creating a room cancels a quick-match ticket (INV-04). The game names on the canvas are illustrative; ADR 017 stands. The language switcher on the profile is built (it revises AD-040).
+- **Reason**: questions 10, 11, 12, 15 and 16 of the replanning; each option adds no unauthenticated endpoint, no user-written text and no change to an accepted ADR.
+- **Trade-off**: the canvas's room titles ("tele sorc hosting, 10 runs") become tags; a public list would help discovery at launch. Reversal: a route guard, a filter and a field.
+- **Scope**: project / F3
+- **Date**: 2026-11-28
+- **Status**: active (pending the F3 brief approval)
+
+### AD-185
+
+- **Decision**: the visual identity of `direction-2026-11.md` is approved: palette, the three open-licence typefaces, the mascot and the layout references. It becomes tokens and components in `apps/web` (ADR 041, Proposed). The hero uses original art: the rule "no Blizzard logos or assets" stands and no ADR changes it (assumed, question 7). The logo masters (`docs/brand/logo/svg`) and the canvas source (`docs/design/`) were committed by the design session in 1c220abc; with the identity approved, the site and the agent adopt the logo.
+- **Reason**: maintainer, 2026-11-28: "Aprovo a identidade."
+- **Trade-off**: the drafted hero video with official class art is not used. Reversal: a new ADR on Blizzard material.
+- **Scope**: project / web, brand
+- **Date**: 2026-11-28
+- **Status**: active
+
+### AD-186 (assumed)
+
+- **Decision**: the items F2 deferred "to F3" are placed in the new phases: the 125,000 bytes per player-hour target in F3; the 95 % share of synthetic variations and ultrawide/4:3 support in F4; SignPath and agent promotion (delivery-platform T11b-2) in F6.
+- **Reason**: the F2 review deferred them to a phase that no longer has that scope; the live list changes the stream in F3, F4 is the next reading phase, and signing belongs with the beta.
+- **Trade-off**: none; each stays a target of exactly one phase. Reversal: move a line.
+- **Scope**: project / roadmap
+- **Date**: 2026-11-28
+- **Status**: active (pending the F3 brief approval)
+
 ## Handoff
 
 - **Feature**: agent-skeleton (Execute next)

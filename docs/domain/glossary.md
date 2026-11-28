@@ -29,3 +29,19 @@ Use these names in code (types, functions, events, tables), tests and UI keys. U
 | `RuneRank`        | Named ELO band (Tal … Zod)                                                                                                                                                                                                                                                                              |
 | `Season`          | Platform ranking season                                                                                                                                                                                                                                                                                 |
 | `WalkOver` (W.O.) | Leaving an active duel counts as a loss (PvP only)                                                                                                                                                                                                                                                      |
+
+## Proposed terms (not in code yet)
+
+Added with FR-33…FR-36 on 2026-11-28, extended by the replanning of the same day (AD-180, AD-181, AD-183). The feature
+spec confirms or renames them.
+
+| Term (code)   | Meaning                                                                                                                                                                                                                                        |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RoomList`    | The main screen: open rooms of the player's region with filters (origin, activity, difficulty, ladder, core, free slot, joinable by my character). F3                                                                                          |
+| `OpenRoom`    | A `LobbyRoom` created from the list by its host (FR-37) and listed while it has a free slot. It has no ready check. F3                                                                                                                         |
+| `RoomTag`     | A predefined label a host puts on an open room (e.g. teleporter hosting, leechers welcome). Never free text. F3                                                                                                                                |
+| `QuickMatch`  | The button on the room list that creates a `QueueTicket` from the filters on the screen and the active character; the only path to a `ReadyCheck`. Replaces the matchmaking page. F3                                                           |
+| `RoomOrigin`  | `platform` \| `spotted`. Where a listed room comes from. Shown on every row of the room list and never mixed: a platform room is a `LobbyRoom`; a spotted room is only a listing. In the contract from F3                                      |
+| `SpottedRoom` | A regular D2R public game that some player's agent saw in the game-search screen. It has no members, host, ready check, generated name, score or ranking. F4                                                                                   |
+| `Sighting`    | One agent's report of a spotted room: the game name as read and whatever else the screen showed (player count, difficulty when readable), plus the reporter's region, ladder and core. Never a character name. F4                              |
+| `JoinAttempt` | What the agent reads when its player tries to join a game by name from the game-search screen: joined, the game does not exist (removes the room), the game is full (marks it full), or unrecognised (changes nothing). Read in F3, used in F4 |

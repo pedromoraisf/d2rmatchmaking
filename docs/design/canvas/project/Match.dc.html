@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ready check</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Alegreya+Sans:wght@400;500;700&family=Saira+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#070504}
+a{color:#e3b866}a:hover{color:#f6dfa6}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: radial-gradient(ellipse at 50% 0%, #2b0d0a 0%, #0c0807 45%, #070504 80%); color: #efe6d2; font-family: 'Alegreya Sans', system-ui, sans-serif; font-size: 16px; line-height: 1.4">
+
+  <!-- Ready check: the previous screen stays behind, blurred -->
+  <sc-if value="{{ isCheck }}" hint-placeholder-val="{{ true }}">
+    <div style="position: relative; min-height: 100vh; overflow: hidden">
+      <div aria-hidden="true" inert="" style="position: absolute; inset: 0; overflow: hidden; filter: blur(7px) brightness(0.5); transform: scale(1.02); pointer-events: none">
+        <dc-import name="Rooms" hint-size="100%,1200px"></dc-import>
+      </div>
+      <main style="position: relative; max-width: 720px; margin: 0 auto; padding: 104px 24px 80px; box-sizing: border-box">
+      <div style="position: relative; border: 1px solid #a98545; outline: 1px solid #3a2c1c; outline-offset: 7px; background: radial-gradient(ellipse at 50% 0%, #2a0d0b 0%, #0e0a08 60%); padding: 44px 36px 36px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center; box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7)">
+        <img src="/_blob/9cd99226fca0d8adc6528c37fac72fe2" alt="" style="position: absolute; top: -62px; right: -40px; width: 150px; height: 150px; transform: rotate(12deg); filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.6))">
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.26em; color: #e3b866">QUICK MATCH · PARTY FOUND · BAAL RUNS · HELL</div>
+        <h1 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: clamp(34px, 6vw, 50px); letter-spacing: 0.08em; line-height: 1.1; color: #efe6d2; text-shadow: 0 0 30px rgba(200, 40, 30, 0.6)">READY CHECK</h1>
+        <div role="timer" aria-label="42 seconds left" style="width: 104px; height: 104px; border-radius: 50%; background: conic-gradient(#e3b866 0 70%, #3a2c1c 70% 100%); display: flex; align-items: center; justify-content: center">
+          <div style="width: 88px; height: 88px; border-radius: 50%; background: #0e0a08; display: flex; align-items: center; justify-content: center; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 44px; color: #f6dfa6">42</div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; width: 100%">
+          <sc-for list="{{ slots }}" as="slot" hint-placeholder-count="8">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid {{ slot.line }}; background: #100c09; text-align: left">
+              <div style="width: 36px; height: 36px; flex: none; border: 1px solid {{ slot.line }}; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-weight: 700; font-size: 13px; color: {{ slot.ink }}">{{ slot.code }}</div>
+              <div style="min-width: 0; line-height: 1.15">
+                <div style="font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ slot.name }}</div>
+                <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.12em; color: {{ slot.ink }}">{{ slot.status }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; padding-top: 8px">
+          <a href="Room.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 48px; background: linear-gradient(180deg, #dd3b2d 0%, #a51d14 100%); color: #fff6ea; font-family: 'Cinzel', serif; font-weight: 700; font-size: 18px; letter-spacing: 0.18em; text-decoration: none; clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)">ACCEPT</a>
+          <a href="Rooms.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 32px; border: 1px solid #6b5230; color: #cfc4ae; font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.18em; text-decoration: none">DECLINE</a>
+        </div>
+        <div style="font-size: 15px; color: #a89c88">Declining has no penalty. Not answering means a 5 minute wait.<br>You can also accept with <span style="font-family: ui-monospace, Menlo, monospace; color: #efe6d2; border: 1px solid #3a2c1c; padding: 1px 6px">Ctrl+Shift+A</span> without leaving the game.</div>
+      </div>
+      </main>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+renderVals() {
+const s = this.state || {};
+const view = s.view ?? 'check';
+const stage = this.props.roomStage ?? 'waiting';
+const stageIndex = { waiting: 1, created: 2, active: 3 }[stage] ?? 1;
+
+const party = [
+{ code: 'SO', name: 'Sorceress', level: 88, tag: 'HOST · YOU', accepted: true },
+{ code: 'SO', name: 'Sorceress', level: 94, tag: '', accepted: true },
+{ code: 'PA', name: 'Paladin', level: 91, tag: '', accepted: false },
+{ code: 'NE', name: 'Necromancer', level: 96, tag: '', accepted: false },
+{ code: 'AM', name: 'Amazon', level: 90, tag: '', accepted: false },
+{ code: 'BA', name: 'Barbarian', level: 89, tag: '', accepted: true },
+{ code: 'DR', name: 'Druid', level: 92, tag: '', accepted: false },
+{ code: 'AS', name: 'Assassin', level: 86, tag: '', accepted: false },
+];
+
+const slots = party.map((p, i) => {
+const you = i === 0;
+const ok = p.accepted && !you;
+return {
+code: p.code,
+name: you ? p.name + ' (you)' : p.name,
+status: you ? 'YOUR ANSWER' : ok ? 'ACCEPTED' : 'WAITING',
+ink: you ? '#f6dfa6' : ok ? '#7bd88f' : '#a89c88',
+line: you ? '#e3b866' : ok ? '#3f6b4a' : '#2f2417',
+};
+});
+
+const inGameCount = stage === 'active' ? 8 : stage === 'created' ? 3 : 0;
+const members = party.map((p, i) => {
+const inGame = i < inGameCount;
+return {
+code: p.code, name: p.name, level: p.level, tag: p.tag,
+status: inGame ? 'IN GAME' : stage === 'waiting' ? 'WAITING' : 'JOINING',
+ink: inGame ? '#7bd88f' : '#ff8a4f',
+};
+});
+
+const labels = ['PARTY FORMED', 'WAITING FOR THE HOST', 'GAME CREATED', 'ACTIVE'];
+const steps = labels.map((label, i) => ({
+label,
+line: i < stageIndex ? '#6b5230' : i === stageIndex ? '#e3b866' : '#2f2417',
+ink: i < stageIndex ? '#a89c88' : i === stageIndex ? '#f6dfa6' : '#8a7f6c',
+}));
+
+return {
+isCheck: view === 'check',
+isRoom: view === 'room',
+slots,
+accept: () => this.setState({ view: 'room' }),
+leave: () => this.setState({ view: 'check', copied: false }),
+copy: () => this.setState({ copied: true }),
+copiedText: s.copied ? 'GAME NAME COPIED' : '',
+headline: stage === 'active' ? 'EVERYONE IS IN. GOOD HUNTING.' : stage === 'created' ? 'GAME CREATED. PARTY JOINING.' : 'CREATE THE GAME',
+steps,
+members,
+inGame: inGameCount,
+};
+}
+}
+</script>
+</body>
+</html>

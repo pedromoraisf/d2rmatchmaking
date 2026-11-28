@@ -137,7 +137,7 @@ phase, at the brief and at the review:
 
 State is never remembered: `pnpm phase:status` derives it from the brief, the feature files and the merged feature
 branches, so any session resumes from the same answer. `ROADMAP.md` assigns every PRD requirement to exactly one of
-the five phases. Before planning, read `docs/engineering/lessons.md`.
+the phases (F0…F6). Before planning, read `docs/engineering/lessons.md`.
 
 ## How to test
 

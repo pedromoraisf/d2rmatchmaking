@@ -41,3 +41,6 @@ Format: Context · Decision · Alternatives · Consequences. Only the maintainer
 | [036](036-chat-names-matched-on-the-api.md)             | A chat name may leave the PC to be matched on the API, and is dropped there                     | Accepted                                 |
 | [037](037-telemetry-detail-tiers.md)                    | Telemetry in two tiers: everything on staging, everything but people's identities in production | Accepted                                 |
 | [038](038-api-mutation-scope-and-equivalent-mutants.md) | API mutation scope and equivalent mutants                                                       | Accepted                                 |
+| [039](039-spotted-rooms-owner-and-data.md)              | Spotted rooms: owner and data model                                                             | Proposed                                 |
+| [040](040-sighting-privacy-and-consent.md)              | Privacy and consent of sightings                                                                | Proposed                                 |
+| [041](041-design-system-and-tokens.md)                  | Design system and tokens in `apps/web`                                                          | Proposed                                 |

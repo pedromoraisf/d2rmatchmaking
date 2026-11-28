@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>D2R Match Making home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Alegreya+Sans:wght@400;500;700&family=Saira+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#070504}
+a{color:#e3b866}a:hover{color:#f6dfa6}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="background: #070504; color: #efe6d2; font-family: 'Alegreya Sans', system-ui, sans-serif; font-size: 17px; line-height: 1.45">
+
+  <!-- Top bar -->
+  <header style="border-bottom: 1px solid #2f2417; background: #0b0807">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 14px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 36px">
+      <a href="Home.dc.html" style="display: flex; align-items: center; gap: 12px; text-decoration: none; min-height: 44px">
+        <img src="/_blob/9cd99226fca0d8adc6528c37fac72fe2" alt="" style="width: 44px; height: 44px">
+        <span style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 17px; letter-spacing: 0.1em; color: #e3b866; white-space: nowrap">D2R MATCH MAKING</span>
+      </a>
+      <nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 4px 28px; flex: 1 1 320px">
+        <a href="Rooms.dc.html" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase; text-decoration: none; color: #efe6d2; min-height: 44px; display: inline-flex; align-items: center">Open rooms</a>
+        <a href="Ranking.dc.html" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase; text-decoration: none; color: #efe6d2; min-height: 44px; display: inline-flex; align-items: center">Ranking</a>
+        <a href="#agent" style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase; text-decoration: none; color: #efe6d2; min-height: 44px; display: inline-flex; align-items: center">The agent</a>
+      </nav>
+      <div style="display: flex; align-items: center; gap: 20px">
+        <span style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.14em; color: #a89c88">EN · PT</span>
+        <a href="Rooms.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border: 1px solid #a98545; color: #e3b866; font-family: 'Cinzel', serif; font-weight: 700; font-size: 13px; letter-spacing: 0.14em; text-decoration: none; white-space: nowrap">SIGN IN WITH BATTLE.NET</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero: 10 s loop behind (poster image underneath as fallback), one column of text in front -->
+  <section style="position: relative; overflow: hidden; background: #070504; border-bottom: 1px solid #2f2417">
+<img src="/_blob/47f897dcf920d0c53b075f210f558ef7" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: right top">
+    <video ref="{{ heroVideo }}" src="/_blob/5772d4f0a084834f34480026b7a690b8" poster="/_blob/47f897dcf920d0c53b075f210f558ef7" autoplay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsinline="{{ true }}" preload="auto" aria-hidden="true" tabindex="-1" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: right top"></video>
+    <div aria-hidden="true" style="position: absolute; inset: 0; background: linear-gradient(90deg, #070504 0%, rgba(7, 5, 4, 0.9) 24%, rgba(7, 5, 4, 0.45) 40%, rgba(7, 5, 4, 0) 56%), linear-gradient(0deg, #070504 0%, rgba(7, 5, 4, 0) 22%)"></div>
+    <div style="position: relative; max-width: 1280px; margin: 0 auto; padding: 84px 32px 96px; box-sizing: border-box; min-height: 680px; display: flex; align-items: center">
+      <div style="max-width: 560px; display: flex; flex-direction: column; align-items: flex-start; gap: 22px">
+        <img src="/_blob/9cd99226fca0d8adc6528c37fac72fe2" alt="D2R Match Making mascot" style="width: 132px; height: 132px; margin-left: -8px">
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.3em; text-transform: uppercase; color: #e3b866">Matchmaking and open rooms · Diablo II: Resurrected</div>
+        <h1 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: clamp(38px, 5vw, 64px); line-height: 1.08; letter-spacing: 0.05em; color: #efe6d2; text-shadow: 0 0 34px rgba(200, 40, 30, 0.55)">FIND YOUR PARTY.<br>SKIP THE LOBBY.</h1>
+        <p style="margin: 0; max-width: 500px; font-size: 20px; color: #cfc4ae">Open rooms with the filters the game never had. You play. We organize.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 14px; padding-top: 6px">
+          <a href="Rooms.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 36px; background: linear-gradient(180deg, #f6dfa6 0%, #e3b866 45%, #b8873a 100%); color: #1a0f06; font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)">BROWSE OPEN ROOMS</a>
+          <a href="Rooms.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 30px; border: 1px solid #a98545; background: rgba(7, 5, 4, 0.6); color: #e3b866; font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; text-decoration: none">QUICK MATCH</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why -->
+  <section style="max-width: 1280px; margin: 0 auto; padding: 88px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 56px">
+    <div style="flex: 1 1 400px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 20px">
+      <h2 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: clamp(30px, 3.6vw, 44px); line-height: 1.15; letter-spacing: 0.06em; color: #efe6d2">A TIMELESS CLASSIC,<br>FINALLY ORGANIZED</h2>
+      <p style="margin: 0; color: #cfc4ae">The in-game lobby is a wall of names. No filters, no way to know who is really inside, no way to tell a full Baal run from an empty one.</p>
+      <p style="margin: 0; color: #cfc4ae">Here every room shows what it is for, who is in it and whether the game is actually running, because a read-only desktop agent confirms it from the game window.</p>
+      <a href="Rooms.dc.html" style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 15px; letter-spacing: 0.16em; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; gap: 10px">SEE THE FILTERS <span aria-hidden="true">→</span></a>
+    </div>
+    <div style="flex: 1 1 520px; min-width: 0; border: 1px solid #6b5230; outline: 1px solid #2a2016; outline-offset: 6px; background: #0e0a08; padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.22em; color: #a89c88">ACTIVITY</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <span style="padding: 8px 16px; background: #e3b866; color: #1a0f06; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.1em">BAAL RUNS</span>
+          <span style="padding: 8px 16px; border: 1px solid #3a2c1c; color: #cfc4ae; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.1em">CHAOS</span>
+          <span style="padding: 8px 16px; border: 1px solid #3a2c1c; color: #cfc4ae; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.1em">COWS</span>
+          <span style="padding: 8px 16px; border: 1px solid #3a2c1c; color: #cfc4ae; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.1em">LEVELING</span>
+          <span style="padding: 8px 16px; border: 1px solid #3a2c1c; color: #cfc4ae; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.1em">PVP</span>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.22em; color: #a89c88">DIFFICULTY</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <span style="padding: 8px 16px; border: 1px solid #3a2c1c; color: #cfc4ae; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.1em">NORMAL</span>
+          <span style="padding: 8px 16px; border: 1px solid #3a2c1c; color: #cfc4ae; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.1em">NIGHTMARE</span>
+          <span style="padding: 8px 16px; background: #e3b866; color: #1a0f06; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.1em">HELL</span>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.22em; color: #a89c88">MODE</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <span style="padding: 8px 16px; background: #e3b866; color: #1a0f06; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.1em">LADDER</span>
+          <span style="padding: 8px 16px; border: 1px solid #3a2c1c; color: #cfc4ae; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.1em">NON-LADDER</span>
+          <span style="padding: 8px 16px; background: #e3b866; color: #1a0f06; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.1em">SOFTCORE</span>
+          <span style="padding: 8px 16px; border: 1px solid #3a2c1c; color: #cfc4ae; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.1em">HARDCORE</span>
+        </div>
+      </div>
+      <div style="border-top: 1px solid #2f2417; padding-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.14em; color: #efe6d2">ROOMS THAT MATCH YOUR CHARACTER</div>
+        <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.14em; color: #7bd88f">SHOWING ONLY ROOMS WITH A FREE SLOT</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section style="background: linear-gradient(180deg, #0f0c0a 0%, #0b0908 100%); border-top: 1px solid #2f2417; border-bottom: 1px solid #2f2417">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 84px 32px 72px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 14px">
+      <h2 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: clamp(30px, 3.6vw, 44px); letter-spacing: 0.1em; color: #efe6d2; text-align: center">FEATURES</h2>
+      <p style="margin: 0; max-width: 560px; text-align: center; color: #cfc4ae">Only what gets you into a game faster. Nothing else on the screen.</p>
+      <div style="display: flex; align-items: center; gap: 20px; width: 100%; padding-top: 34px">
+        <button aria-label="Previous features" onClick="{{ prev }}" style="width: 48px; height: 48px; flex: none; background: none; border: 1px solid #6b5230; color: #e3b866; display: flex; align-items: center; justify-content: center">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7l7 7"></path></svg>
+        </button>
+        <div style="flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 28px; justify-content: center">
+          <sc-for list="{{ features }}" as="item" hint-placeholder-count="3">
+            <div style="flex: 1 1 260px; max-width: 360px; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center">
+              <div style="width: 100%; height: 168px; box-sizing: border-box; border: 1px solid #6b5230; outline: 1px solid #2a2016; outline-offset: 5px; background: radial-gradient(ellipse at 50% 50%, #2a0d0b 0%, #0e0a08 70%); display: flex; align-items: center; justify-content: center; color: #e3b866">
+                <svg aria-hidden="true" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="{{ item.icon }}"></path></svg>
+              </div>
+              <h3 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 19px; letter-spacing: 0.1em; line-height: 1.25; color: #efe6d2">{{ item.title }}</h3>
+              <p style="margin: 0; font-size: 16px; color: #cfc4ae">{{ item.text }}</p>
+            </div>
+          </sc-for>
+        </div>
+        <button aria-label="Next features" onClick="{{ next }}" style="width: 48px; height: 48px; flex: none; background: none; border: 1px solid #6b5230; color: #e3b866; display: flex; align-items: center; justify-content: center">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7l-7 7"></path></svg>
+        </button>
+      </div>
+      <div aria-hidden="true" style="display: flex; gap: 10px; padding-top: 22px">
+        <sc-for list="{{ dots }}" as="dot" hint-placeholder-count="2">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: {{ dot.color }}"></span>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- Activities -->
+  <section style="background: radial-gradient(ellipse at 78% 50%, #2b0d0a 0%, #0c0807 55%, #070504 100%)">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 88px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 56px">
+      <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 22px">
+        <h2 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: clamp(30px, 3.6vw, 44px); letter-spacing: 0.1em; color: #efe6d2">ACTIVITIES</h2>
+        <div role="group" aria-label="Choose an activity" style="display: flex; flex-wrap: wrap; gap: 14px; max-width: 420px">
+          <sc-for list="{{ activities }}" as="act" hint-placeholder-count="6">
+            <button onClick="{{ act.pick }}" aria-label="{{ act.name }}" aria-pressed="{{ act.pressed }}" style="width: 64px; height: 64px; border-radius: 50%; background: #120d0a; border: 2px solid {{ act.ring }}; box-shadow: {{ act.glow }}; color: {{ act.ink }}; font-family: 'Cinzel', serif; font-weight: 700; font-size: 17px; letter-spacing: 0.04em">{{ act.code }}</button>
+          </sc-for>
+        </div>
+        <h3 style="margin: 0; padding-top: 10px; font-family: 'Cinzel', serif; font-weight: 700; font-size: 34px; letter-spacing: 0.08em; color: #e3b866">{{ actName }}</h3>
+        <p style="margin: 0; max-width: 460px; color: #cfc4ae; min-height: 74px">{{ actText }}</p>
+        <a href="Rooms.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 32px; background: linear-gradient(180deg, #f6dfa6 0%, #e3b866 45%, #b8873a 100%); color: #1a0f06; font-family: 'Cinzel', serif; font-weight: 700; font-size: 15px; letter-spacing: 0.16em; text-decoration: none; clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)">FIND A ROOM</a>
+      </div>
+      <div style="flex: 1 1 480px; min-width: 0; border: 1px solid #a98545; outline: 1px solid #3a2c1c; outline-offset: 6px; background: #0e0a08; padding: 30px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.2em; color: #a89c88">ROOM · HELL · LADDER</div>
+          <div style="display: flex; align-items: center; gap: 8px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.14em; color: #7bd88f"><span style="width: 8px; height: 8px; border-radius: 50%; background: #7bd88f"></span>IN GAME · CONFIRMED BY AGENT</div>
+        </div>
+        <div>
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.22em; color: #a89c88">GAME NAME</div>
+          <div style="font-family: ui-monospace, Menlo, monospace; font-weight: 700; font-size: clamp(30px, 4vw, 46px); color: #f6dfa6; letter-spacing: 0.02em">{{ actRoom }}</div>
+        </div>
+        <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap">
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.22em; color: #a89c88">PARTY</div>
+            <div aria-hidden="true" style="display: flex; gap: 6px">
+              <sc-for list="{{ actPips }}" as="pip" hint-placeholder-count="8">
+                <span style="width: 26px; height: 34px; border: 1px solid {{ pip.line }}; background: {{ pip.fill }}"></span>
+              </sc-for>
+            </div>
+          </div>
+          <div style="font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 56px; line-height: 0.9; color: #efe6d2">{{ actCount }}<span style="font-size: 28px; color: #a89c88">/8</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ranking -->
+  <section id="ranking" style="border-top: 1px solid #2f2417; background: #0b0908">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 88px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 56px">
+      <div style="flex: 1 1 520px; min-width: 0; border: 1px solid #6b5230; outline: 1px solid #2a2016; outline-offset: 6px; background: #0e0a08; overflow-x: auto">
+        <table style="width: 100%; min-width: 460px; border-collapse: collapse; font-size: 16px">
+          <thead>
+            <tr style="font-family: 'Saira Condensed', sans-serif; font-size: 14px; letter-spacing: 0.2em; color: #a89c88; text-align: left">
+              <th scope="col" style="padding: 14px 18px; font-weight: 600; border-bottom: 1px solid #2f2417">#</th>
+              <th scope="col" style="padding: 14px 18px; font-weight: 600; border-bottom: 1px solid #2f2417">PLAYER</th>
+              <th scope="col" style="padding: 14px 18px; font-weight: 600; border-bottom: 1px solid #2f2417">CHARACTER</th>
+              <th scope="col" style="padding: 14px 18px; font-weight: 600; border-bottom: 1px solid #2f2417; text-align: right">ELO · HELL</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px; color: #e3b866">1</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; font-weight: 700">PalaHammer</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; color: #cfc4ae">Paladin · 94</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; text-align: right; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px">1 742</td></tr>
+            <tr><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px; color: #e3b866">2</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; font-weight: 700">Sorc_88</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; color: #cfc4ae">Sorceress · 92</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; text-align: right; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px">1 698</td></tr>
+            <tr><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px; color: #e3b866">3</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; font-weight: 700">xNecro</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; color: #cfc4ae">Necromancer · 91</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; text-align: right; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px">1 655</td></tr>
+            <tr><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px; color: #a89c88">4</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; font-weight: 700">Vukvuka</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; color: #cfc4ae">Sorceress · 88</td><td style="padding: 14px 18px; border-bottom: 1px solid #1f1810; text-align: right; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px">1 611</td></tr>
+            <tr><td style="padding: 14px 18px; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px; color: #a89c88">5</td><td style="padding: 14px 18px; font-weight: 700">ColdBlood</td><td style="padding: 14px 18px; color: #cfc4ae">Amazon · 90</td><td style="padding: 14px 18px; text-align: right; font-family: 'Saira Condensed', sans-serif; font-weight: 700; font-size: 22px">1 580</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="flex: 1 1 400px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 20px">
+        <h2 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: clamp(30px, 3.6vw, 44px); line-height: 1.15; letter-spacing: 0.06em; color: #efe6d2">COMPETITIVE<br>SEASONS</h2>
+        <p style="margin: 0; color: #cfc4ae">Every character carries its own rating in each difficulty. Win duels, climb the season ladder and start fresh when a new season opens.</p>
+        <p style="margin: 0; font-size: 15px; color: #a89c88">Names and ratings above are sample data.</p>
+        <a href="Ranking.dc.html" style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 15px; letter-spacing: 0.16em; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; gap: 10px">VIEW THE RANKING <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Agent -->
+  <section id="agent" style="border-top: 1px solid #2f2417; background: linear-gradient(180deg, #0f0c0a 0%, #070504 100%)">
+    <div style="max-width: 980px; margin: 0 auto; padding: 88px 32px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 16px">
+      <h2 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: clamp(30px, 3.6vw, 44px); letter-spacing: 0.1em; color: #efe6d2; text-align: center">A READ-ONLY AGENT</h2>
+      <p style="margin: 0; max-width: 620px; text-align: center; color: #cfc4ae">A small desktop app looks at the game window and tells the room you are really there. That is all it does.</p>
+      <div role="tablist" aria-label="About the agent" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 34px; padding-top: 26px">
+        <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="3">
+          <button role="tab" aria-selected="{{ tab.selected }}" onClick="{{ tab.pick }}" style="background: none; border: none; border-bottom: 3px solid {{ tab.line }}; min-height: 48px; padding: 0 6px; color: {{ tab.ink }}; font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.14em">{{ tab.label }}</button>
+        </sc-for>
+      </div>
+      <div style="width: 100%; box-sizing: border-box; margin-top: 18px; border: 1px solid #6b5230; outline: 1px solid #2a2016; outline-offset: 6px; background: #0e0a08; padding: 32px 36px; min-height: 236px">
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 16px">
+          <sc-for list="{{ tabItems }}" as="line" hint-placeholder-count="4">
+            <li style="display: flex; gap: 14px; align-items: flex-start">
+              <span aria-hidden="true" style="flex: none; width: 9px; height: 9px; margin-top: 9px; background: {{ tabMark }}; transform: rotate(45deg)"></span>
+              <span style="color: #efe6d2">{{ line.text }}</span>
+            </li>
+          </sc-for>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final call -->
+  <section style="border-top: 1px solid #2f2417; background: radial-gradient(ellipse at 50% 30%, #4a110d 0%, #1c0a08 40%, #070504 75%)">
+    <div style="max-width: 980px; margin: 0 auto; padding: 80px 32px 88px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center">
+      <img src="/_blob/5c5fbf763163410258c30bcaaa382e35" alt="" style="width: 170px; height: 170px">
+      <h2 style="margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: clamp(30px, 3.6vw, 44px); letter-spacing: 0.08em; color: #e3b866; text-shadow: 0 0 30px rgba(200, 40, 30, 0.7)">BEGIN YOUR NEXT RUN</h2>
+      <div style="display: flex; align-items: center; gap: 14px; width: 260px">
+        <div style="flex: 1; height: 1px; background: #a98545"></div>
+        <div style="width: 9px; height: 9px; background: #e3b866; transform: rotate(45deg)"></div>
+        <div style="flex: 1; height: 1px; background: #a98545"></div>
+      </div>
+      <p style="margin: 0; max-width: 520px; color: #cfc4ae">Sign in with Battle.net, pick a character and join a room in under a minute.</p>
+      <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; padding-top: 10px">
+        <a href="Rooms.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 36px; background: linear-gradient(180deg, #f6dfa6 0%, #e3b866 45%, #b8873a 100%); color: #1a0f06; font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; text-decoration: none; clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)">BROWSE OPEN ROOMS</a>
+        <a href="#agent" style="display: inline-flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 30px; border: 1px solid #a98545; color: #e3b866; font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; letter-spacing: 0.16em; text-decoration: none">DOWNLOAD THE AGENT</a>
+      </div>
+    </div>
+  </section>
+
+  <footer style="border-top: 1px solid #2f2417; background: #050403">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 36px 32px 44px; box-sizing: border-box; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px 48px; font-size: 15px; color: #a89c88">
+      <div style="flex: 1 1 420px; display: flex; flex-direction: column; gap: 8px">
+        <div style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 15px; letter-spacing: 0.1em; color: #e3b866">D2R MATCH MAKING</div>
+        <div>Independent community platform. Not affiliated with, endorsed by or sponsored by Blizzard Entertainment. Diablo is a trademark of Blizzard Entertainment, Inc.</div>
+      </div>
+      <nav aria-label="Footer" style="display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; font-family: 'Saira Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.16em">
+        <a href="#agent" style="text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">SOURCE CODE · MIT</a>
+        <a href="#agent" style="text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">PRIVACY</a>
+        <a href="#agent" style="text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">DISCORD</a>
+      </nav>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":4760}}'>
+class Component extends DCLogic {
+renderVals() {
+const s = this.state || {};
+const page = s.page ?? 0;
+const actIndex = s.act ?? 0;
+const tabIndex = s.tab ?? 0;
+
+const allFeatures = [
+{ title: 'OPEN ROOMS WITH FILTERS', text: 'Filter by activity, difficulty, ladder, core and free slots. Join with one click.', icon: 'M3 5h18M6 12h12M10 19h4' },
+{ title: 'QUICK MATCH WITH READY CHECK', text: 'One click uses your filters to find a party. When it is complete, everyone confirms.', icon: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM8 12l3 3l5-6' },
+{ title: 'PRESENCE YOU CAN TRUST', text: 'The agent confirms who is really inside the game, so rooms never show ghosts.', icon: 'M2 12s4-7 10-7s10 7 10 7s-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6z' },
+{ title: 'RATING PER CHARACTER', text: 'Each character has its own ELO in each difficulty, reset every season.', icon: 'M4 19V9M10 19V5M16 19v-7M22 19H2' },
+{ title: 'GAME NAMES, GENERATED', text: 'A short public game name is created for the room. The host copies it and opens the game.', icon: 'M4 7h16v10H4zM8 11h8M8 14h5' },
+{ title: 'ENGLISH AND PORTUGUESE', text: 'Built English first, with a full Brazilian Portuguese translation from day one.', icon: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18' },
+];
+const pages = 2;
+
+const acts = [
+{ code: 'BA', name: 'BAAL RUNS', text: 'Fast experience in the Worldstone Chamber. Rooms list who teleports, who leeches and how many runs are planned.', room: 'mmbaalh-34', count: 6 },
+{ code: 'CH', name: 'CHAOS SANCTUARY', text: 'Seal by seal to Diablo. Find a party that needs your class, or one that will carry your alt.', room: 'mmchaosh-12', count: 5 },
+{ code: 'CW', name: 'COW LEVEL', text: 'Full games clear faster. See which cow rooms still have a slot before the portal closes.', room: 'mmcowsh-7', count: 7 },
+{ code: 'LV', name: 'LEVELING', text: 'From Normal to Hell with people at your level. Filter by act, difficulty and level range.', room: 'mmlvln-21', count: 4 },
+{ code: 'PV', name: 'PVP DUELS', text: 'Ranked duels with rating per character and difficulty. Score reports are confirmed by both sides.', room: 'mmpvph-3', count: 2 },
+{ code: 'TZ', name: 'TERROR ZONES', text: 'Follow the current terrorized area with a party that is already there.', room: 'mmtzh-9', count: 8 },
+];
+const current = acts[actIndex];
+const pips = [];
+for (let i = 0; i < 8; i++) pips.push(i < current.count ? { fill: '#e3b866', line: '#e3b866' } : { fill: 'transparent', line: '#3a2c1c' });
+
+const tabData = [
+{ label: 'WHAT IT READS', mark: '#7bd88f', items: ['The pixels of the Diablo II: Resurrected window, to read the game name and the party panel.', 'Operating system signals: whether the game window exists and is in focus.', 'Nothing outside the game window. Captures are kept for at most 30 days and only with your consent.'] },
+{ label: 'WHAT IT NEVER DOES', mark: '#c8281e', items: ['Never reads or writes game memory.', 'Never injects code or hooks the graphics pipeline.', 'Never intercepts network traffic.', 'Never sends clicks or keys into the game, and never takes commands from the server.'] },
+{ label: 'OPEN SOURCE', mark: '#e3b866', items: ['The agent, the site and the server are published under the MIT licence.', 'Every release is built in public, so anyone can check what the app does.', 'The server only ever sends data to the agent, never instructions.'] },
+];
+
+return {
+// the hero loop: muted, inline, restarted whenever the element mounts
+heroVideo: (el) => {
+if (!el) return;
+el.muted = true; el.loop = true; el.playsInline = true;
+const playing = el.play();
+if (playing && playing.catch) playing.catch(() => {});
+},
+features: allFeatures.slice(page * 3, page * 3 + 3),
+dots: [0, 1].map((i) => ({ color: i === page ? '#e3b866' : '#4a3a24' })),
+prev: () => this.setState({ page: (page + pages - 1) % pages }),
+next: () => this.setState({ page: (page + 1) % pages }),
+activities: acts.map((a, i) => ({
+code: a.code,
+name: a.name,
+pressed: i === actIndex ? 'true' : 'false',
+ring: i === actIndex ? '#e3b866' : '#4a3a24',
+glow: i === actIndex ? '0 0 18px rgba(227, 184, 102, 0.45)' : 'none',
+ink: i === actIndex ? '#f6dfa6' : '#a89c88',
+pick: () => this.setState({ act: i }),
+})),
+actName: current.name,
+actText: current.text,
+actRoom: current.room,
+actCount: current.count,
+actPips: pips,
+tabs: tabData.map((t, i) => ({
+label: t.label,
+selected: i === tabIndex ? 'true' : 'false',
+line: i === tabIndex ? '#e3b866' : 'transparent',
+ink: i === tabIndex ? '#f6dfa6' : '#a89c88',
+pick: () => this.setState({ tab: i }),
+})),
+tabItems: tabData[tabIndex].items.map((text) => ({ text })),
+tabMark: tabData[tabIndex].mark,
+};
+}
+}
+</script>
+</body>
+</html>

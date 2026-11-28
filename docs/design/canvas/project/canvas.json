@@ -1,0 +1,96 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-28T15:30:00Z"
+  },
+  "title": "D2R Match Making — Identidade e telas",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1180,
+      "title": "01 · Brand board"
+    },
+    "Home.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 4760,
+      "title": "02 · Home (landing)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Rooms.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 1700,
+      "title": "03 · Open rooms + filters (D2RMM and spotted in game)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Match.dc.html": {
+      "x": 4560,
+      "y": 0,
+      "w": 1440,
+      "h": 1180,
+      "title": "04 · Ready check (quick match only)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "InGame.dc.html": {
+      "x": 6080,
+      "y": 0,
+      "w": 1440,
+      "h": 1160,
+      "title": "05 · In game (run in progress)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Ranking.dc.html": {
+      "x": 7600,
+      "y": 0,
+      "w": 1440,
+      "h": 1260,
+      "title": "06 · Ranking",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Profile.dc.html": {
+      "x": 9120,
+      "y": 0,
+      "w": 1440,
+      "h": 1240,
+      "title": "07 · Profile and characters",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Room.dc.html": {
+      "x": 3040,
+      "y": 1820,
+      "w": 1440,
+      "h": 1180,
+      "title": "03b · Room (after Join or Accept)",
+      "expand": "fill",
+      "is_interactive": true
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Home.dc.html",
+    "Rooms.dc.html",
+    "Room.dc.html",
+    "Match.dc.html",
+    "InGame.dc.html",
+    "Ranking.dc.html",
+    "Profile.dc.html"
+  ],
+  "notes": {},
+  "designSystems": []
+}
